@@ -10,6 +10,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import net from 'node:net';
+import http from 'node:http';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const registryPath = process.env.DASHBOARD_REGISTRY || join(root, 'registry', 'apps.json');
@@ -31,9 +32,14 @@ const portInUse = (port) =>
     s.setTimeout(800, () => { s.destroy(); res(false); });
   });
 
-async function httpUp(port, path) {
-  try { await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(2500) }); return true; }
-  catch { return false; }
+// Any HTTP response counts as "up". Uses node:http (not fetch): undici can throw an uncaught assertion when a
+// dev server (e.g. Flask) closes the socket in an unusual way, which would crash the supervisor.
+function httpUp(port, path) {
+  return new Promise((resolve) => {
+    const req = http.get({ host: '127.0.0.1', port, path, timeout: 2500 }, (res) => { res.resume(); resolve(true); });
+    req.on('timeout', () => { req.destroy(); resolve(false); });
+    req.on('error', () => resolve(false));
+  });
 }
 
 function startTime(pid) {

@@ -260,6 +260,28 @@
       "demo": { "supported": false, "notes": "This IS the demo instance" }
     },
     {
+      "id": "airfinder-demo",
+      "name": "Airfinder (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\airfinder",
+      "stack": "Flask + SQLite (clone-local database)",
+      "demoOf": "airfinder",
+      "demoReady": true,
+      "_note": "Runs from a separate git clone (data/demo-src/airfinder, no .env, remotes removed) with its own SQLite file in the clone's instance folder. Env from data/airfinder-demo.env. No mail account is set, so emails are only logged inside the clone. Flights are mock data; the app makes no outbound service calls. Verified 2026-11-06: search, customer and staff logins, admin API, and the gateway path.",
+      "processes": [
+        {
+          "name": "app",
+          "cmd": ".venv\\Scripts\\python.exe run.py",
+          "cwd": ".",
+          "port": 5210,
+          "health": "/",
+          "envFile": "data/airfinder-demo.env",
+          "env": { "PORT": "{port}" }
+        }
+      ],
+      "demo": { "supported": false, "notes": "This IS the demo instance" }
+    },
+    {
       "id": "gateway",
       "name": "Demo gateway",
       "tagline": "Routes customer demo links to demo instances",
