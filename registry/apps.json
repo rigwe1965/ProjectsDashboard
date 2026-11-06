@@ -1,0 +1,228 @@
+{
+  "_note": "Registry of independent apps. The dashboard only READS app folders. Ports are dashboard-managed (never 3000, which belongs to an unrelated RMM process). Placeholders: {port} = this process's port, {url} = http://localhost:{port}, {port:NAME} = sibling process port. cwd is relative to the app path. Env values are set on the child process only; no app file is modified. Entries with demoOf are customer-demo instances; the gateway only serves them when demoReady is true, which you must set only after confirming the instance shares no data with production.",
+  "reservedPorts": [
+    3000,
+    5000,
+    8501
+  ],
+  "apps": [
+    {
+      "id": "airfinder",
+      "name": "Airfinder",
+      "tagline": "Search for cheap air tickets",
+      "path": "C:\\Users\\rigwe\\Desktop\\Airfinder",
+      "stack": "Flask + SQLite/Postgres",
+      "processes": [
+        {
+          "name": "app",
+          "cmd": "python run.py",
+          "cwd": ".",
+          "port": 5200,
+          "health": "/",
+          "env": {
+            "PORT": "{port}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": true,
+        "notes": "Separate DATABASE_URL; seed_demo.py exists"
+      }
+    },
+    {
+      "id": "claudeos",
+      "name": "ClaudeOS",
+      "tagline": "Claude Operating System",
+      "path": "C:\\Users\\rigwe\\Desktop\\ClaudeOS",
+      "stack": "Flask API (waitress) + Streamlit",
+      "_note": "scripts\\start.ps1 is NOT used: it force-kills processes on its ports. Processes are launched directly. CLAUDEOS_DEV_API_KEY (read from .env by start.ps1) is deliberately not passed; the dashboard may need a manual sign-in.",
+      "processes": [
+        {
+          "name": "api",
+          "cmd": ".venv\\Scripts\\python.exe scripts\\serve_api.py {port}",
+          "cwd": ".",
+          "port": 5100,
+          "health": "/api/v1/health",
+          "env": {
+            "FLASK_PORT": "{port}"
+          }
+        },
+        {
+          "name": "ui",
+          "cmd": ".venv\\Scripts\\python.exe -m streamlit run dashboard\\app.py --server.port {port} --server.headless true",
+          "cwd": ".",
+          "port": 8601,
+          "health": "/",
+          "env": {
+            "FLASK_PORT": "{port:api}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": false,
+        "notes": "Internal only"
+      }
+    },
+    {
+      "id": "rmm",
+      "name": "RemoteManagementSystem",
+      "tagline": "Remote IT management and support",
+      "path": "C:\\Users\\rigwe\\Desktop\\RemoteManagementSystem",
+      "stack": "Flask + Streamlit + Postgres + Redis + Celery",
+      "_note": "Requires Postgres and Redis already running (not managed here). start_api.py binds 0.0.0.0 and cannot be changed without editing the app; keep the firewall closed for this port.",
+      "processes": [
+        {
+          "name": "api",
+          "cmd": "python start_api.py",
+          "cwd": ".",
+          "port": 5300,
+          "health": "/api/health",
+          "env": {
+            "API_PORT": "{port}"
+          }
+        },
+        {
+          "name": "ui",
+          "optional": true,
+          "cmd": "python -m streamlit run dashboard/app.py --server.port {port} --server.headless true",
+          "cwd": ".",
+          "port": 8701,
+          "health": "/",
+          "env": {
+            "API_BASE_URL": "http://127.0.0.1:{port:api}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": true,
+        "notes": "Simulated devices only; never real agent enrolment"
+      }
+    },
+    {
+      "id": "crm",
+      "name": "CRM",
+      "tagline": "Customer relationship management",
+      "path": "C:\\Users\\rigwe\\Desktop\\CRM",
+      "stack": "Next.js 15 + Prisma + Postgres",
+      "processes": [
+        {
+          "name": "app",
+          "cmd": "npx next dev --turbopack -p {port}",
+          "cwd": ".",
+          "port": 3101,
+          "health": "/sign-in",
+          "env": {
+            "NEXTAUTH_URL": "{url}",
+            "AUTH_URL": "{url}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": true,
+        "notes": "Separate Neon branch/database"
+      }
+    },
+    {
+      "id": "claudeworkspace",
+      "name": "ClaudeWorkspace (RECI Transport)",
+      "tagline": "Car rental management",
+      "path": "C:\\Users\\rigwe\\Desktop\\ClaudeWorkspace\\reci-transport",
+      "stack": "Turborepo, Next.js 15 x2, Supabase",
+      "processes": [
+        {
+          "name": "web",
+          "cmd": "pnpm exec next dev -p {port} --turbo",
+          "cwd": "apps\\web",
+          "port": 3102,
+          "health": "/",
+          "env": {
+            "NEXT_PUBLIC_APP_URL": "{url}",
+            "NEXT_PUBLIC_ADMIN_URL": "http://localhost:{port:admin}"
+          }
+        },
+        {
+          "name": "admin",
+          "cmd": "pnpm exec next dev -p {port} --turbo",
+          "cwd": "apps\\admin",
+          "port": 3103,
+          "health": "/admin",
+          "env": {
+            "NEXT_PUBLIC_APP_URL": "http://localhost:{port:web}",
+            "NEXT_PUBLIC_ADMIN_URL": "{url}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": true,
+        "notes": "Separate Supabase project"
+      }
+    },
+    {
+      "id": "imageapp",
+      "name": "ImageApp",
+      "tagline": "Image optimizer",
+      "path": "C:\\Users\\rigwe\\Desktop\\ImageApp",
+      "stack": "Flask + Pillow",
+      "processes": [
+        {
+          "name": "app",
+          "cmd": "venv\\Scripts\\waitress-serve.exe --host=127.0.0.1 --port={port} --call wsgi:create_app",
+          "cwd": ".",
+          "port": 5400,
+          "health": "/",
+          "env": {}
+        }
+      ],
+      "demo": {
+        "supported": true,
+        "notes": "No database; sessions expire after 45 minutes"
+      }
+    },
+    {
+      "id": "imageapp-demo",
+      "name": "ImageApp (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "C:\\Users\\rigwe\\Desktop\\ImageApp",
+      "stack": "Flask + Pillow",
+      "demoOf": "imageapp",
+      "demoReady": true,
+      "_note": "Same original code, separate port, separate temp and log folders under this dashboard's data/. ImageApp has no database, so nothing is shared with your own instance.",
+      "processes": [
+        {
+          "name": "app",
+          "cmd": "venv\\Scripts\\waitress-serve.exe --host=127.0.0.1 --port={port} --call wsgi:create_app",
+          "cwd": ".",
+          "port": 5410,
+          "health": "/",
+          "env": {
+            "IMAGEAPP_TEMP_DIR": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-tmp\\imageapp",
+            "LOG_DIR": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-logs\\imageapp"
+          }
+        }
+      ],
+      "demo": {
+        "supported": false,
+        "notes": "This IS the demo instance"
+      }
+    },
+    {
+      "id": "gateway",
+      "name": "Demo gateway",
+      "tagline": "Routes customer demo links to demo instances",
+      "hidden": true,
+      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard",
+      "stack": "Node",
+      "processes": [
+        {
+          "name": "gateway",
+          "cmd": "node demo-gateway/server.mjs",
+          "cwd": ".",
+          "port": 4300,
+          "health": "/",
+          "env": { "GATEWAY_PORT": "{port}" }
+        }
+      ],
+      "demo": { "supported": false, "notes": "Dashboard component" }
+    }
+  ]
+}

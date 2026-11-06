@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projects Dashboard</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--ink:#1c1b19;--mute:#6b6a65;--line:#e4e2dc;--ok:#1f7a45;--okbg:#e3f3ea;--off:#8a8780;--offbg:#eeece7;--ext:#8a5a00;--extbg:#fbefd2;--accent:#2b4acb;--danger:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--ink:#ece9e2;--mute:#9a978f;--line:#33322f;--ok:#62d08f;--okbg:#17301f;--off:#9a978f;--offbg:#2a2927;--ext:#e8b84a;--extbg:#33290f;--accent:#8aa2ff;--danger:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{padding:20px 16px 4px;max-width:1100px;margin:0 auto;display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:22px;letter-spacing:-.01em}
+.sub{color:var(--mute);font-size:13px}
+main{max-width:1100px;margin:0 auto;padding:12px 16px 40px;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px}
+.card h2{margin:0;font-size:17px}
+.tag{color:var(--mute);font-size:13px;margin-top:2px}
+.stack{font-size:12px;color:var(--mute)}
+.proc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--line)}
+.pname{font-weight:600;min-width:52px}
+.port{color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px}
+.pill{font-size:12px;padding:2px 9px;border-radius:99px;background:var(--offbg);color:var(--off);font-weight:600}
+.pill.ok{background:var(--okbg);color:var(--ok)}.pill.ext{background:var(--extbg);color:var(--ext)}
+.sp{flex:1}
+button,a.btn{font:inherit;font-size:13px;padding:5px 11px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none}
+button:hover,a.btn:hover{border-color:var(--accent);color:var(--accent)}
+button.stop:hover{border-color:var(--danger);color:var(--danger)}
+button:disabled{opacity:.45;cursor:default}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.note{font-size:12px;color:var(--ext);background:var(--extbg);border-radius:8px;padding:6px 9px}
+.demo{font-size:12px;color:var(--mute)}
+dialog{max-width:min(860px,94vw);width:100%;border:1px solid var(--line);border-radius:12px;background:var(--card);color:var(--ink);padding:16px}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;max-height:60vh;overflow:auto;font-size:12px;white-space:pre-wrap;word-break:break-word}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:9px 14px;border-radius:9px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw}
+#toast.on{opacity:1}
+
+#demos{max-width:1100px;margin:0 auto;padding:0 16px 48px}
+#demos h2{font-size:19px;margin:8px 0 4px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select{font:inherit;font-size:14px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+input[name=customer]{flex:1;min-width:180px}input[name=hours]{width:84px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:var(--mute);font-weight:600;border-top:0}
+.linkbox{background:var(--okbg);color:var(--ok);border-radius:8px;padding:10px;font-size:13px;word-break:break-all;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.linkbox code{flex:1;min-width:200px}
+.pill.bad{background:#fbe4e2;color:var(--danger)}
+@media (prefers-color-scheme:dark){.pill.bad{background:#3a1c1a}}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Projects Dashboard</h1><div class="sub">Independent apps, one control point. Stopping the console never stops your apps.</div></div>
+  <div class="sub" id="updated">Loading…</div>
+</header>
+<main id="grid"></main>
+<section id="demos"><h2>Customer demos</h2><div class="sub" style="margin-bottom:10px">One link per customer, valid for one product only. The link is shown once, so copy it before leaving.</div><div class="panel" id="demopanel">Loading…</div></section>
+<dialog id="logdlg"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong id="logtitle"></strong><button onclick="logdlg.close()">Close</button></div><pre id="logbody"></pre></dialog>
+<div id="toast" role="status"></div>
+<script>
+const grid = document.getElementById('grid'), toast = document.getElementById('toast');
+let working = new Set(), apps = [];
+
+function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), 4500); }
+function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null) e.append(c); return e; }
+
+async function act(app, action, proc){
+  const key = app.id + (proc || '');
+  if (action !== 'start' && !confirm(`${action[0].toUpperCase()+action.slice(1)} ${app.name}${proc ? ' / ' + proc : ''}?`)) return;
+  working.add(key); render();
+  try {
+    const r = await fetch(`/api/apps/${app.id}/${action}${proc ? '?proc=' + proc : ''}`, { method: 'POST' });
+    const j = await r.json();
+    say(j.error ? j.error : (j.output.split('\n').slice(-2).join(' · ') || 'Done'));
+  } catch (e) { say('Request failed'); }
+  working.delete(key); await load();
+}
+
+async function showLog(app, proc){
+  document.getElementById('logtitle').textContent = `${app.name} / ${proc} log`;
+  const r = await fetch(`/api/apps/${app.id}/logs?proc=${proc}`); const j = await r.json();
+  const body = document.getElementById('logbody'); body.textContent = j.log || '(empty)';
+  document.getElementById('logdlg').showModal(); body.scrollTop = body.scrollHeight;
+}
+
+function render(){
+  grid.replaceChildren(...apps.map(app => {
+    const anyManaged = app.processes.some(p => p.managed);
+    const required = app.processes.filter(p => !p.optional);
+    const allUp = required.every(p => p.up);
+    const busy = [...working].some(k => k.startsWith(app.id));
+    return el('section', { class: 'card' },
+      el('div', {}, el('h2', {}, app.name), el('div', { class: 'tag' }, app.tagline), el('div', { class: 'stack' }, app.stack)),
+      app.note ? el('div', { class: 'note' }, app.note) : null,
+      app.processes.map(p => {
+        const state = p.up ? (p.managed ? ['running', 'ok'] : ['running (external)', 'ext']) : ['stopped', ''];
+        const pb = working.has(app.id + p.name);
+        return el('div', { class: 'proc' },
+          el('span', { class: 'pname' }, p.name), el('span', { class: 'port' }, ':' + p.port),
+          el('span', { class: 'pill ' + state[1] }, state[0]), p.optional ? el('span', { class: 'port' }, 'optional') : null,
+          el('span', { class: 'sp' }),
+          p.up ? el('a', { class: 'btn', href: `http://127.0.0.1:${p.port}/`, target: '_blank', rel: 'noopener' }, 'Open') : null,
+          p.optional && !p.up ? el('button', { onclick: () => act(app, 'start', p.name), disabled: pb || busy ? '' : null }, 'Start') : null,
+          p.managed ? el('button', { class: 'stop', onclick: () => act(app, 'stop', p.name), disabled: pb || busy ? '' : null }, 'Stop') : null,
+          el('button', { onclick: () => showLog(app, p.name) }, 'Log'));
+      }),
+      el('div', { class: 'actions' },
+        el('button', { onclick: () => act(app, 'start'), disabled: busy || allUp ? '' : null }, busy ? 'Working…' : 'Start'),
+        el('button', { class: 'stop', onclick: () => act(app, 'stop'), disabled: busy || !anyManaged ? '' : null }, 'Stop'),
+        el('button', { onclick: () => act(app, 'restart'), disabled: busy || !anyManaged ? '' : null }, 'Restart')),
+      el('div', { class: 'demo' }, app.demo?.supported ? 'Demo: ' + app.demo.notes : 'Not offered as a customer demo (' + (app.demo?.notes || 'internal') + ')'));
+  }));
+}
+
+async function load(){
+  try { apps = await (await fetch('/api/apps')).json(); document.getElementById('updated').textContent = 'Updated ' + new Date().toLocaleTimeString(); render(); }
+  catch { document.getElementById('updated').textContent = 'Console unreachable'; }
+}
+
+const demoBusy = new Set();
+async function demoAct(id, action, label){
+  if (action === 'stop' && !confirm('Stop ' + label + '? Customers using it will lose access until it is started again.')) return;
+  demoBusy.add(id); loadDemos();
+  try {
+    const r = await fetch('/api/apps/' + id + '/' + action, { method: 'POST' });
+    const j = await r.json();
+    say(j.error ? j.error : (j.output.split('\n').slice(-2).join(' · ') || 'Done'));
+  } catch { say('Request failed'); }
+  demoBusy.delete(id); loadDemos(); load();
+}
+async function loadDemos(){
+  const panel = document.getElementById('demopanel');
+  let d; try { d = await (await fetch('/api/demos')).json(); } catch { return; }
+  const keepForm = panel.querySelector('form'); const keepLink = panel.querySelector('.linkbox');
+  const ctl = (id, label, up, managed) => {
+    const b = demoBusy.has(id);
+    return [
+      el('span', { class: 'pill ' + (up ? (managed ? 'ok' : 'ext') : '') }, label + ' ' + (up ? (managed ? 'running' : 'running (external)') : 'stopped')),
+      !up ? el('button', { onclick: () => demoAct(id, 'start', label), disabled: b ? '' : null }, b ? 'Working…' : 'Start') : null,
+      managed ? el('button', { class: 'stop', onclick: () => demoAct(id, 'stop', label), disabled: b ? '' : null }, 'Stop') : null,
+    ];
+  };
+  const status = el('div', { class: 'row' },
+    ctl('gateway', 'Gateway :' + d.gatewayPort, d.gatewayUp, d.gatewayManaged),
+    d.products.map(p => ctl(p.instance, p.product + ' demo instance', p.up, p.managed)));
+  const form = keepForm || (() => {
+    const f = el('form', { class: 'row' },
+      el('input', { name: 'customer', placeholder: 'Customer name', required: '', maxlength: '80' }),
+      el('select', { name: 'app' }, d.products.map(p => el('option', { value: p.product }, p.product))),
+      el('input', { name: 'hours', type: 'number', min: '1', max: '720', value: '48', title: 'Valid for (hours)' }),
+      el('button', { type: 'submit' }, 'Create demo link'));
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const b = Object.fromEntries(new FormData(f));
+      const r = await fetch('/api/demos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
+      const j = await r.json();
+      if (j.error) return say(j.error);
+      f.querySelector('[name=customer]').value = '';
+      const box = el('div', { class: 'linkbox' }, el('strong', {}, 'Link for ' + j.grant.customer + ' (shown once):'), el('code', {}, j.link),
+        el('button', { type: 'button', onclick: async () => { try { await navigator.clipboard.writeText(j.link); say('Copied'); } catch { say('Copy failed: select and copy manually'); } } }, 'Copy'));
+      panel.querySelector('.linkbox')?.remove(); f.after(box); loadDemos();
+    });
+    return f;
+  })();
+  const table = el('table', {}, el('thead', {}, el('tr', {}, ['Customer', 'Product', 'Expires', 'State', ''].map(t => el('th', {}, t)))),
+    el('tbody', {}, d.grants.length ? d.grants.map(g => el('tr', {},
+      el('td', {}, g.customer), el('td', {}, g.app), el('td', {}, new Date(g.expiresAt).toLocaleString()),
+      el('td', {}, el('span', { class: 'pill ' + (g.state === 'active' ? 'ok' : g.state === 'revoked' ? 'bad' : '') }, g.state)),
+      el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => { if (!confirm('Revoke the demo link for ' + g.customer + '?')) return; await fetch('/api/demos/' + g.id + '/revoke', { method: 'POST' }); loadDemos(); } }, 'Revoke') : null)))
+      : [el('tr', {}, el('td', { colspan: '5', class: 'sub' }, 'No demo links yet.'))]));
+  panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), table);
+}
+load(); loadDemos(); setInterval(() => { if (!document.getElementById('logdlg').open && !document.activeElement?.closest?.('#demopanel')) loadDemos(); }, 10000);
+setInterval(() => { if (!working.size && !document.getElementById('logdlg').open) load(); }, 5000);
+</script>
+</body>
+</html>

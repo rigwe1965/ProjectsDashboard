@@ -1,0 +1,106 @@
+{
+  "_note": "Public marketing copy only, written from each app's own README/docs. Do not add ports, paths, hosting or vendor internals. published:false keeps a product off the site (ClaudeOS is internal).",
+  "products": [
+    {
+      "id": "crm",
+      "published": true,
+      "name": "CRM",
+      "headline": "Know every customer. Close every deal.",
+      "summary": "A modern customer relationship manager for small sales and support teams: contacts, companies, deals and tasks in one place.",
+      "audience": "Sales and support teams, agencies, and any business that lives on customer relationships.",
+      "accent": "#2b4acb",
+      "features": [
+        ["Contacts and companies", "Searchable, filterable records with a full activity timeline for each."],
+        ["Deal pipeline", "A drag-and-drop board, with a recorded reason when a deal is lost."],
+        ["Tasks and activities", "Open, overdue and completed views, plus a log of calls, emails, meetings and notes."],
+        ["Live dashboard", "Pipeline value, recent wins, win rate and what needs attention today."],
+        ["Roles and security", "Admin, sales and support roles, two-step verification and a full audit log."],
+        ["Open API", "A documented REST API so it can connect to your other tools."]
+      ],
+      "benefits": ["Nothing falls through the cracks", "Easy to learn, with light and dark themes", "Built for teams that outgrow spreadsheets"]
+    },
+    {
+      "id": "rmm",
+      "published": true,
+      "name": "Remote Management",
+      "headline": "Keep every device healthy, from one screen.",
+      "summary": "Remote monitoring and management for IT providers and in-house IT: monitor devices, patch them, respond to alerts and support users.",
+      "audience": "Managed service providers and IT teams responsible for many computers.",
+      "accent": "#0f766e",
+      "features": [
+        ["Device monitoring", "Real-time CPU, memory and disk health across Windows, macOS and Linux."],
+        ["Alerts", "Threshold and offline rules, with email, Slack and Teams notifications."],
+        ["Patch management", "See and apply operating-system updates across your fleet."],
+        ["Remote scripts", "Run maintenance scripts remotely, on demand or on a schedule."],
+        ["Helpdesk tickets", "Priorities, assignees and SLA targets in the same console."],
+        ["Reports and billing", "Compliance reports and recurring invoices based on device count."]
+      ],
+      "benefits": ["Spot problems before users call", "One console instead of several tools", "Role-based access and multi-factor sign-in"]
+    },
+    {
+      "id": "claudeworkspace",
+      "published": true,
+      "name": "RECI Transport",
+      "headline": "Car rental, booked and managed online.",
+      "summary": "A rental portal for car hire businesses: customers browse and book online, and your team manages the fleet and bookings from an admin portal.",
+      "audience": "Car rental companies and small fleet operators.",
+      "accent": "#c2410c",
+      "features": [
+        ["Online booking", "A customer-facing site where drivers browse vehicles and reserve them."],
+        ["Admin portal", "Staff manage vehicles, bookings and users, with role-based access."],
+        ["Online payments", "Card payments handled through a trusted payment provider."],
+        ["Licence checks", "Driver licence verification as part of the booking flow."],
+        ["AI assistant", "Helps customers with questions about vehicles and bookings."],
+        ["Automatic emails", "Booking confirmations and updates sent for you."]
+      ],
+      "benefits": ["Take bookings around the clock", "Prices calculated on the server, never by the customer", "Customer and staff areas kept separate"]
+    },
+    {
+      "id": "airfinder",
+      "published": true,
+      "name": "Airfinder",
+      "headline": "Find the cheapest way to fly.",
+      "summary": "A flight search and booking platform for travel agencies and resellers, with search by plain-language request and a staff portal.",
+      "audience": "Travel agencies, resellers and anyone selling flights online.",
+      "accent": "#0369a1",
+      "features": [
+        ["Flight search", "Search by route and date, including multi-city trips."],
+        ["Plain-language search", "Type what you want, such as a destination and a budget, instead of filling forms."],
+        ["Booking flow", "Customer accounts, bookings and confirmations."],
+        ["Staff portal", "Roles for admin, agent and finance, with an overview and revenue summary."],
+        ["Configurable pricing", "Set your own markup, service fee and commission."],
+        ["Flight status page", "A shareable status page for any flight number and date."]
+      ],
+      "benefits": ["Your pricing, your margin", "Separate roles for agents and finance", "Runs as its own branded site"]
+    },
+    {
+      "id": "imageapp",
+      "published": true,
+      "name": "Image Optimizer",
+      "headline": "Smaller images. Same sharp look.",
+      "summary": "Upload an image and tune its quality, format and size, with a live preview. Every change starts from your original, so quality never degrades.",
+      "audience": "Website owners, designers, shops and anyone who publishes images.",
+      "accent": "#7c3aed",
+      "features": [
+        ["Quality and format control", "Adjust compression and convert between formats."],
+        ["Resize and crop", "Resize precisely or crop by dragging."],
+        ["Colour adjustments", "Brightness, contrast, saturation, exposure, sharpen, blur and grayscale."],
+        ["Background tools", "Remove or replace backgrounds."],
+        ["Batch uploads", "Process many images in one go."],
+        ["Private by design", "Uploads are temporary and cleared automatically after a short time."]
+      ],
+      "benefits": ["Faster pages with lighter images", "Never re-compresses an already compressed result", "No account needed to try it"]
+    },
+    {
+      "id": "claudeos",
+      "published": false,
+      "name": "ClaudeOS",
+      "headline": "Internal tool",
+      "summary": "Not offered publicly.",
+      "audience": "",
+      "accent": "#555555",
+      "features": [],
+      "benefits": []
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "projects-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Orchestration and showcase layer for independent apps. Never modifies them.",
+  "scripts": {
+    "status": "node supervisor/index.mjs status",
+    "console": "node admin-console/server.mjs",
+    "gateway": "node demo-gateway/server.mjs",
+    "demo": "node demo-gateway/grants.mjs",
+    "showcase:build": "node showcase/build.mjs",
+    "showcase": "node showcase/build.mjs && node showcase/serve.mjs"
+  },
+  "engines": { "node": ">=20" }
+}
