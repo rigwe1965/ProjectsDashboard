@@ -209,11 +209,11 @@
       "id": "crm-demo",
       "name": "CRM (demo instance)",
       "tagline": "Isolated demo copy for customers",
-      "path": "C:\\Users\\rigwe\\Desktop\\CRM",
+      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\crm",
       "stack": "Next.js 15 + Prisma + Neon (crm-demo project)",
       "demoOf": "crm",
-      "demoReady": false,
-      "_note": "Database is ready (separate Neon project 'crm-demo', seeded). NOT demo-ready yet: the instance has not been run, and running next dev from the CRM folder shares its .next cache with your own dev server. Env comes from data/crm-demo.env, which blanks email/Stripe/WhatsApp/AI/monitoring keys.",
+      "demoReady": true,
+      "_note": "Runs from a separate git clone of CRM's committed code (data/demo-src/crm, no .env, remote removed), so it never shares .next or .env with your own CRM. Database: separate Neon project 'crm-demo', seeded. Env comes from data/crm-demo.env, which leaves email/Stripe/WhatsApp/AI/monitoring keys unset. Verified 2026-11-06: login and APIs work directly and through the gateway. Runs in next dev mode.",
       "processes": [
         {
           "name": "app",
