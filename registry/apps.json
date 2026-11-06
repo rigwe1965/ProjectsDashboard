@@ -206,6 +206,28 @@
       }
     },
     {
+      "id": "crm-demo",
+      "name": "CRM (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "C:\\Users\\rigwe\\Desktop\\CRM",
+      "stack": "Next.js 15 + Prisma + Neon (crm-demo project)",
+      "demoOf": "crm",
+      "demoReady": false,
+      "_note": "Database is ready (separate Neon project 'crm-demo', seeded). NOT demo-ready yet: the instance has not been run, and running next dev from the CRM folder shares its .next cache with your own dev server. Env comes from data/crm-demo.env, which blanks email/Stripe/WhatsApp/AI/monitoring keys.",
+      "processes": [
+        {
+          "name": "app",
+          "cmd": "npx next dev --turbopack -p {port}",
+          "cwd": ".",
+          "port": 3111,
+          "health": "/sign-in",
+          "envFile": "data/crm-demo.env",
+          "env": { "NEXTAUTH_URL": "http://crm.localhost:4300", "AUTH_URL": "http://crm.localhost:4300", "AUTH_TRUST_HOST": "true" }
+        }
+      ],
+      "demo": { "supported": false, "notes": "This IS the demo instance" }
+    },
+    {
       "id": "gateway",
       "name": "Demo gateway",
       "tagline": "Routes customer demo links to demo instances",

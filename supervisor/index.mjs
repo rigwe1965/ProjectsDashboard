@@ -89,6 +89,14 @@ async function start(app, only) {
   for (const p of todo) {
     const cwd = resolve(app.path, p.cwd ?? '.');
     const env = { ...process.env };
+    if (p.envFile) { // the DASHBOARD's own env file (under data/), never the app's .env
+      const f = join(root, p.envFile);
+      if (!existsSync(f)) { console.error(`Env file missing for ${app.id}/${p.name}: ${p.envFile}`); process.exit(1); }
+      for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
+        const t = line.trim(); const i = t.indexOf('=');
+        if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1);
+      }
+    }
     for (const [k, v] of Object.entries(p.env ?? {})) env[k] = fill(v, p, app);
     const log = openSync(join(logDir, `${app.id}-${p.name}.log`), 'a');
     const child = spawn(fill(p.cmd, p, app), { cwd, env, shell: true, detached: true, windowsHide: true, stdio: ['ignore', log, log] });
