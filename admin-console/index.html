@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Projects Dashboard</title>
+<link rel="icon" href="data:,">
 <style>
 :root{--bg:#f6f5f2;--card:#fff;--ink:#1c1b19;--mute:#6b6a65;--line:#e4e2dc;--ok:#1f7a45;--okbg:#e3f3ea;--off:#8a8780;--offbg:#eeece7;--ext:#8a5a00;--extbg:#fbefd2;--accent:#2b4acb;--danger:#b3261e}
 @media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--ink:#ece9e2;--mute:#9a978f;--line:#33322f;--ok:#62d08f;--okbg:#17301f;--off:#9a978f;--offbg:#2a2927;--ext:#e8b84a;--extbg:#33290f;--accent:#8aa2ff;--danger:#ff8a80}}
@@ -42,7 +43,8 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 input,select{font:inherit;font-size:14px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
 input[name=customer]{flex:1;min-width:180px}input[name=hours]{width:84px}
-table{width:100%;border-collapse:collapse;font-size:14px}
+.tablewrap{overflow-x:auto;max-width:100%}
+table{width:100%;min-width:480px;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:var(--mute);font-weight:600;border-top:0}
 .linkbox{background:var(--okbg);color:var(--ok);border-radius:8px;padding:10px;font-size:13px;word-break:break-all;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .linkbox code{flex:1;min-width:200px}
@@ -64,7 +66,7 @@ const grid = document.getElementById('grid'), toast = document.getElementById('t
 let working = new Set(), apps = [];
 
 function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), 4500); }
-function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null) e.append(c); return e; }
+function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null) e.append(c); return e; }
 
 async function act(app, action, proc){
   const key = app.id + (proc || '');
@@ -170,7 +172,7 @@ async function loadDemos(){
       el('td', {}, el('span', { class: 'pill ' + (g.state === 'active' ? 'ok' : g.state === 'revoked' ? 'bad' : '') }, g.state)),
       el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => { if (!confirm('Revoke the demo link for ' + g.customer + '?')) return; await fetch('/api/demos/' + g.id + '/revoke', { method: 'POST' }); loadDemos(); } }, 'Revoke') : null)))
       : [el('tr', {}, el('td', { colspan: '5', class: 'sub' }, 'No demo links yet.'))]));
-  panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), table);
+  panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), el('div', { class: 'tablewrap' }, table));
 }
 load(); loadDemos(); setInterval(() => { if (!document.getElementById('logdlg').open && !document.activeElement?.closest?.('#demopanel')) loadDemos(); }, 10000);
 setInterval(() => { if (!working.size && !document.getElementById('logdlg').open) load(); }, 5000);

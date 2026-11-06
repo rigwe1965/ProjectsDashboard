@@ -19,9 +19,9 @@ const css = `
 body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
 a{color:inherit}
 .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
-nav{display:flex;justify-content:space-between;align-items:center;padding:18px 0}
+nav{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 20px;padding:18px 0}
 nav .brand{font-weight:700;text-decoration:none;letter-spacing:-.01em}
-nav .links{display:flex;gap:18px;font-size:15px;color:var(--mute)}
+nav .links{display:flex;flex-wrap:wrap;gap:4px 18px;font-size:15px;color:var(--mute)}
 nav .links a{text-decoration:none}nav .links a:hover{color:var(--accent)}
 .hero{padding:56px 0 40px}
 .hero h1{font-size:clamp(34px,6vw,56px);line-height:1.08;letter-spacing:-.03em;margin:0 0 16px;max-width:16ch}
