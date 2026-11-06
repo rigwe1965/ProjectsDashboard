@@ -73,7 +73,7 @@
       "processes": [
         {
           "name": "api",
-          "cmd": "python start_api.py",
+          "cmd": "api\\venv\\Scripts\\python.exe start_api.py",
           "cwd": ".",
           "port": 5300,
           "health": "/api/health",
@@ -131,7 +131,7 @@
       "processes": [
         {
           "name": "web",
-          "cmd": "pnpm exec next dev -p {port} --turbo",
+          "cmd": "node_modules\\.bin\\next.cmd dev -p {port} --turbo",
           "cwd": "apps\\web",
           "port": 3102,
           "health": "/",
@@ -142,7 +142,7 @@
         },
         {
           "name": "admin",
-          "cmd": "pnpm exec next dev -p {port} --turbo",
+          "cmd": "node_modules\\.bin\\next.cmd dev -p {port} --turbo",
           "cwd": "apps\\admin",
           "port": 3103,
           "health": "/admin",
