@@ -61,7 +61,9 @@ http.createServer((req, res) => {
     return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.'); }
 
   // 3. Proxy to the demo instance (never forward the gateway cookie)
-  const port = target.processes[0].port;
+  // A demo instance may have several processes (e.g. customer site + admin portal); registry demoRoutes maps path prefixes to them.
+  const route = (target.demoRoutes || []).find((r) => url.pathname === r.prefix || url.pathname.startsWith(r.prefix + '/'));
+  const port = (route ? target.processes.find((p) => p.name === route.process) : target.processes[0]).port;
   const headers = {};
   for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host') headers[k] = v;
   const rest = (req.headers.cookie || '').split(/;\s*/).filter((c) => !c.startsWith(COOKIE + '=')).join('; ');

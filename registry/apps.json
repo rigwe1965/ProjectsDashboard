@@ -228,6 +228,38 @@
       "demo": { "supported": false, "notes": "This IS the demo instance" }
     },
     {
+      "id": "claudeworkspace-demo",
+      "name": "ClaudeWorkspace (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\reci-transport",
+      "stack": "Turborepo, Next.js 15 x2, Supabase (separate demo project)",
+      "demoOf": "claudeworkspace",
+      "demoReady": false,
+      "demoRoutes": [{ "prefix": "/admin", "process": "admin" }],
+      "_note": "Runs from a separate git clone (data/demo-src/reci-transport, no .env). Env from data/claudeworkspace-demo.env (separate Supabase project; payments/email/AI/monitoring unset). demoReady stays false until migrations, seed and a login test have passed. Customer site at /, admin portal at /admin on the same demo link.",
+      "processes": [
+        {
+          "name": "web",
+          "cmd": "node_modules\\.bin\\next.cmd dev -p {port} --turbo",
+          "cwd": "apps\\web",
+          "port": 3112,
+          "health": "/",
+          "envFile": "data/claudeworkspace-demo.env",
+          "env": { "NEXT_PUBLIC_APP_URL": "http://claudeworkspace.localhost:4300", "NEXT_PUBLIC_ADMIN_URL": "http://claudeworkspace.localhost:4300/admin" }
+        },
+        {
+          "name": "admin",
+          "cmd": "node_modules\\.bin\\next.cmd dev -p {port} --turbo",
+          "cwd": "apps\\admin",
+          "port": 3113,
+          "health": "/admin",
+          "envFile": "data/claudeworkspace-demo.env",
+          "env": { "NEXT_PUBLIC_APP_URL": "http://claudeworkspace.localhost:4300", "NEXT_PUBLIC_ADMIN_URL": "http://claudeworkspace.localhost:4300/admin" }
+        }
+      ],
+      "demo": { "supported": false, "notes": "This IS the demo instance" }
+    },
+    {
       "id": "gateway",
       "name": "Demo gateway",
       "tagline": "Routes customer demo links to demo instances",
