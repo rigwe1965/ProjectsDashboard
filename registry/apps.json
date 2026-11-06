@@ -234,9 +234,9 @@
       "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\reci-transport",
       "stack": "Turborepo, Next.js 15 x2, Supabase (separate demo project)",
       "demoOf": "claudeworkspace",
-      "demoReady": false,
+      "demoReady": true,
       "demoRoutes": [{ "prefix": "/admin", "process": "admin" }],
-      "_note": "Runs from a separate git clone (data/demo-src/reci-transport, no .env). Env from data/claudeworkspace-demo.env (separate Supabase project; payments/email/AI/monitoring unset). demoReady stays false until migrations, seed and a login test have passed. Customer site at /, admin portal at /admin on the same demo link.",
+      "_note": "Runs from a separate git clone (data/demo-src/reci-transport, no .env). Env from data/claudeworkspace-demo.env (separate Supabase project 'reci-demo'; payments/email/AI/monitoring unset). Verified 2026-11-06: migrations, 20-vehicle seed, demo admin/customer logins, pages directly and through the gateway. Customer site at /, admin portal at /admin on the same demo link. Runs in next dev mode.",
       "processes": [
         {
           "name": "web",
