@@ -45,7 +45,7 @@ function httpUp(port, path) {
 function startTime(pid) {
   try {
     const out = execFileSync('powershell', ['-NoProfile', '-Command',
-      `(Get-Process -Id ${Number(pid)} -ErrorAction Stop).StartTime.ToFileTimeUtc()`], { encoding: 'utf8' });
+      `(Get-Process -Id ${Number(pid)} -ErrorAction Stop).StartTime.ToFileTimeUtc()`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
     return out.trim();
   } catch { return null; }
 }
@@ -55,6 +55,28 @@ function fill(str, proc, app) {
     .replaceAll('{url}', `http://localhost:${proc.port}`)
     .replaceAll('{port}', String(proc.port))
     .replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
+}
+
+// Isolation: an app must never inherit ANOTHER project's virtual environment from whatever shell started the
+// dashboard. Strip VIRTUAL_ENV and venv "Scripts" folders from PATH, so a bare `python` means the machine's own
+// Python. Apps that need their own venv call it by explicit path in the registry, which is unaffected.
+export function cleanEnv(env) {
+  for (const k of Object.keys(env)) {
+    if (/^(VIRTUAL_ENV|VIRTUAL_ENV_PROMPT|PYTHONHOME|PYTHONPATH|CONDA_PREFIX)$/i.test(k)) delete env[k];
+    if (/^path$/i.test(k)) env[k] = String(env[k]).split(';').filter((p) => !/[\\/]\.?venv[\\/]Scripts[\\/]?$/i.test(p.trim())).join(';');
+  }
+  return env;
+}
+
+// PID of the process listening on a port. Only used right after we verified the port was free and started our app,
+// so the listener is ours. The shell wrapper we spawn can exit while the app lives on, so its PID alone isn't enough.
+function listenerPid(port) {
+  try {
+    const out = execFileSync('netstat', ['-ano', '-p', 'tcp'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const re = new RegExp(String.raw`^\s*TCP\s+\S+:${port}\s+\S+\s+LISTENING\s+(\d+)`);
+    const m = out.split(/\r?\n/).map((l) => l.match(re)).find(Boolean);
+    return m ? Number(m[1]) : null;
+  } catch { return null; }
 }
 
 const getApp = (id) => {
@@ -70,7 +92,8 @@ async function status(json) {
     for (const p of app.processes) {
       const rec = state[app.id]?.[p.name];
       const up = await httpUp(p.port, p.health);
-      const managed = !!(rec && startTime(rec.pid) === rec.startTime);
+      // managed = one of the PIDs we recorded is still alive (the shell wrapper may be gone while the app listens)
+      const managed = !!(rec && up && ((rec.startTime && startTime(rec.pid) === rec.startTime) || (rec.listenPid && startTime(rec.listenPid) === rec.listenStartTime)));
       rows.push({ app: app.id, proc: p.name, port: p.port, optional: !!p.optional, up, managed, url: `http://127.0.0.1:${p.port}${p.health}` });
     }
   }
@@ -94,7 +117,7 @@ async function start(app, only) {
   }
   for (const p of todo) {
     const cwd = resolve(app.path, p.cwd ?? '.');
-    const env = { ...process.env };
+    const env = cleanEnv({ ...process.env });
     if (p.envFile) { // the DASHBOARD's own env file (under data/), never the app's .env
       const f = join(root, p.envFile);
       if (!existsSync(f)) { console.error(`Env file missing for ${app.id}/${p.name}: ${p.envFile}`); process.exit(1); }
@@ -104,8 +127,10 @@ async function start(app, only) {
       }
     }
     for (const [k, v] of Object.entries(p.env ?? {})) env[k] = fill(v, p, app);
-    const log = openSync(join(logDir, `${app.id}-${p.name}.log`), 'a');
-    const child = spawn(fill(p.cmd, p, app), { cwd, env, shell: true, detached: true, windowsHide: true, stdio: ['ignore', log, log] });
+    // Output goes to the log via shell redirection (cmd handles it), NOT via inherited file handles: handles passed to
+    // a detached child on Windows silently capture nothing, and a pipe would tie the app's life to the supervisor.
+    const logPath = join(logDir, `${app.id}-${p.name}.log`);
+    const child = spawn(`${fill(p.cmd, p, app)} >> "${logPath}" 2>&1`, { cwd, env, shell: true, windowsHide: true, stdio: 'ignore' }); // not `detached`: on Windows that loses the redirected output; windowsHide gives the app its own hidden console
     child.unref();
     await new Promise((r) => setTimeout(r, 800));
     state[app.id][p.name] = { pid: child.pid, startTime: startTime(child.pid), port: p.port, startedAt: new Date().toISOString() };
@@ -114,6 +139,8 @@ async function start(app, only) {
     let ok = false;
     for (let i = 0; i < 60 && !ok; i++) { ok = await httpUp(p.port, p.health); if (!ok) await new Promise((r) => setTimeout(r, 1000)); }
     console.log(ok ? ' UP' : ' NOT RESPONDING after 60s (see data/logs)');
+    const lp = listenerPid(p.port);
+    if (lp) { state[app.id][p.name].listenPid = lp; state[app.id][p.name].listenStartTime = startTime(lp); saveState(state); }
   }
 }
 
@@ -122,13 +149,21 @@ function stop(app, only) {
   const recs = state[app.id] ?? {};
   for (const [name, rec] of Object.entries(recs)) {
     if (only && name !== only) continue;
-    const st = startTime(rec.pid);
-    if (st && st === rec.startTime) {
-      try { execFileSync('taskkill', ['/PID', String(rec.pid), '/T', '/F'], { stdio: 'ignore' }); console.log(`Stopped ${app.id}/${name} (pid ${rec.pid})`); }
-      catch { console.log(`Could not stop ${app.id}/${name} (pid ${rec.pid})`); continue; }
-    } else {
-      console.log(`${app.id}/${name}: recorded process is no longer running; clearing record`);
+    // every PID we recorded for this process, each verified by its start time before it is touched (guards PID reuse)
+    const targets = [{ pid: rec.pid, st: rec.startTime }, { pid: rec.listenPid, st: rec.listenStartTime }].filter((t) => t.pid);
+    let killed = 0, failed = 0;
+    for (const t of targets) {
+      const now = startTime(t.pid);
+      if (!now || now !== t.st) continue; // gone, or the PID was reused by something else: leave it alone
+      try { execFileSync('taskkill', ['/PID', String(t.pid), '/T', '/F'], { stdio: 'ignore' }); killed++; } catch { failed++; }
     }
+    // verify: if the process we recorded as the port's listener is still the one listening, the stop failed
+    const stillOn = rec.port ? listenerPid(rec.port) : null;
+    if (rec.listenPid && stillOn === rec.listenPid && startTime(stillOn) === rec.listenStartTime) {
+      console.log(`${app.id}/${name}: could NOT stop it, pid ${stillOn} is still listening on :${rec.port}. Record kept.`);
+      continue;
+    }
+    console.log(killed ? `Stopped ${app.id}/${name} (${killed} process tree(s))` : `${app.id}/${name}: recorded process is no longer running; clearing record`);
     delete recs[name];
   }
   state[app.id] = recs;
