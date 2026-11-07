@@ -85,8 +85,11 @@ export async function createConsole(opts = {}) {
   async function login(req, res) {
     if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
     const ip = clientIp(req, trusted), ua = String(req.headers['user-agent'] || '').slice(0, 200);
-    // 8 tries per IP and 40 overall per 15 minutes: slows guessing from one place and from many
-    if ((await store.rateLimit.hit('login:' + ip, 900000)) > o.loginMaxPerIp || (await store.rateLimit.hit('login:all', 900000)) > o.loginMaxTotal) {
+    // 8 tries per IP per 15 minutes (hard limit). Failed tries overall are also counted: past the cap, wrong guesses are
+    // refused with 429 but a correct password + code still signs in, so a flood of bad guesses from many addresses
+    // cannot lock the real owner out.
+    const overall = (await store.rateLimit.count('login-fail:all', 900000)) >= o.loginMaxTotal;
+    if ((await store.rateLimit.hit('login:' + ip, 900000)) > o.loginMaxPerIp) {
       return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' });
     }
     let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.code === 413 ? 413 : 400, { error: 'bad request' }); }
@@ -98,6 +101,8 @@ export async function createConsole(opts = {}) {
     const step = totpSecret ? verifyTotp(totpSecret, b.code, Date.now(), lastStep) : 0;
     if (!pwOk || step === null) {
       audit({ ev: 'admin-login-failed', ip, ua });
+      await store.rateLimit.hit('login-fail:all', 900000);
+      if (overall) return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' });
       return json(res, 401, { error: totpSecret ? 'Wrong password or code.' : 'Wrong password.' });
     }
     if (totpSecret) await store.meta.set('admin_totp_last_step', step);

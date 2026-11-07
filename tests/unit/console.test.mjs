@@ -141,6 +141,13 @@ test('password mode: too many wrong attempts are refused with 429 (even with the
   assert.equal((await post(port, '/login', { password: 'a long test passphrase' })).status, 429, 'locked out even for the right password');
 });
 
+test('password mode: a flood of failed logins from other addresses does not lock the owner out', async () => {
+  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 3 });
+  for (let i = 0; i < 6; i++) await post(port, '/login', { password: 'wrong wrong wrong' });
+  assert.equal((await post(port, '/login', { password: 'wrong wrong wrong' })).status, 429, 'more bad guesses are refused');
+  assert.equal((await post(port, '/login', { password: 'a long test passphrase' })).status, 200, 'the right password still works');
+});
+
 test('2-step codes: required, wrong code refused, a code cannot be used twice', async () => {
   const secret = newTotpSecret();
   await store.meta.set('admin_totp_secret', secret);
