@@ -1,5 +1,5 @@
 {
-  "_note": "Public marketing copy only, written from each app's own README/docs. Do not add ports, paths, hosting or vendor internals. published:false keeps a product off the site (ClaudeOS is internal).",
+  "_note": "Public marketing copy only, written from each app's own README/docs. Do not add ports, paths, hosting or vendor internals. published:false keeps a product off the site.",
   "products": [
     {
       "id": "crm",
@@ -93,14 +93,21 @@
     },
     {
       "id": "claudeos",
-      "published": false,
+      "published": true,
       "name": "ClaudeOS",
-      "headline": "Internal tool",
-      "summary": "Not offered publicly.",
-      "audience": "",
-      "accent": "#555555",
-      "features": [],
-      "benefits": []
+      "headline": "One control center for all your AI work.",
+      "summary": "A coordination layer that brings your AI skills, agents and workflows into a single dashboard, with shared memory, client workspaces and built-in support tickets.",
+      "audience": "Consultants, agencies and teams who run AI work for several clients or projects.",
+      "accent": "#407E3C",
+      "features": [
+        ["AI agents", "A ready-made team of specialist agents you can run from one place."],
+        ["Workflows", "Multi-step pipelines that run on demand or on a schedule."],
+        ["Searchable memory", "Keeps what your agents learn and finds it again by keyword or meaning."],
+        ["Client workspaces", "Isolated spaces so each client sees only their own work."],
+        ["Outputs library", "Every result is tagged automatically, searchable and exportable."],
+        ["Support tickets", "Service-level tiers, staff assignment and bulk actions."]
+      ],
+      "benefits": ["Everything in one dashboard", "Clients stay separated from each other", "Role-based access with a full audit log"]
     }
   ]
 }
