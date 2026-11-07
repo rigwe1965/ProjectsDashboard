@@ -2,7 +2,7 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 title ProjectsDashboard - Customer demo launcher
-rem Usage: start-customer-demo.bat [crm|imageapp|airfinder|claudeworkspace]   (no argument: shows a menu)
+rem Usage: start-customer-demo.bat [crm|imageapp|airfinder|claudeworkspace|claudeos|rmm]   (no argument: shows a menu)
 rem Starts the demo gateway (port 4300) + that product's isolated demo instance, creates an
 rem 8-hour link for "Local owner", and opens it at http://<product>.localhost:4300/
 set "APP=%~1"
@@ -12,7 +12,11 @@ echo   1. CRM
 echo   2. ImageApp
 echo   3. Airfinder
 echo   4. ClaudeWorkspace
-choice /c 1234 /n /m "Press 1-4: "
+echo   5. ClaudeOS
+echo   6. Remote Management (RMM)
+choice /c 123456 /n /m "Press 1-6: "
+if errorlevel 6 ( set "APP=rmm" & goto :picked )
+if errorlevel 5 ( set "APP=claudeos" & goto :picked )
 if errorlevel 4 ( set "APP=claudeworkspace" & goto :picked )
 if errorlevel 3 ( set "APP=airfinder" & goto :picked )
 if errorlevel 2 ( set "APP=imageapp" & goto :picked )
@@ -23,8 +27,10 @@ set "GW=http://127.0.0.1:4300/"
 if /i "%APP%"=="crm"             ( set "DPORT=3111" & set "DHEALTH=/sign-in" & goto :known )
 if /i "%APP%"=="imageapp"        ( set "DPORT=5410" & set "DHEALTH=/" & goto :known )
 if /i "%APP%"=="airfinder"       ( set "DPORT=5210" & set "DHEALTH=/" & goto :known )
+if /i "%APP%"=="rmm"             ( set "DPORT=8711" & set "DHEALTH=/" & goto :known )
+if /i "%APP%"=="claudeos"        ( set "DPORT=8611" & set "DHEALTH=/" & goto :known )
 if /i "%APP%"=="claudeworkspace" ( set "DPORT=3112" & set "DHEALTH=/" & goto :known )
-echo [demo] ERROR: unknown product "%APP%". Use: crm, imageapp, airfinder, claudeworkspace.
+echo [demo] ERROR: unknown product "%APP%". Use: crm, imageapp, airfinder, claudeworkspace, claudeos, rmm.
 goto :fail
 :known
 set "DURL=http://127.0.0.1:%DPORT%%DHEALTH%"

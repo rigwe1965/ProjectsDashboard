@@ -41,7 +41,7 @@ All four are in the project root. Each starts its service, waits until it really
 | `start-crm.bat` | Your **real** CRM from `Desktop\CRM` | `http://localhost:3101/sign-in` |
 | `start-customer-demo.bat` | Gateway + the chosen product's **demo** instance | `http://<product>.localhost:4300/d/<token>` |
 
-- `start-customer-demo.bat` shows a menu (1 CRM, 2 ImageApp, 3 Airfinder, 4 ClaudeWorkspace). From a terminal you can pass the name instead, for example `start-customer-demo.bat imageapp`.
+- `start-customer-demo.bat` shows a menu (1 CRM, 2 ImageApp, 3 Airfinder, 4 ClaudeWorkspace, 5 ClaudeOS, 6 Remote Management). From a terminal you can pass the name instead, for example `start-customer-demo.bat imageapp`.
 - The console and showcase run in their own minimized window; closing that window stops them. The apps, gateway and demo instances run in the background and keep running when you close the console.
 - Each demo launch creates a fresh 8-hour link for a customer named "Local owner", recorded in the audit log.
 - Logs are in `data\logs\`.
@@ -54,7 +54,11 @@ This is the most important distinction.
 - **Demo instances** (for example `crm-demo` on :3111) are separate copies with their own database and sample data. They run from a clone under `data/demo-src/` and read their settings from the dashboard's own env files in `data/` (for example `data/crm-demo.env`), never from the app's `.env`.
 - Customers only ever reach a demo instance, through the gateway.
 
-Demo-ready products today: **CRM, ImageApp, Airfinder, ClaudeWorkspace**. ClaudeOS and the RMM are `demoReady: false` because they have no separate demo database yet. Set `demoReady: true` only after confirming the demo shares no data with the real app.
+Demo-ready products today: **CRM, ImageApp, Airfinder, ClaudeWorkspace, ClaudeOS, Remote Management (RMM)**. Set `demoReady: true` only after confirming the demo shares no data with the real app.
+
+**ClaudeOS demo** (`claudeos-demo`, UI :8611, API :5110): runs from a clone in `data/demo-src/claudeos` with its own SQLite/Chroma files, freshly seeded agents and one demo admin (`demo`). Supabase sync, email and memory import are unset. It uses the real ClaudeOS Python venv read-only and carries the owner's Anthropic key (`data/claudeos-demo.env`), so AI actions cost money.
+
+**RMM demo** (`rmm-demo`, UI :8711, API :5310): runs from a clone in `data/demo-src/rmm` against its own Postgres (:5433) and Redis (:6380) Docker containers (`pd-rmm-demo-pg`, `pd-rmm-demo-redis`, started automatically by `data/tools/rmm_demo_api.py`). All customers, devices, alerts and tickets are simulated (`data/tools/seed-rmm-demo.py`). The API listens on 127.0.0.1 only, so no real agent can enrol. There is no Celery worker, so scheduled jobs, backups and email do not run. The AI assistant uses the RMM's own Anthropic key with agentic tools and triage switched off. Demo logins are the seeded values in `data/rmm-demo.env` (`SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD`).
 
 Demo CRM sample users are `admin@crm.test`, `sales@crm.test` and `support@crm.test`. Their shared password is the `SEED_USER_PASSWORD` value in `data/crm-demo.env`.
 

@@ -59,8 +59,8 @@
         }
       ],
       "demo": {
-        "supported": false,
-        "notes": "Internal only"
+        "supported": true,
+        "notes": "Separate demo copy with its own database; AI uses the owner key"
       }
     },
     {
@@ -95,7 +95,7 @@
       ],
       "demo": {
         "supported": true,
-        "notes": "Simulated devices only; never real agent enrolment"
+        "notes": "Separate demo copy with its own Postgres/Redis containers; simulated devices only"
       }
     },
     {
@@ -280,6 +280,82 @@
         }
       ],
       "demo": { "supported": false, "notes": "This IS the demo instance" }
+    },
+    {
+      "id": "claudeos-demo",
+      "name": "ClaudeOS (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "${DASHBOARD_ROOT}\\data\\demo-src\\claudeos",
+      "stack": "Flask API (waitress) + Streamlit, SQLite",
+      "demoOf": "claudeos",
+      "demoReady": true,
+      "_note": "Runs from a separate git clone of ClaudeOS's committed code (data/demo-src/claudeos, no .env, remote removed). Own SQLite and Chroma files under that folder, freshly seeded (agents, namespaces, one demo admin). Env from data/claudeos-demo.env: Supabase, SMTP and memory import are unset so nothing reaches the real systems. It DOES carry the owner's Anthropic key (owner approved 2026-11-07), so AI actions cost money: watch usage. Uses the real ClaudeOS .venv interpreter read-only.",
+      "processes": [
+        {
+          "name": "ui",
+          "cmd": "${APPS_ROOT}\\ClaudeOS\\.venv\\Scripts\\python.exe -m streamlit run dashboard\\app.py --server.port {port} --server.headless true --server.address 127.0.0.1 --browser.gatherUsageStats false",
+          "cwd": ".",
+          "port": 8611,
+          "health": "/",
+          "envFile": "data/claudeos-demo.env",
+          "env": {
+            "FLASK_PORT": "{port:api}"
+          }
+        },
+        {
+          "name": "api",
+          "cmd": "${APPS_ROOT}\\ClaudeOS\\.venv\\Scripts\\python.exe scripts\\serve_api.py {port}",
+          "cwd": ".",
+          "port": 5110,
+          "health": "/api/v1/health",
+          "envFile": "data/claudeos-demo.env",
+          "env": {
+            "FLASK_PORT": "{port}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": false,
+        "notes": "This IS the demo instance"
+      }
+    },
+    {
+      "id": "rmm-demo",
+      "name": "Remote Management (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "${DASHBOARD_ROOT}\\data\\demo-src\\rmm",
+      "stack": "Flask + Streamlit + Postgres + Redis (Docker containers pd-rmm-demo-pg, pd-rmm-demo-redis)",
+      "demoOf": "rmm",
+      "demoReady": true,
+      "_note": "Runs from a separate git clone of the RMM's committed code (data/demo-src/rmm, no .env, remote removed). Own Postgres (port 5433) and Redis (6380) in Docker, started by data/tools/rmm_demo_api.py. All devices, customers, alerts and tickets are SIMULATED (data/tools/seed-rmm-demo.py); no agent can enrol because the API listens on 127.0.0.1 only. No Celery worker, so scheduled jobs, backups and email do not run. Env from data/rmm-demo.env: SMTP, MQTT and MDM unset; AI assistant uses the RMM's own Anthropic key with agentic tools OFF and triage OFF (owner approved 2026-11-07), so AI chat costs money. Uses the real RMM venv read-only.",
+      "processes": [
+        {
+          "name": "ui",
+          "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\dashboard\\venv\\Scripts\\python.exe -m streamlit run dashboard\\app.py --server.port {port} --server.headless true --server.address 127.0.0.1 --browser.gatherUsageStats false",
+          "cwd": ".",
+          "port": 8711,
+          "health": "/",
+          "envFile": "data/rmm-demo.env",
+          "env": {
+            "API_BASE_URL": "http://127.0.0.1:{port:api}"
+          }
+        },
+        {
+          "name": "api",
+          "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ..\\..\\..\\tools\\rmm_demo_api.py {port}",
+          "cwd": "api",
+          "port": 5310,
+          "health": "/api/health",
+          "envFile": "data/rmm-demo.env",
+          "env": {
+            "API_PORT": "{port}"
+          }
+        }
+      ],
+      "demo": {
+        "supported": false,
+        "notes": "This IS the demo instance"
+      }
     },
     {
       "id": "gateway",

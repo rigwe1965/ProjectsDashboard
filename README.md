@@ -47,4 +47,4 @@ See `deploy/README.md`: Docker Compose with Postgres, Caddy (automatic HTTPS) an
 `npm test` (unit tests), `npm run lint`, `npm run test:e2e` (customer journeys; needs the demo instances running). With `TEST_DATABASE_URL=postgres://...` set, the same store tests also run against Postgres. CI runs everything on Windows and Linux.
 
 ## Demo gateway
-See `demo-gateway/README.md`. Ready now: `imageapp`, `airfinder`, `crm`, `claudeworkspace` (each runs as its own isolated demo instance). ClaudeOS and the RMM need a separate demo database before `demoReady` is set.
+See `demo-gateway/README.md`. Ready now: `imageapp`, `airfinder`, `crm`, `claudeworkspace`, `claudeos`, `rmm` (each runs as its own isolated demo instance).
