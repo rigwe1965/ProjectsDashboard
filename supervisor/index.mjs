@@ -7,12 +7,13 @@
 //  - app env vars are set on the child process only
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { getStore, closeStore } from '../lib/store/index.mjs';
-import { spawn, execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { cleanEnv } from '../lib/clean-env.mjs';
 import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
+import { getDriver } from '../lib/process-driver.mjs';
+import { containerRunning, startContainer, stopContainer } from '../lib/docker.mjs';
 
 const logDir = join(dataDir, 'logs');
 const registry = loadRegistry();
@@ -23,30 +24,16 @@ mkdirSync(logDir, { recursive: true });
 // at the same time can no longer overwrite each other's records (state.json used to be rewritten whole).
 const store = await getStore();
 
-function startTime(pid) {
-  try {
-    const out = execFileSync('powershell', ['-NoProfile', '-Command',
-      `(Get-Process -Id ${Number(pid)} -ErrorAction Stop).StartTime.ToFileTimeUtc()`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    return out.trim();
-  } catch { return null; }
-}
+// OS-specific parts (starting, PID identity, port listener, killing) live in lib/process-driver.mjs.
+const driver = getDriver();
+const startTime = (pid) => driver.startTime(pid);
+const listenerPid = (port) => driver.listenerPid(port);
 
 function fill(str, proc, app) {
   return str
     .replaceAll('{url}', `http://localhost:${proc.port}`)
     .replaceAll('{port}', String(proc.port))
     .replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
-}
-
-// PID of the process listening on a port. Only used right after we verified the port was free and started our app,
-// so the listener is ours. The shell wrapper we spawn can exit while the app lives on, so its PID alone isn't enough.
-function listenerPid(port) {
-  try {
-    const out = execFileSync('netstat', ['-ano', '-p', 'tcp'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
-    const re = new RegExp(String.raw`^\s*TCP\s+\S+:${port}\s+\S+\s+LISTENING\s+(\d+)`);
-    const m = out.split(/\r?\n/).map((l) => l.match(re)).find(Boolean);
-    return m ? Number(m[1]) : null;
-  } catch { return null; }
 }
 
 const getApp = (id) => {
@@ -61,9 +48,11 @@ async function status(json) {
   for (const app of registry.apps) {
     for (const p of app.processes) {
       const rec = state[app.id]?.[p.name];
-      const up = await httpUp(p.port, p.health);
+      const up = await httpUp(p.port, p.health, p.host);
       // managed = one of the PIDs we recorded is still alive (the shell wrapper may be gone while the app listens)
-      const managed = !!(rec && up && ((rec.startTime && startTime(rec.pid) === rec.startTime) || (rec.listenPid && startTime(rec.listenPid) === rec.listenStartTime)));
+      const managed = p.container
+        ? !!(rec?.container && up && await containerRunning(rec.container))
+        : !!(rec && up && ((rec.startTime && startTime(rec.pid) === rec.startTime) || (rec.listenPid && startTime(rec.listenPid) === rec.listenStartTime)));
       rows.push({ app: app.id, proc: p.name, port: p.port, optional: !!p.optional, up, managed, url: `http://127.0.0.1:${p.port}${p.health}` });
     }
   }
@@ -76,14 +65,23 @@ async function status(json) {
 }
 
 async function start(app, only) {
-  if (!existsSync(app.path)) { console.error(`Path not found: ${app.path}`); process.exit(1); }
   const todo = app.processes.filter((p) => (only ? p.name === only : !p.optional));
+  if (todo.some((p) => !p.container) && !existsSync(app.path)) { console.error(`Path not found: ${app.path}`); process.exit(1); }
   // pre-flight all ports first so we never half-start an app
   for (const p of todo) {
     if (reserved.has(p.port)) { console.error(`Port ${p.port} is reserved. Aborting.`); process.exit(1); }
     if (await portInUse(p.port)) { console.error(`Port ${p.port} (${app.id}/${p.name}) is already in use. Not starting anything.`); process.exit(1); }
   }
   for (const p of todo) {
+    if (p.container) { // an existing container: the supervisor only starts it (see lib/docker.mjs)
+      try { await startContainer(p.container); } catch (e) { console.error(`Could not start container "${p.container}": ${e.message}`); process.exit(1); }
+      await store.processState.set(app.id, p.name, { container: p.container, port: p.port, startedAt: new Date().toISOString() });
+      process.stdout.write(`Started ${app.id}/${p.name} (container ${p.container}) on :${p.port}, waiting for it to respond...`);
+      let up = false;
+      for (let i = 0; i < 60 && !up; i++) { up = await httpUp(p.port, p.health, p.host); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
+      console.log(up ? ' UP' : ' NOT RESPONDING after 60s (docker logs ' + p.container + ')');
+      continue;
+    }
     const cwd = resolve(app.path, p.cwd ?? '.');
     const env = cleanEnv({ ...process.env });
     if (p.envFile) { // the DASHBOARD's own env file (under data/), never the app's .env
@@ -95,11 +93,8 @@ async function start(app, only) {
       }
     }
     for (const [k, v] of Object.entries(p.env ?? {})) env[k] = fill(v, p, app);
-    // Output goes to the log via shell redirection (cmd handles it), NOT via inherited file handles: handles passed to
-    // a detached child on Windows silently capture nothing, and a pipe would tie the app's life to the supervisor.
     const logPath = join(logDir, `${app.id}-${p.name}.log`);
-    const child = spawn(`${fill(p.cmd, p, app)} >> "${logPath}" 2>&1`, { cwd, env, shell: true, windowsHide: true, stdio: 'ignore' }); // not `detached`: on Windows that loses the redirected output; windowsHide gives the app its own hidden console
-    child.unref();
+    const child = driver.spawnApp({ cmd: fill(p.cmd, p, app), cwd, env, logPath });
     await new Promise((r) => setTimeout(r, 800));
     const rec = { pid: child.pid, startTime: startTime(child.pid), port: p.port, startedAt: new Date().toISOString() };
     await store.processState.set(app.id, p.name, rec);
@@ -116,13 +111,19 @@ async function stop(app, only) {
   const recs = (await store.processState.all())[app.id] ?? {};
   for (const [name, rec] of Object.entries(recs)) {
     if (only && name !== only) continue;
+    if (rec.container) {
+      try { await stopContainer(rec.container); console.log(`Stopped ${app.id}/${name} (container ${rec.container})`); }
+      catch (e) { console.log(`${app.id}/${name}: could NOT stop container ${rec.container}: ${e.message}. Record kept.`); continue; }
+      await store.processState.remove(app.id, name); delete recs[name];
+      continue;
+    }
     // every PID we recorded for this process, each verified by its start time before it is touched (guards PID reuse)
     const targets = [{ pid: rec.pid, st: rec.startTime }, { pid: rec.listenPid, st: rec.listenStartTime }].filter((t) => t.pid);
     let killed = 0;
     for (const t of targets) {
       const now = startTime(t.pid);
       if (!now || now !== t.st) continue; // gone, or the PID was reused by something else: leave it alone
-      try { execFileSync('taskkill', ['/PID', String(t.pid), '/T', '/F'], { stdio: 'ignore' }); killed++; } catch { /* could not kill; verified below */ }
+      if (await driver.killTree(t.pid)) killed++; // a failure is caught by the listener check below
     }
     // verify: if the process we recorded as the port's listener is still the one listening, the stop failed
     const stillOn = rec.port ? listenerPid(rec.port) : null;

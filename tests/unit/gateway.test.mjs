@@ -22,13 +22,18 @@ const main = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server: main });
 wss.on('connection', (ws, req) => { seen.wsHeaders = req.headers; ws.on('message', (m) => ws.send('echo:' + m)); });
 const second = http.createServer((req, res) => res.end('second:' + req.url));
-const mainPort = await listen(main), secondPort = await listen(second);
+const third = http.createServer((req, res) => res.end('third:' + req.headers.host));
+const mainPort = await listen(main), secondPort = await listen(second), thirdPort = await listen(third);
 const deadPort = await new Promise((r) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
 
 const proc = (name, port) => ({ name, cmd: 'x', port });
 const reg = { apps: [
   { id: 'toy', name: 'Toy', path: '.', processes: [proc('app', 19001)] },
   { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [proc('app', mainPort), proc('other', secondPort)], demoRoutes: [{ prefix: '/other', process: 'other' }] },
+  { id: 'hosty', name: 'Hosty', path: '.', processes: [proc('app', 19003)] },
+  { id: 'hosty-demo', name: 'Hosty demo', path: '.', demoOf: 'hosty', demoReady: true, processes: [{ ...proc('app', thirdPort), host: '127.0.0.1' }] },
+  { id: 'nohost', name: 'Nohost', path: '.', processes: [proc('app', 19004)] },
+  { id: 'nohost-demo', name: 'Nohost demo', path: '.', demoOf: 'nohost', demoReady: true, processes: [{ ...proc('app', 19005), host: 'no-such-host.invalid' }] },
   { id: 'dead', name: 'Dead', path: '.', processes: [proc('app', 19002)] },
   { id: 'dead-demo', name: 'Dead demo', path: '.', demoOf: 'dead', demoReady: true, processes: [proc('app', deadPort)] },
 ] };
@@ -45,7 +50,7 @@ const gwPort = await gw.listen();
 const gwTrusted = await createGateway({ port: 0, baseHost: 'localhost', trustedProxies: ['127.0.0.1'] });
 const trustedPort = await gwTrusted.listen();
 
-after(async () => { await gw.close(); await gwTrusted.close(); await new Promise((r) => main.close(r)); main.closeAllConnections?.(); second.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
+after(async () => { await gw.close(); await gwTrusted.close(); await new Promise((r) => main.close(r)); main.closeAllConnections?.(); second.close(); third.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
 
 // ---- helpers
 function request({ port = gwPort, host = 'toy.localhost', path = '/', method = 'GET', headers = {}, body }) {
@@ -320,4 +325,29 @@ test('/_pd/metrics with a token: only the right bearer token is accepted', async
     assert.equal((await request({ port: p, path: '/_pd/metrics', headers: { authorization: 'Bearer wrong' } })).status, 404);
     assert.equal((await request({ port: p, path: '/_pd/metrics', headers: { authorization: 'Bearer sekret-token-value', 'x-forwarded-for': '9.9.9.9' } })).status, 200);
   } finally { await withToken.close(); }
+});
+
+// ---- upstream host (containers) and the TLS 'ask' endpoint
+test("a registry process with a 'host' is reached at that host, and the Host header names it", async () => {
+  const g = await newGrant('hosty');
+  const r = await request({ host: 'hosty.localhost', headers: { cookie: g.cookie } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body, 'third:127.0.0.1:' + thirdPort);
+});
+
+test('an unresolvable upstream host gives 503 (proves the host field is used, not 127.0.0.1)', async () => {
+  const g = await newGrant('nohost');
+  assert.equal((await request({ host: 'nohost.localhost', headers: { cookie: g.cookie } })).status, 503);
+});
+
+test('/_pd/tls-ask approves only real demo addresses, and only for direct (unproxied) callers', async () => {
+  const ask = (domain, headers) => request({ path: '/_pd/tls-ask?domain=' + encodeURIComponent(domain), headers }).then((r) => r.status);
+  assert.equal(await ask('toy.localhost'), 200);
+  assert.equal(await ask('TOY.localhost'), 200, 'case-insensitive');
+  assert.equal(await ask('nope.localhost'), 404, 'unknown product');
+  assert.equal(await ask('a.b.localhost'), 404, 'nested names');
+  assert.equal(await ask('toy.evil.example'), 404, 'wrong base host');
+  assert.equal(await ask('localhost'), 404, 'the bare base host');
+  assert.equal(await ask(''), 404);
+  assert.equal(await ask('toy.localhost', { 'x-forwarded-for': '9.9.9.9' }), 404, 'a public request that came through the proxy');
 });

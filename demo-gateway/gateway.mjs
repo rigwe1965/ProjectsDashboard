@@ -81,6 +81,15 @@ export async function createGateway(opts = {}) {
   async function health(res) {
     try { await store.meta.get('health-check'); jsonRes(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); jsonRes(res, 503, { ok: false }); }
   }
+  // Caddy's on-demand TLS asks this before obtaining a certificate for a host name, so certificates are issued only for
+  // real demo addresses (<product>.<base host>), never for arbitrary names someone points at the server.
+  // Only answers direct calls: a request that came through the proxy carries X-Forwarded-For and gets a 404.
+  function tlsAsk(req, res) {
+    const domain = String(new URL(req.url, 'http://x').searchParams.get('domain') || '').toLowerCase();
+    const slug = domain.endsWith('.' + baseName) ? domain.slice(0, -(baseName.length + 1)) : null;
+    const ok = !req.headers['x-forwarded-for'] && slug && !slug.includes('.') && demoApps()[slug];
+    res.writeHead(ok ? 200 : 404, { 'cache-control': 'no-store' }); res.end();
+  }
   function metricsAllowed(req) {
     if (o.metricsToken) return safeEq(String(req.headers.authorization || '').replace(/^Bearer /, ''), o.metricsToken);
     const peer = String(req.socket.remoteAddress).replace(/^::ffff:/, '');
@@ -104,9 +113,12 @@ export async function createGateway(opts = {}) {
     return { hostHdr, slug, target };
   }
   // A demo instance may have several processes (e.g. customer site + admin portal); registry demoRoutes maps path prefixes to them.
+  // Returns { host, port }: the demo instance is on this machine by default, or on another host (a container) when the
+  // registry process has a "host".
   function upstreamPort(target, pathname) {
     const route = (target.demoRoutes || []).find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'));
-    return (route ? target.processes.find((p) => p.name === route.process) : target.processes[0]).port;
+    const p = route ? target.processes.find((q) => q.name === route.process) : target.processes[0];
+    return { host: p.host || '127.0.0.1', port: p.port };
   }
   const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !c.startsWith(COOKIE + '=')).join('; ');
   // What the demo instance sees in X-Forwarded-For: a trusted proxy's chain plus that proxy; otherwise just the peer.
@@ -164,20 +176,20 @@ export async function createGateway(opts = {}) {
 
     // 3. Proxy to the demo instance (never forward the gateway cookie)
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
-    const port = upstreamPort(target, url.pathname);
+    const { host: upHost, port } = upstreamPort(target, url.pathname);
     const headers = {};
     for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host' && !k.startsWith('x-forwarded-')) headers[k] = v;
     const rest = cookiesForUpstream(req);
     if (rest) headers.cookie = rest;
-    headers.host = `127.0.0.1:${port}`;
+    headers.host = `${upHost}:${port}`;
     headers['x-forwarded-host'] = hostHdr; headers['x-forwarded-proto'] = o.scheme; headers['x-forwarded-for'] = forwardedFor(req);
-    const up = http.request({ host: '127.0.0.1', port, method: req.method, path: req.url, headers, agent }, (ur) => {
+    const up = http.request({ host: upHost, port, method: req.method, path: req.url, headers, agent }, (ur) => {
       const out = {};
       for (const [k, v] of Object.entries(ur.headers)) if (!HOP.has(k)) out[k] = v;
       out['x-content-type-options'] ??= 'nosniff';
       out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
       if (HTTPS) out['strict-transport-security'] ??= 'max-age=31536000';
-      if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost):${port}`), `${o.scheme}://${hostHdr}`);
+      if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${o.scheme}://${hostHdr}`);
       res.writeHead(ur.statusCode, out);
       ur.pipe(res); // pipe() applies backpressure: a slow browser slows the upstream instead of buffering in memory
     });
@@ -217,8 +229,8 @@ export async function createGateway(opts = {}) {
     wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 
     const url = new URL(req.url, `${o.scheme}://${hostHdr}`);
-    const port = upstreamPort(target, url.pathname);
-    const upstream = net.connect({ host: '127.0.0.1', port });
+    const { host: upHost, port } = upstreamPort(target, url.pathname);
+    const upstream = net.connect({ host: upHost, port });
     let connected = false, closed = false;
     const close = (why) => {
       if (closed) return; closed = true;
@@ -248,10 +260,10 @@ export async function createGateway(opts = {}) {
         if (lk === 'host' || lk === 'cookie' || lk === 'origin' || lk.startsWith('x-forwarded-')) continue;
         lines.push(`${k}: ${req.rawHeaders[i + 1]}`);
       }
-      lines.push(`Host: 127.0.0.1:${port}`);
+      lines.push(`Host: ${upHost}:${port}`);
       const rest = cookiesForUpstream(req);
       if (rest) lines.push(`Cookie: ${rest}`);
-      if (req.headers.origin) lines.push(`Origin: http://127.0.0.1:${port}`);
+      if (req.headers.origin) lines.push(`Origin: http://${upHost}:${port}`);
       lines.push(`X-Forwarded-Host: ${hostHdr}`, `X-Forwarded-Proto: ${o.scheme}`, `X-Forwarded-For: ${forwardedFor(req)}`);
       upstream.write(lines.join('\r\n') + '\r\n\r\n');
       if (head?.length) upstream.write(head);
@@ -264,6 +276,7 @@ export async function createGateway(opts = {}) {
   const server = http.createServer({ maxHeaderSize: 16384, headersTimeout: 20000 }, (req, res) => {
     const path = req.url.split('?')[0];
     if (req.method === 'GET' && path === '/_pd/healthz') return void health(res);
+    if (req.method === 'GET' && path === '/_pd/tls-ask') return void tlsAsk(req, res);
     if (req.method === 'GET' && path === '/_pd/metrics') {
       if (!metricsAllowed(req)) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4', 'cache-control': 'no-store' }); return res.end(metrics.render());
