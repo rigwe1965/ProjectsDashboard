@@ -5,7 +5,8 @@
 //    process start time still matches (guards against PID reuse)
 //  - refuses to start a process whose port is already in use or reserved
 //  - app env vars are set on the child process only
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { getStore, closeStore } from '../lib/store/index.mjs';
 import { spawn, execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { cleanEnv } from '../lib/clean-env.mjs';
@@ -13,14 +14,14 @@ import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
 
-const statePath = join(dataDir, 'state.json');
 const logDir = join(dataDir, 'logs');
 const registry = loadRegistry();
 const reserved = new Set(registry.reservedPorts ?? []);
 
 mkdirSync(logDir, { recursive: true });
-const loadState = () => (existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : {});
-const saveState = (s) => writeFileSync(statePath, JSON.stringify(s, null, 2));
+// Process records live in the database, one row per app/process, so two supervisors starting different apps
+// at the same time can no longer overwrite each other's records (state.json used to be rewritten whole).
+const store = await getStore();
 
 function startTime(pid) {
   try {
@@ -55,7 +56,7 @@ const getApp = (id) => {
 };
 
 async function status(json) {
-  const state = loadState();
+  const state = await store.processState.all();
   const rows = [];
   for (const app of registry.apps) {
     for (const p of app.processes) {
@@ -76,8 +77,6 @@ async function status(json) {
 
 async function start(app, only) {
   if (!existsSync(app.path)) { console.error(`Path not found: ${app.path}`); process.exit(1); }
-  const state = loadState();
-  state[app.id] ??= {};
   const todo = app.processes.filter((p) => (only ? p.name === only : !p.optional));
   // pre-flight all ports first so we never half-start an app
   for (const p of todo) {
@@ -102,20 +101,19 @@ async function start(app, only) {
     const child = spawn(`${fill(p.cmd, p, app)} >> "${logPath}" 2>&1`, { cwd, env, shell: true, windowsHide: true, stdio: 'ignore' }); // not `detached`: on Windows that loses the redirected output; windowsHide gives the app its own hidden console
     child.unref();
     await new Promise((r) => setTimeout(r, 800));
-    state[app.id][p.name] = { pid: child.pid, startTime: startTime(child.pid), port: p.port, startedAt: new Date().toISOString() };
-    saveState(state);
+    const rec = { pid: child.pid, startTime: startTime(child.pid), port: p.port, startedAt: new Date().toISOString() };
+    await store.processState.set(app.id, p.name, rec);
     process.stdout.write(`Started ${app.id}/${p.name} (pid ${child.pid}) on :${p.port}, waiting for it to respond...`);
     let ok = false;
     for (let i = 0; i < 60 && !ok; i++) { ok = await httpUp(p.port, p.health); if (!ok) await new Promise((r) => setTimeout(r, 1000)); }
     console.log(ok ? ' UP' : ' NOT RESPONDING after 60s (see data/logs)');
     const lp = listenerPid(p.port);
-    if (lp) { state[app.id][p.name].listenPid = lp; state[app.id][p.name].listenStartTime = startTime(lp); saveState(state); }
+    if (lp) await store.processState.set(app.id, p.name, { ...rec, listenPid: lp, listenStartTime: startTime(lp) });
   }
 }
 
-function stop(app, only) {
-  const state = loadState();
-  const recs = state[app.id] ?? {};
+async function stop(app, only) {
+  const recs = (await store.processState.all())[app.id] ?? {};
   for (const [name, rec] of Object.entries(recs)) {
     if (only && name !== only) continue;
     // every PID we recorded for this process, each verified by its start time before it is touched (guards PID reuse)
@@ -133,10 +131,9 @@ function stop(app, only) {
       continue;
     }
     console.log(killed ? `Stopped ${app.id}/${name} (${killed} process tree(s))` : `${app.id}/${name}: recorded process is no longer running; clearing record`);
+    await store.processState.remove(app.id, name);
     delete recs[name];
   }
-  state[app.id] = recs;
-  saveState(state);
   if (!Object.keys(recs).length) console.log(`${app.id}: nothing left running under dashboard control.`);
 }
 
@@ -144,6 +141,7 @@ const [cmd, id, ...rest] = process.argv.slice(2);
 const only = rest.find((a) => a.startsWith('--only='))?.split('=')[1];
 if (cmd === 'status') await status(id === '--json');
 else if (cmd === 'start') await start(getApp(id), only);
-else if (cmd === 'stop') stop(getApp(id), only);
-else if (cmd === 'restart') { const a = getApp(id); stop(a, only); await start(a, only); }
+else if (cmd === 'stop') await stop(getApp(id), only);
+else if (cmd === 'restart') { const a = getApp(id); await stop(a, only); await start(a, only); }
 else console.log('Usage: node supervisor/index.mjs status | start <app> [--only=proc] | stop <app> [--only=proc] | restart <app>');
+await closeStore();

@@ -10,6 +10,6 @@ npm run demo -- revoke <id>
 - Link format: `http://<product>.localhost:4300/d/<token>` (set `DEMO_BASE_HOST` / `DEMO_SCHEME=https` for a real domain).
 - Only registry entries with `demoOf` and `demoReady: true` can be served. Set `demoReady` only after confirming the instance shares no data with production.
 - The cookie is re-checked on every request: expiry and revocation apply immediately; a link works only on its own product's host.
-- Tokens are stored hashed (`data/demos.json`); entries and denials are logged to `data/demo-access.log`.
+- Tokens are stored hashed in the database (`data/dashboard.db`); grants, entries, denials and revocations go to its audit table (kept 90 days, set `AUDIT_RETENTION_DAYS` to change). Old `demos.json` / `demo-access.log` are imported automatically the first time and kept as a backup; `npm run migrate` re-checks the import.
 - Start the gateway and the demo instance from the Demos panel in the admin console (or `node supervisor/index.mjs start gateway` / `start imageapp-demo`).
 - Not supported yet: WebSockets (Streamlit apps), so ClaudeOS and the RMM UI are not demo-ready.

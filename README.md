@@ -26,7 +26,7 @@ node supervisor/index.mjs stop <app> [--only=proc]
 node supervisor/index.mjs restart <app> [--only=proc]
 ```
 Apps: airfinder, claudeos, rmm, crm, claudeworkspace, imageapp. Optional processes (e.g. the RMM Streamlit UI) start only with `--only=`.
-Logs go to `data/logs/`; PIDs are tracked in `data/state.json`. Stop only ever kills PIDs the supervisor started itself.
+Logs go to `data/logs/`; PIDs are tracked in the database (`data/dashboard.db`, one row per process). Stop only ever kills PIDs the supervisor started itself.
 
 ## Admin console
 `npm run console` prints a tokenized localhost URL. It shows each app's processes with status, Start/Stop/Restart, Open and Log buttons. Closing the console never stops the apps.

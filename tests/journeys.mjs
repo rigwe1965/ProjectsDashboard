@@ -17,7 +17,7 @@ const note = (p, s, ok, d = '') => { results.push(`${ok ? 'PASS' : 'FAIL'}  ${p.
 const browser = await chromium.launch({ channel: 'chrome' });
 const granted = [];
 async function open(product, who) {
-  const { grant, link } = createGrant({ customer: `UI test ${who}`, app: product, hours: 1 });
+  const { grant, link } = await createGrant({ customer: `UI test ${who}`, app: product, hours: 1 });
   granted.push(grant.id);
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 850 } });
   const page = await ctx.newPage(); const errs = [];
@@ -96,5 +96,5 @@ try {
 } catch (e) { note('ClaudeWorkspace', 'journey', false, e.message.split('\n')[0]); }
 
 await browser.close();
-for (const id of granted) { try { revokeGrant(id); } catch { /* already revoked */ } }
+for (const id of granted) { try { await revokeGrant(id); } catch { /* already revoked */ } }
 console.log(results.join('\n'));

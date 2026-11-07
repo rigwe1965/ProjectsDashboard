@@ -94,17 +94,17 @@ const server = http.createServer(async (req, res) => {
     let rows = []; try { rows = JSON.parse(output); } catch { /* leave empty */ }
     const products = Object.entries(demoApps()).map(([product, a]) => ({ product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed) }));
     const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
-    return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: gwPort, products, grants: loadGrants().map(publicGrant).reverse() });
+    return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: gwPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
   }
   if (req.method === 'POST' && url.pathname === '/api/demos') {
     if (req.headers.origin !== 'http://' + req.headers.host) return json(res, 403, { error: 'bad origin' });
     let body = ''; for await (const c of req) { body += c; if (body.length > 4096) return json(res, 413, { error: 'too large' }); }
-    try { const b = JSON.parse(body || '{}'); const { grant, link } = createGrant({ customer: b.customer, app: b.app, hours: b.hours }); return json(res, 200, { grant: publicGrant(grant), link }); }
+    try { const b = JSON.parse(body || '{}'); const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours }); return json(res, 200, { grant: publicGrant(grant), link }); }
     catch (e) { return json(res, 400, { error: e.message }); }
   }
   if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
     if (req.headers.origin !== 'http://' + req.headers.host) return json(res, 403, { error: 'bad origin' });
-    try { revokeGrant(m[1]); return json(res, 200, { ok: true }); } catch (e) { return json(res, 404, { error: e.message }); }
+    try { await revokeGrant(m[1]); return json(res, 200, { ok: true }); } catch (e) { return json(res, 404, { error: e.message }); }
   }
 
   res.writeHead(404); res.end('Not found');

@@ -5,9 +5,8 @@
 // registry entries with demoOf + demoReady:true.
 // Not supported yet: WebSocket upgrades (needed by Streamlit-based apps, none are demo-ready).
 import http from 'node:http';
-import { appendFileSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
-import { findGrant, isActive, demoApps, dataDir } from './grants.mjs';
+import { findGrant, isActive, demoApps } from './grants.mjs';
+import { getStore } from '../lib/store/index.mjs';
 import { cookieOf as readCookie } from '../lib/http-util.mjs';
 import { ports } from '../lib/config.mjs';
 
@@ -16,15 +15,14 @@ const BASE = process.env.DEMO_BASE_HOST || `localhost:${PORT}`;
 const SCHEME = process.env.DEMO_SCHEME || 'http';
 const baseName = BASE.split(':')[0];
 const COOKIE = 'pd_demo';
-mkdirSync(dataDir, { recursive: true });
-const logFile = join(dataDir, 'demo-access.log');
-const audit = (o) => appendFileSync(logFile, JSON.stringify({ t: new Date().toISOString(), ...o }) + '\n');
-
-const hits = new Map(); // crude per-IP limiter for the token endpoint
-function limited(ip) {
-  const now = Date.now(), h = (hits.get(ip) || []).filter((t) => now - t < 60000);
-  h.push(now); hits.set(ip, h); return h.length > 20;
-}
+const store = await getStore();
+const RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS || 90);
+const pruned = await store.audit.prune(RETENTION_DAYS);
+if (pruned) console.log(`Pruned ${pruned} audit events older than ${RETENTION_DAYS} days`);
+// An audit failure must never break a customer's request.
+const audit = (o) => { Promise.resolve().then(() => store.audit.add(o)).catch((e) => console.error('audit write failed:', e.message)); };
+// Per-IP limit on the link endpoint, kept in the database (pruned there, survives restarts).
+const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000)) > 20;
 
 const page = (res, code, title, msg) => {
   res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
@@ -34,6 +32,13 @@ const cookieOf = (req) => readCookie(req, COOKIE);
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 
 http.createServer((req, res) => {
+  handle(req, res).catch((e) => {
+    console.error('gateway error:', e);
+    if (!res.headersSent) page(res, 500, 'Something went wrong', 'Please try again shortly.'); else res.destroy();
+  });
+}).listen(PORT, '127.0.0.1', () => console.log(`Demo gateway on ${SCHEME}://*.${BASE} (listening 127.0.0.1:${PORT}). Products: ${Object.keys(demoApps()).join(', ') || 'none ready'}`));
+
+async function handle(req, res) {
   const hostHdr = (req.headers.host || '').toLowerCase();
   const [hostName] = hostHdr.split(':');
   const slug = hostName.endsWith('.' + baseName) ? hostName.slice(0, -(baseName.length + 1)) : null;
@@ -45,8 +50,8 @@ http.createServer((req, res) => {
   // 1. Link redemption
   const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
   if (m) {
-    if (limited(ip)) return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.');
-    const g = findGrant(m[1]);
+    if (await limited(ip)) return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.');
+    const g = await findGrant(m[1]);
     if (!isActive(g) || g.app !== slug) { audit({ ev: 'denied', app: slug, ip, why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' });
       return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.'); }
     audit({ ev: 'enter', grant: g.id, app: slug, ip });
@@ -57,7 +62,7 @@ http.createServer((req, res) => {
 
   // 2. Every other request needs a live grant for THIS product
   const tok = cookieOf(req);
-  const g = /^[a-f0-9]{48}$/.test(tok) ? findGrant(tok) : null;
+  const g = /^[a-f0-9]{48}$/.test(tok) ? await findGrant(tok) : null;
   if (!g) return page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
   if (!isActive(g) || g.app !== slug) { audit({ ev: 'denied', grant: g.id, app: slug, ip });
     return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.'); }
@@ -80,4 +85,4 @@ http.createServer((req, res) => {
   });
   up.on('error', () => { if (!res.headersSent) page(res, 503, 'Demo unavailable', 'The demo is not running right now. Please try again shortly.'); else res.destroy(); });
   req.pipe(up);
-}).listen(PORT, '127.0.0.1', () => console.log(`Demo gateway on ${SCHEME}://*.${BASE} (listening 127.0.0.1:${PORT}). Products: ${Object.keys(demoApps()).join(', ') || 'none ready'}`));
+}
