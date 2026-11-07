@@ -13,7 +13,8 @@
     "showcase": "node showcase/build.mjs && node showcase/serve.mjs",
     "test": "node --test \"tests/unit/*.test.mjs\"",
     "lint": "eslint .",
-    "test:e2e": "node tests/journeys.mjs"
+    "test:e2e": "node tests/journeys.mjs",
+    "migrate": "node supervisor/migrate.mjs"
   },
   "engines": {
     "node": ">=22"
