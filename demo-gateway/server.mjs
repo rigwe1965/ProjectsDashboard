@@ -8,8 +8,10 @@ import http from 'node:http';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { findGrant, isActive, demoApps, dataDir } from './grants.mjs';
+import { cookieOf as readCookie } from '../lib/http-util.mjs';
+import { ports } from '../lib/config.mjs';
 
-const PORT = Number(process.env.GATEWAY_PORT || 4300);
+const PORT = ports.gateway;
 const BASE = process.env.DEMO_BASE_HOST || `localhost:${PORT}`;
 const SCHEME = process.env.DEMO_SCHEME || 'http';
 const baseName = BASE.split(':')[0];
@@ -28,7 +30,7 @@ const page = (res, code, title, msg) => {
   res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
   res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">${title}</h1><p>${msg}</p>`);
 };
-const cookieOf = (req) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split(/=(.*)/s)).find(([k]) => k === COOKIE)?.[1] || '';
+const cookieOf = (req) => readCookie(req, COOKIE);
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 
 http.createServer((req, res) => {

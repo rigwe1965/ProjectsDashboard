@@ -6,25 +6,22 @@
 import http from 'node:http';
 import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } from 'node:fs';
 import { execFile } from 'node:child_process';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import net from 'node:net';
 import { loadGrants, createGrant, revokeGrant, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
+import { root, dataDir, ports } from '../lib/config.mjs';
+import { loadRegistry } from '../lib/registry.mjs';
+import { cookieOf as readCookie, safeEq, json, portInUse } from '../lib/http-util.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, '..');
-const PORT = Number(process.env.CONSOLE_PORT || 4100);
-const registry = JSON.parse(readFileSync(process.env.DASHBOARD_REGISTRY || join(root, 'registry', 'apps.json'), 'utf8'));
-const dataDir = process.env.DASHBOARD_DATA || join(root, 'data');
+const PORT = ports.console;
+const registry = loadRegistry();
 const token = randomBytes(24).toString('hex');
 const cookieName = 'pd_session';
 const busy = new Set();
 
-const safeEq = (a, b) => { const x = Buffer.from(a), y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
-const cookieOf = (req) => (req.headers.cookie || '').split(/;\s*/).map((c) => c.split('=')).find(([k]) => k === cookieName)?.[1] || '';
-const authed = (req) => safeEq(cookieOf(req), token);
-const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
+const authed = (req) => safeEq(readCookie(req, cookieName), token);
 
 function supervisor(args, timeout = 120000) {
   return new Promise((resolve) => {
@@ -91,8 +88,8 @@ const server = http.createServer(async (req, res) => {
 
 
   if (req.method === 'GET' && url.pathname === '/api/demos') {
-    const gwPort = Number(process.env.GATEWAY_PORT || 4300);
-    const gatewayUp = await new Promise((r) => { const c = net.connect({ port: gwPort, host: '127.0.0.1' }); c.once('connect', () => { c.destroy(); r(true); }); c.once('error', () => r(false)); c.setTimeout(800, () => { c.destroy(); r(false); }); });
+    const gwPort = ports.gateway;
+    const gatewayUp = await portInUse(gwPort);
     const { output } = await supervisor(['status', '--json'], 30000);
     let rows = []; try { rows = JSON.parse(output); } catch { /* leave empty */ }
     const products = Object.entries(demoApps()).map(([product, a]) => ({ product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed) }));

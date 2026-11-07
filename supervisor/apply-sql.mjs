@@ -23,7 +23,7 @@ let db, ref;
 try { db = new URL(env.DEMO_DB_URL); } catch { die('DEMO_DB_URL is not a valid URL'); }
 try { ref = new URL(env.NEXT_PUBLIC_SUPABASE_URL).hostname.split('.')[0]; } catch { die('NEXT_PUBLIC_SUPABASE_URL is not a valid URL'); }
 if (!db.username.includes(ref) && !db.hostname.includes(ref)) die(`DB user/host does not contain the project ref "${ref}": refusing (wrong project?)`);
-if (/[\[\]<>]|YOUR/i.test(decodeURIComponent(db.password))) die('DEMO_DB_URL still contains a password placeholder');
+if (/[[\]<>]|YOUR/i.test(decodeURIComponent(db.password))) die('DEMO_DB_URL still contains a password placeholder');
 
 const files = readdirSync(sqlDir).filter((f) => f.endsWith('.sql')).sort();
 const client = new Client({ connectionString: env.DEMO_DB_URL, ssl: { rejectUnauthorized: false } });

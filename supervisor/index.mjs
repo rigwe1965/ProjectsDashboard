@@ -5,42 +5,22 @@
 //    process start time still matches (guards against PID reuse)
 //  - refuses to start a process whose port is already in use or reserved
 //  - app env vars are set on the child process only
-import { readFileSync, writeFileSync, existsSync, mkdirSync, openSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 import { spawn, execFileSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { dirname, join, resolve } from 'node:path';
-import net from 'node:net';
-import http from 'node:http';
+import { join, resolve } from 'node:path';
+import { cleanEnv } from '../lib/clean-env.mjs';
+import { root, dataDir } from '../lib/config.mjs';
+import { loadRegistry } from '../lib/registry.mjs';
+import { portInUse, httpUp } from '../lib/http-util.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const registryPath = process.env.DASHBOARD_REGISTRY || join(root, 'registry', 'apps.json');
-const dataDir = process.env.DASHBOARD_DATA || join(root, 'data');
 const statePath = join(dataDir, 'state.json');
 const logDir = join(dataDir, 'logs');
-const registry = JSON.parse(readFileSync(registryPath, 'utf8'));
+const registry = loadRegistry();
 const reserved = new Set(registry.reservedPorts ?? []);
 
 mkdirSync(logDir, { recursive: true });
 const loadState = () => (existsSync(statePath) ? JSON.parse(readFileSync(statePath, 'utf8')) : {});
 const saveState = (s) => writeFileSync(statePath, JSON.stringify(s, null, 2));
-
-const portInUse = (port) =>
-  new Promise((res) => {
-    const s = net.connect({ port, host: '127.0.0.1' });
-    s.once('connect', () => { s.destroy(); res(true); });
-    s.once('error', () => res(false));
-    s.setTimeout(800, () => { s.destroy(); res(false); });
-  });
-
-// Any HTTP response counts as "up". Uses node:http (not fetch): undici can throw an uncaught assertion when a
-// dev server (e.g. Flask) closes the socket in an unusual way, which would crash the supervisor.
-function httpUp(port, path) {
-  return new Promise((resolve) => {
-    const req = http.get({ host: '127.0.0.1', port, path, timeout: 2500 }, (res) => { res.resume(); resolve(true); });
-    req.on('timeout', () => { req.destroy(); resolve(false); });
-    req.on('error', () => resolve(false));
-  });
-}
 
 function startTime(pid) {
   try {
@@ -55,17 +35,6 @@ function fill(str, proc, app) {
     .replaceAll('{url}', `http://localhost:${proc.port}`)
     .replaceAll('{port}', String(proc.port))
     .replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
-}
-
-// Isolation: an app must never inherit ANOTHER project's virtual environment from whatever shell started the
-// dashboard. Strip VIRTUAL_ENV and venv "Scripts" folders from PATH, so a bare `python` means the machine's own
-// Python. Apps that need their own venv call it by explicit path in the registry, which is unaffected.
-export function cleanEnv(env) {
-  for (const k of Object.keys(env)) {
-    if (/^(VIRTUAL_ENV|VIRTUAL_ENV_PROMPT|PYTHONHOME|PYTHONPATH|CONDA_PREFIX)$/i.test(k)) delete env[k];
-    if (/^path$/i.test(k)) env[k] = String(env[k]).split(';').filter((p) => !/[\\/]\.?venv[\\/]Scripts[\\/]?$/i.test(p.trim())).join(';');
-  }
-  return env;
 }
 
 // PID of the process listening on a port. Only used right after we verified the port was free and started our app,
@@ -151,11 +120,11 @@ function stop(app, only) {
     if (only && name !== only) continue;
     // every PID we recorded for this process, each verified by its start time before it is touched (guards PID reuse)
     const targets = [{ pid: rec.pid, st: rec.startTime }, { pid: rec.listenPid, st: rec.listenStartTime }].filter((t) => t.pid);
-    let killed = 0, failed = 0;
+    let killed = 0;
     for (const t of targets) {
       const now = startTime(t.pid);
       if (!now || now !== t.st) continue; // gone, or the PID was reused by something else: leave it alone
-      try { execFileSync('taskkill', ['/PID', String(t.pid), '/T', '/F'], { stdio: 'ignore' }); killed++; } catch { failed++; }
+      try { execFileSync('taskkill', ['/PID', String(t.pid), '/T', '/F'], { stdio: 'ignore' }); killed++; } catch { /* could not kill; verified below */ }
     }
     // verify: if the process we recorded as the port's listener is still the one listening, the stop failed
     const stillOn = rec.port ? listenerPid(rec.port) : null;

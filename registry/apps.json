@@ -10,7 +10,7 @@
       "id": "airfinder",
       "name": "Airfinder",
       "tagline": "Search for cheap air tickets",
-      "path": "C:\\Users\\rigwe\\Desktop\\Airfinder",
+      "path": "${APPS_ROOT}\\Airfinder",
       "stack": "Flask + SQLite/Postgres",
       "processes": [
         {
@@ -33,7 +33,7 @@
       "id": "claudeos",
       "name": "ClaudeOS",
       "tagline": "Claude Operating System",
-      "path": "C:\\Users\\rigwe\\Desktop\\ClaudeOS",
+      "path": "${APPS_ROOT}\\ClaudeOS",
       "stack": "Flask API (waitress) + Streamlit",
       "_note": "scripts\\start.ps1 is NOT used: it force-kills processes on its ports. Processes are launched directly. CLAUDEOS_DEV_API_KEY (read from .env by start.ps1) is deliberately not passed; the dashboard may need a manual sign-in.",
       "processes": [
@@ -67,7 +67,7 @@
       "id": "rmm",
       "name": "RemoteManagementSystem",
       "tagline": "Remote IT management and support",
-      "path": "C:\\Users\\rigwe\\Desktop\\RemoteManagementSystem",
+      "path": "${APPS_ROOT}\\RemoteManagementSystem",
       "stack": "Flask + Streamlit + Postgres + Redis + Celery",
       "_note": "Requires Postgres and Redis already running (not managed here). start_api.py binds 0.0.0.0 and cannot be changed without editing the app; keep the firewall closed for this port.",
       "processes": [
@@ -102,7 +102,7 @@
       "id": "crm",
       "name": "CRM",
       "tagline": "Customer relationship management",
-      "path": "C:\\Users\\rigwe\\Desktop\\CRM",
+      "path": "${APPS_ROOT}\\CRM",
       "stack": "Next.js 15 + Prisma + Postgres",
       "processes": [
         {
@@ -126,7 +126,7 @@
       "id": "claudeworkspace",
       "name": "ClaudeWorkspace (CarRental)",
       "tagline": "Car rental management",
-      "path": "C:\\Users\\rigwe\\Desktop\\ClaudeWorkspace\\reci-transport",
+      "path": "${APPS_ROOT}\\ClaudeWorkspace\\reci-transport",
       "stack": "Turborepo, Next.js 15 x2, Supabase",
       "processes": [
         {
@@ -161,7 +161,7 @@
       "id": "imageapp",
       "name": "ImageApp",
       "tagline": "Image optimizer",
-      "path": "C:\\Users\\rigwe\\Desktop\\ImageApp",
+      "path": "${APPS_ROOT}\\ImageApp",
       "stack": "Flask + Pillow",
       "processes": [
         {
@@ -182,7 +182,7 @@
       "id": "imageapp-demo",
       "name": "ImageApp (demo instance)",
       "tagline": "Isolated demo copy for customers",
-      "path": "C:\\Users\\rigwe\\Desktop\\ImageApp",
+      "path": "${APPS_ROOT}\\ImageApp",
       "stack": "Flask + Pillow",
       "demoOf": "imageapp",
       "demoReady": true,
@@ -195,8 +195,8 @@
           "port": 5410,
           "health": "/",
           "env": {
-            "IMAGEAPP_TEMP_DIR": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-tmp\\imageapp",
-            "LOG_DIR": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-logs\\imageapp"
+            "IMAGEAPP_TEMP_DIR": "${DASHBOARD_ROOT}\\data\\demo-tmp\\imageapp",
+            "LOG_DIR": "${DASHBOARD_ROOT}\\data\\demo-logs\\imageapp"
           }
         }
       ],
@@ -209,7 +209,7 @@
       "id": "crm-demo",
       "name": "CRM (demo instance)",
       "tagline": "Isolated demo copy for customers",
-      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\crm",
+      "path": "${DASHBOARD_ROOT}\\data\\demo-src\\crm",
       "stack": "Next.js 15 + Prisma + Neon (crm-demo project)",
       "demoOf": "crm",
       "demoReady": true,
@@ -231,7 +231,7 @@
       "id": "claudeworkspace-demo",
       "name": "ClaudeWorkspace (demo instance)",
       "tagline": "Isolated demo copy for customers",
-      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\reci-transport",
+      "path": "${DASHBOARD_ROOT}\\data\\demo-src\\reci-transport",
       "stack": "Turborepo, Next.js 15 x2, Supabase (separate demo project)",
       "demoOf": "claudeworkspace",
       "demoReady": true,
@@ -263,7 +263,7 @@
       "id": "airfinder-demo",
       "name": "Airfinder (demo instance)",
       "tagline": "Isolated demo copy for customers",
-      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard\\data\\demo-src\\airfinder",
+      "path": "${DASHBOARD_ROOT}\\data\\demo-src\\airfinder",
       "stack": "Flask + SQLite (clone-local database)",
       "demoOf": "airfinder",
       "demoReady": true,
@@ -286,7 +286,7 @@
       "name": "Demo gateway",
       "tagline": "Routes customer demo links to demo instances",
       "hidden": true,
-      "path": "C:\\Users\\rigwe\\Desktop\\ProjectsDashboard",
+      "path": "${DASHBOARD_ROOT}",
       "stack": "Node",
       "processes": [
         {

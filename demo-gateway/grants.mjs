@@ -5,12 +5,11 @@
 //   node demo-gateway/grants.mjs revoke <grantId>
 import { readFileSync, writeFileSync, existsSync, mkdirSync, renameSync } from 'node:fs';
 import { createHash, randomBytes } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { dataDir, registryPath } from '../lib/config.mjs';
+import { loadRegistry } from '../lib/registry.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-export const dataDir = process.env.DASHBOARD_DATA || join(root, 'data');
-export const registryPath = process.env.DASHBOARD_REGISTRY || join(root, 'registry', 'apps.json');
+export { dataDir, registryPath };
 const file = join(dataDir, 'demos.json');
 export const MAX_HOURS = 720;
 
@@ -20,7 +19,7 @@ function save(g) { mkdirSync(dataDir, { recursive: true }); writeFileSync(file +
 
 // product id -> demo instance entry (only instances explicitly marked demoReady)
 export function demoApps() {
-  const reg = JSON.parse(readFileSync(registryPath, 'utf8'));
+  const reg = loadRegistry(registryPath);
   return Object.fromEntries(reg.apps.filter((a) => a.demoOf && a.demoReady === true).map((a) => [a.demoOf, a]));
 }
 
