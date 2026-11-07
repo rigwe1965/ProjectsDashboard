@@ -45,6 +45,52 @@
       "processes": [
         { "name": "app", "container": "pd-airfinder-demo", "host": "airfinder-demo", "port": 5200, "health": "/" }
       ]
+    },
+    {
+      "id": "crm",
+      "name": "CRM",
+      "tagline": "Customer relationship management",
+      "path": "/unused",
+      "hidden": true,
+      "processes": [
+        { "name": "app", "container": "pd-crm-unused", "host": "crm-unused", "port": 3101, "health": "/sign-in" }
+      ],
+      "demo": { "supported": true, "notes": "Own Postgres container; seed once with: docker compose run --rm crm-demo seed" }
+    },
+    {
+      "id": "crm-demo",
+      "name": "CRM (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "/unused",
+      "demoOf": "crm",
+      "demoReady": true,
+      "processes": [
+        { "name": "app", "container": "pd-crm-demo", "host": "crm-demo", "port": 3101, "health": "/sign-in" }
+      ]
+    },
+    {
+      "id": "claudeworkspace",
+      "name": "ClaudeWorkspace (CarRental)",
+      "tagline": "Car rental management",
+      "path": "/unused",
+      "hidden": true,
+      "processes": [
+        { "name": "web", "container": "pd-claudeworkspace-unused", "host": "claudeworkspace-unused", "port": 3102, "health": "/" }
+      ],
+      "demo": { "supported": true, "notes": "Uses a separate hosted Supabase demo project (see deploy/README.md)" }
+    },
+    {
+      "id": "claudeworkspace-demo",
+      "name": "ClaudeWorkspace (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "/unused",
+      "demoOf": "claudeworkspace",
+      "demoReady": true,
+      "demoRoutes": [{ "prefix": "/admin", "process": "admin" }],
+      "processes": [
+        { "name": "web", "container": "pd-claudeworkspace-web", "host": "claudeworkspace-web", "port": 3102, "health": "/" },
+        { "name": "admin", "container": "pd-claudeworkspace-admin", "host": "claudeworkspace-admin", "port": 3103, "health": "/admin" }
+      ]
     }
   ]
 }

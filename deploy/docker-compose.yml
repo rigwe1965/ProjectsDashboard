@@ -107,10 +107,10 @@ services:
     container_name: pd-airfinder-demo
     restart: unless-stopped
     environment:     # no mail account is set, so the demo never sends email
-      SECRET_KEY: ${AIRFINDER_SECRET_KEY:?set AIRFINDER_SECRET_KEY in deploy/.env}
-      JWT_SECRET: ${AIRFINDER_JWT_SECRET:?set AIRFINDER_JWT_SECRET in deploy/.env}
+      SECRET_KEY: ${AIRFINDER_SECRET_KEY:-}
+      JWT_SECRET: ${AIRFINDER_JWT_SECRET:-}
       SUPER_ADMIN_EMAIL: ${AIRFINDER_ADMIN_EMAIL:-demo@example.com}
-      SUPER_ADMIN_PASSWORD: ${AIRFINDER_ADMIN_PASSWORD:?set AIRFINDER_ADMIN_PASSWORD in deploy/.env}
+      SUPER_ADMIN_PASSWORD: ${AIRFINDER_ADMIN_PASSWORD:-}
       PUBLIC_BASE_URL: ${DEMO_SCHEME:-https}://airfinder.${DEMO_DOMAIN}
     volumes: [airfinder_demo_data:/app/instance]
     healthcheck:
@@ -118,6 +118,96 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
+    networks: [internal]
+
+  # CRM demo: its own Postgres (never shared with production) plus the app in dev mode (see deploy/apps/crm/Dockerfile).
+  crm-demo-db:
+    profiles: ["apps"]
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: crm
+      POSTGRES_USER: crm
+      POSTGRES_PASSWORD: ${CRM_DB_PASSWORD:-}
+      CRM_APP_PASSWORD: ${CRM_APP_PASSWORD:-}
+    volumes:
+      - crm_demo_pgdata:/var/lib/postgresql/data
+      - ./apps/crm/init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crm -d crm"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+
+  crm-demo:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/CRM
+      dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/crm/Dockerfile
+    image: pd-crm
+    container_name: pd-crm-demo
+    restart: unless-stopped
+    depends_on: { crm-demo-db: { condition: service_healthy } }
+    environment:     # no email, Stripe, WhatsApp or AI keys: the demo never contacts an outside service
+      DATABASE_URL: postgresql://crm_app:${CRM_APP_PASSWORD:-}@crm-demo-db:5432/crm
+      DIRECT_URL: postgresql://crm:${CRM_DB_PASSWORD:-}@crm-demo-db:5432/crm
+      PLATFORM_DATABASE_URL: postgresql://crm:${CRM_DB_PASSWORD:-}@crm-demo-db:5432/crm
+      NEXTAUTH_SECRET: ${CRM_AUTH_SECRET:-}
+      NEXTAUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
+      AUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
+      AUTH_TRUST_HOST: "true"
+      SEED_USER_PASSWORD: ${CRM_DEMO_PASSWORD:-}
+    volumes: [crm_demo_next:/app/.next]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/sign-in').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 90s
+    networks: [internal]
+
+  # ClaudeWorkspace (CarRental) demo: customer site + admin portal from one image. The backend is a SEPARATE hosted
+  # Supabase demo project (never the production one); payments, email, AI and monitoring keys are deliberately not set.
+  claudeworkspace-web:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/ClaudeWorkspace/reci-transport
+      dockerfile: ../../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/claudeworkspace/Dockerfile
+    image: pd-claudeworkspace
+    container_name: pd-claudeworkspace-web
+    restart: unless-stopped
+    environment: &cw-env
+      NEXT_PUBLIC_SUPABASE_URL: ${CW_SUPABASE_URL:-}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${CW_SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${CW_SUPABASE_SERVICE_ROLE_KEY:-}
+      NEXT_PUBLIC_APP_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}
+      NEXT_PUBLIC_ADMIN_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}/admin
+    volumes: [cw_web_next:/app/apps/web/.next]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3102/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 120s
+    networks: [internal]
+
+  claudeworkspace-admin:
+    profiles: ["apps"]
+    image: pd-claudeworkspace
+    container_name: pd-claudeworkspace-admin
+    restart: unless-stopped
+    depends_on: [claudeworkspace-web]       # same image, built once by the web service
+    working_dir: /app/apps/admin
+    command: ["pnpm", "exec", "next", "dev", "-H", "0.0.0.0", "-p", "3103", "--turbo"]
+    environment: *cw-env
+    volumes: [cw_admin_next:/app/apps/admin/.next]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3103/admin').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 20s
+      timeout: 8s
+      retries: 5
+      start_period: 120s
     networks: [internal]
 
 networks:
@@ -130,3 +220,7 @@ volumes:
   caddy_data:
   caddy_config:
   airfinder_demo_data:
+  crm_demo_pgdata:
+  crm_demo_next:
+  cw_web_next:
+  cw_admin_next:

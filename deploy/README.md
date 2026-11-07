@@ -48,10 +48,20 @@ seconds longer. Let's Encrypt limits how many certificates one domain can get pe
 ## Apps in containers
 `--profile apps` builds each app from **its own folder** using a recipe owned by the dashboard
 (`deploy/apps/<app>/Dockerfile`). The app's folder is only read; nothing is added to it. Set `APPS_ROOT` in `.env` to
-the folder that contains the apps. So far **ImageApp** and **Airfinder** have recipes. Airfinder's real `.env`, database and logs are excluded from the build
-(`Dockerfile.dockerignore`), so the demo starts empty with its own SQLite file in a volume and its own staff login from
-`AIRFINDER_*` in `.env`; no mail account is set, so nothing is sent. Other apps need their own recipe
-(Python apps are short; the Next.js ones and anything needing a database need more thought).
+the folder that contains the apps. Recipes exist for **ImageApp**, **Airfinder**, **CRM** and **ClaudeWorkspace** (the four demo-ready apps). Every recipe
+excludes the app's real `.env` files, databases and caches from the build (`Dockerfile.dockerignore` next to it), so a demo
+can never contain production secrets or data. Demos start empty; none of them has email, payment, AI or monitoring keys.
+
+| Demo | Needs in `.env` | One-time step |
+|---|---|---|
+| ImageApp | nothing | none |
+| Airfinder | `AIRFINDER_*` (own SQLite file in a volume) | none; staff login is the `AIRFINDER_ADMIN_*` pair |
+| CRM | `CRM_*` (its own Postgres container) | `docker compose --profile apps run --rm crm-demo seed` (wipes and fills the demo database only) |
+| ClaudeWorkspace | `CW_SUPABASE_*` of a **separate** demo Supabase project | apply its 14 migrations and seed to that project (as for the local demo) |
+
+CRM and ClaudeWorkspace run `next dev`, like the verified local demos. Production mode (`next start`) refuses to boot
+without a real email provider, Redis, and other services a demo should not have. First page loads are slower while Next
+compiles them. These two recipes are for demos only, never for real customer data.
 
 In `registry/apps.hosted.json` a process is either a host process (`cmd`) or an existing container
 (`container` = its name, `host` = its service name on the compose network, `port` = the port inside the container).
@@ -97,6 +107,6 @@ Stop and remove it with `docker compose -f docker-compose.yml -f docker-compose.
 - Demo apps must not share data with production: give every demo instance its own database, as for the local setup.
 
 ## Not done yet
-- Recipes for the other apps (CRM, ClaudeWorkspace, RMM, ClaudeOS).
+- Recipes for RMM and ClaudeOS (not demo-ready yet).
 - Moving existing demo links from a local SQLite database into Postgres (new links are simply created on the server).
 - ClaudeOS and RMM UI demos still need their own demo data before they can be marked demo-ready.

@@ -1,0 +1,15 @@
+# Ignore rules for the CRM build context. They live HERE so nothing is added to the app's own folder.
+# Production secrets must never enter the image.
+.env
+.env.*
+!.env.example
+node_modules
+.next
+.git
+.github
+.vercel
+.claude
+*.tsbuildinfo
+/*.md
+!/README.md
+/*.bat

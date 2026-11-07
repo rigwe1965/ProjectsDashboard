@@ -1,0 +1,21 @@
+# Ignore rules for the ClaudeWorkspace build context. They live HERE so nothing is added to the app's own folder.
+# Production secrets (apps/*/.env.local, .env) must never enter the image.
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/.next
+**/.turbo
+**/.vercel
+**/.swc
+.git
+.claude
+.github
+apps/mobile
+playwright-report
+test-results
+audits
+load-tests
+docs
+e2e
+**/coverage
