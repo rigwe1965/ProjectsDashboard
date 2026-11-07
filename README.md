@@ -4,6 +4,8 @@ Orchestration and showcase layer for independent apps. It references the apps by
 
 **Source of truth for each app is its Desktop folder** (`C:\Users\rigwe\Desktop\<App>`). The same-named folders inside this directory are stale copies, git-ignored and not used.
 
+Full explanation of how everything fits together: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md).
+
 ## Layout
 - `registry/apps.json`: one entry per app (path, start command, proposed port, health URL, demo support)
 - `supervisor/`: process control (only `status` exists so far)
