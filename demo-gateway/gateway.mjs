@@ -11,14 +11,18 @@ import net from 'node:net';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { cookieOf as readCookie, clientIp } from '../lib/http-util.mjs';
+import { sha256 } from '../lib/auth.mjs';
 
 const COOKIE = 'pd_demo';
 const TOKEN_RE = /^[a-f0-9]{48}$/;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 
+const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https';
+const OWN_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(HTTPS ? { 'strict-transport-security': 'max-age=31536000' } : {}) };
 const page = (res, code, title, msg) => {
-  res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+  res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS });
   res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">${title}</h1><p>${msg}</p>`);
 };
 
@@ -32,6 +36,8 @@ export async function createGateway(opts = {}) {
     maxBodyBytes: num(process.env.GATEWAY_MAX_BODY_MB, 50) * 1048576,
     wsRecheckMs: num(process.env.GATEWAY_WS_RECHECK_MS, 5000),
     maxWsPerGrant: num(process.env.GATEWAY_MAX_WS_PER_GRANT, 20),
+    redeemPerMinute: num(process.env.GATEWAY_REDEEM_PER_MINUTE, 20), // link opens per IP per minute
+    redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     ...opts,
   };
@@ -41,8 +47,12 @@ export async function createGateway(opts = {}) {
   const store = await getStore();
   // An audit failure must never break a customer's request.
   const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => console.error('audit write failed:', err.message)); };
-  // Per-IP limit on the link endpoint, kept in the database (pruned there, survives restarts).
-  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000)) > 20;
+  // Rate limits live in the database (pruned there, survive restarts).
+  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000)) > o.redeemPerMinute;
+  // A browser whose link was just revoked keeps retrying (Streamlit reconnects in a loop). Record the first few
+  // denials per grant and place, not every retry, so the audit log stays readable.
+  const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000)) <= 3) audit(e); };
+  const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 200);
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();
@@ -77,13 +87,24 @@ export async function createGateway(opts = {}) {
     // 1. Link redemption
     const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
     if (m) {
-      if (await limited(ip)) return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.');
+      const ua = uaOf(req);
+      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.');
       const g = await findGrant(m[1]);
       if (!isActive(g) || g.app !== slug) {
-        audit({ ev: 'denied', app: slug, ip, why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' });
+        audit({ ev: 'denied', app: slug, ip, ua, why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' });
+        // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
+        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.');
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
-      audit({ ev: 'enter', grant: g.id, app: slug, ip });
+      // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
+      const use = await store.grants.redeem(g.id, sha256(ua));
+      if (!use.ok) {
+        audit({ ev: 'denied', grant: g.id, app: slug, ip, ua, why: use.why });
+        return page(res, 403, 'Link not available', use.why === 'device-locked'
+          ? 'This link is tied to the browser it was first opened in. Please contact us if you need a new one.'
+          : 'This link has already been used the maximum number of times. Please contact us for a new one.');
+      }
+      audit({ ev: 'enter', grant: g.id, app: slug, ip, ua });
       const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
       res.writeHead(302, { 'set-cookie': `${COOKIE}=${m[1]}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`, location: '/', 'cache-control': 'no-store' });
       return res.end();
@@ -94,7 +115,7 @@ export async function createGateway(opts = {}) {
     const g = TOKEN_RE.test(tok) ? await findGrant(tok) : null;
     if (!g) return page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
     if (!isActive(g) || g.app !== slug) {
-      audit({ ev: 'denied', grant: g.id, app: slug, ip });
+      await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req) });
       return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.');
     }
 
@@ -110,6 +131,9 @@ export async function createGateway(opts = {}) {
     const up = http.request({ host: '127.0.0.1', port, method: req.method, path: req.url, headers, agent }, (ur) => {
       const out = {};
       for (const [k, v] of Object.entries(ur.headers)) if (!HOP.has(k)) out[k] = v;
+      out['x-content-type-options'] ??= 'nosniff';
+      out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
+      if (HTTPS) out['strict-transport-security'] ??= 'max-age=31536000';
       if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost):${port}`), `${o.scheme}://${hostHdr}`);
       res.writeHead(ur.statusCode, out);
       ur.pipe(res); // pipe() applies backpressure: a slow browser slows the upstream instead of buffering in memory
@@ -145,7 +169,7 @@ export async function createGateway(opts = {}) {
     const tok = readCookie(req, COOKIE);
     const g = TOKEN_RE.test(tok) ? await findGrant(tok) : null;
     if (!g) return rejectUpgrade(socket, 401, 'Unauthorized');
-    if (!isActive(g) || g.app !== slug) { audit({ ev: 'denied', grant: g.id, app: slug, ip, via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
+    if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
     if ((wsCounts.get(g.id) || 0) >= o.maxWsPerGrant) return rejectUpgrade(socket, 429, 'Too Many Requests');
     wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 

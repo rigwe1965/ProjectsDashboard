@@ -40,7 +40,7 @@ const { createGateway } = await import('../../demo-gateway/gateway.mjs');
 const grants = await import('../../demo-gateway/grants.mjs');
 const { closeStore } = await import('../../lib/store/index.mjs');
 
-const gw = await createGateway({ port: 0, baseHost: 'localhost', upstreamTimeoutMs: 300, maxBodyBytes: 1000, wsRecheckMs: 100, maxWsPerGrant: 2 });
+const gw = await createGateway({ port: 0, baseHost: 'localhost', upstreamTimeoutMs: 300, maxBodyBytes: 1000, wsRecheckMs: 100, maxWsPerGrant: 2, redeemPerMinute: 1000 });
 const gwPort = await gw.listen();
 const gwTrusted = await createGateway({ port: 0, baseHost: 'localhost', trustedProxies: ['127.0.0.1'] });
 const trustedPort = await gwTrusted.listen();
@@ -178,4 +178,69 @@ test('WebSocket: at most maxWsPerGrant sockets per grant', async () => {
   const c = await wsOpen({ cookie: g.cookie });
   assert.ok(c.ws, 'a slot frees up when a socket closes');
   b.ws.close(); c.ws.close();
+});
+
+// ---- link limits and abuse protection
+const ua = (name) => ({ 'user-agent': name });
+
+test('a link with a use limit stops working after that many opens', async () => {
+  const { grant, link } = await grants.createGrant({ customer: 'Limited', app: 'toy', hours: 1, maxUses: 1 });
+  const token = link.split('/d/')[1];
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302);
+  const second = await request({ path: '/d/' + token, headers: ua('Browser A') });
+  assert.equal(second.status, 403);
+  assert.match(second.body, /maximum number of times/);
+  assert.equal((await grants.findGrant(token)).uses, 1);
+  assert.ok(grant.id);
+});
+
+test('a device-locked link only works in the browser that first opened it', async () => {
+  const { link } = await grants.createGrant({ customer: 'Locked', app: 'toy', hours: 1, deviceLock: true });
+  const token = link.split('/d/')[1];
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302);
+  const other = await request({ path: '/d/' + token, headers: ua('Browser B') });
+  assert.equal(other.status, 403);
+  assert.match(other.body, /tied to the browser/);
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302, 'the original browser can return');
+});
+
+test('audit records ip and browser; a retry storm after revocation is collapsed', async () => {
+  const g = await newGrant();
+  await request({ path: '/d/' + g.token, headers: ua('Audit-Agent/1.0') });
+  await grants.revokeGrant(g.id);
+  for (let i = 0; i < 12; i++) assert.equal((await request({ headers: { cookie: g.cookie } })).status, 403);
+  await new Promise((r) => setTimeout(r, 50)); // audit writes are fire-and-forget
+  const mine = (await gw.store.audit.list(500)).filter((e) => e.grant === g.id);
+  const enter = mine.find((e) => e.ev === 'enter');
+  assert.equal(enter.ua, 'Audit-Agent/1.0');
+  assert.equal(enter.ip, '127.0.0.1');
+  assert.ok(mine.filter((e) => e.ev === 'denied').length <= 3, 'denials: ' + mine.filter((e) => e.ev === 'denied').length);
+});
+
+test('security headers: on the gateway pages, and added to proxied responses', async () => {
+  const page = await request({});
+  assert.equal(page.status, 401);
+  assert.equal(page.headers['x-frame-options'], 'DENY');
+  assert.equal(page.headers['referrer-policy'], 'no-referrer');
+  assert.match(page.headers['content-security-policy'], /default-src 'none'/);
+  const g = await newGrant();
+  const proxied = await request({ headers: { cookie: g.cookie } });
+  assert.equal(proxied.headers['x-content-type-options'], 'nosniff');
+  assert.equal(proxied.headers['referrer-policy'], 'strict-origin-when-cross-origin');
+});
+
+test('repeated bad links from one address get locked out; a good link still works', async () => {
+  const strict = await createGateway({ port: 0, baseHost: 'localhost', redeemFailLimit: 3, redeemPerMinute: 1000 });
+  const p = await strict.listen();
+  try {
+    const statuses = [];
+    for (let i = 0; i < 6; i++) statuses.push((await request({ port: p, path: '/d/' + String(i).repeat(48).slice(0, 48).replace(/[^a-f0-9]/g, 'a') })).status);
+    // earlier tests in this file already counted a failure for this address, so the lock-out may start a little early
+    assert.equal(statuses[0], 403, 'the first bad link is refused normally: ' + statuses.join());
+    const firstLock = statuses.indexOf(429);
+    assert.ok(firstLock > 0 && firstLock <= 3, 'lock-out starts within the limit: ' + statuses.join());
+    assert.ok(statuses.slice(firstLock).every((s) => s === 429), 'and stays locked: ' + statuses.join());
+    const g = await newGrant();
+    assert.equal((await request({ port: p, path: '/d/' + g.token })).status, 302, 'a valid link is not blocked');
+  } finally { await strict.close(); }
 });

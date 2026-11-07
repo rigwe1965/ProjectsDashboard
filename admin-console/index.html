@@ -42,7 +42,8 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:
 .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 input,select{font:inherit;font-size:14px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
-input[name=customer]{flex:1;min-width:180px}input[name=hours]{width:84px}
+input[name=customer]{flex:1;min-width:180px}input[name=hours]{width:84px}input[name=maxUses]{width:96px}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--mute)}
 .tablewrap{overflow-x:auto;max-width:100%}
 table{width:100%;min-width:480px;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:var(--mute);font-weight:600;border-top:0}
@@ -55,7 +56,7 @@ th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:
 <body>
 <header>
   <div><h1>Projects Dashboard</h1><div class="sub">Independent apps, one control point. Stopping the console never stops your apps.</div></div>
-  <div class="sub" id="updated">Loading…</div>
+  <div class="sub"><span id="updated">Loading…</span> <button id="signout" hidden>Sign out</button></div>
 </header>
 <main id="grid"></main>
 <section id="demos"><h2>Customer demos</h2><div class="sub" style="margin-bottom:10px">One link per customer, valid for one product only. The link is shown once, so copy it before leaving.</div><div class="panel" id="demopanel">Loading…</div></section>
@@ -152,10 +153,12 @@ async function loadDemos(){
       el('input', { name: 'customer', placeholder: 'Customer name', required: '', maxlength: '80' }),
       el('select', { name: 'app' }, d.products.map(p => el('option', { value: p.product }, p.product))),
       el('input', { name: 'hours', type: 'number', min: '1', max: '720', value: '48', title: 'Valid for (hours)' }),
+      el('input', { name: 'maxUses', type: 'number', min: '1', max: '1000', placeholder: 'Max opens', title: 'How many times the link may be opened (empty = unlimited)' }),
+      el('label', { class: 'chk', title: 'The link only works in the browser that opens it first' }, el('input', { name: 'deviceLock', type: 'checkbox' }), 'Lock to first browser'),
       el('button', { type: 'submit' }, 'Create demo link'));
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const b = Object.fromEntries(new FormData(f));
+      const b = Object.fromEntries(new FormData(f)); b.deviceLock = b.deviceLock === 'on';
       const r = await fetch('/api/demos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
       const j = await r.json();
       if (j.error) return say(j.error);
@@ -166,14 +169,16 @@ async function loadDemos(){
     });
     return f;
   })();
-  const table = el('table', {}, el('thead', {}, el('tr', {}, ['Customer', 'Product', 'Expires', 'State', ''].map(t => el('th', {}, t)))),
+  const table = el('table', {}, el('thead', {}, el('tr', {}, ['Customer', 'Product', 'Expires', 'Opens', 'State', ''].map(t => el('th', {}, t)))),
     el('tbody', {}, d.grants.length ? d.grants.map(g => el('tr', {},
       el('td', {}, g.customer), el('td', {}, g.app), el('td', {}, new Date(g.expiresAt).toLocaleString()),
+      el('td', { title: g.lastUsedAt ? 'Last opened ' + new Date(g.lastUsedAt).toLocaleString() : 'Not opened yet' }, g.uses + (g.maxUses ? ' / ' + g.maxUses : '') + (g.deviceLock ? ' (locked)' : '')),
       el('td', {}, el('span', { class: 'pill ' + (g.state === 'active' ? 'ok' : g.state === 'revoked' ? 'bad' : '') }, g.state)),
       el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => { if (!confirm('Revoke the demo link for ' + g.customer + '?')) return; await fetch('/api/demos/' + g.id + '/revoke', { method: 'POST' }); loadDemos(); } }, 'Revoke') : null)))
-      : [el('tr', {}, el('td', { colspan: '5', class: 'sub' }, 'No demo links yet.'))]));
+      : [el('tr', {}, el('td', { colspan: '6', class: 'sub' }, 'No demo links yet.'))]));
   panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), el('div', { class: 'tablewrap' }, table));
 }
+fetch('/api/session').then(r => r.json()).then(s => { if (s.passwordMode) { const b = document.getElementById('signout'); b.hidden = false; b.onclick = async () => { await fetch('/logout', { method: 'POST' }); location.href = '/login'; }; } }).catch(() => {});
 load(); loadDemos(); setInterval(() => { if (!document.getElementById('logdlg').open && !document.activeElement?.closest?.('#demopanel')) loadDemos(); }, 10000);
 setInterval(() => { if (!working.size && !document.getElementById('logdlg').open) load(); }, 5000);
 </script>

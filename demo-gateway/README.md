@@ -4,9 +4,13 @@ Gives one customer time-limited access to ONE product's isolated demo instance.
 ```
 npm run gateway                                   # start the gateway (port 4300)
 npm run demo -- create --customer "Acme" --app imageapp --hours 48   # prints the customer link (shown once)
+npm run demo -- create --customer "Acme" --app crm --max-uses 3 --device-lock   # optional limits
 npm run demo -- list
 npm run demo -- revoke <id>
 ```
+- **Link limits (optional):** `--max-uses N` (or "Max opens" in the console) stops the link after N opens; `--device-lock` ("Lock to first browser") pins it to the browser that opens it first, so a forwarded link opened elsewhere is refused. The device check uses the browser's User-Agent, so it deters casual sharing but is not a hard guarantee. Revoking a link is the way to end it early.
+- **Abuse protection:** link opens are limited per IP and per link, and an address that keeps presenting bad links is refused for a while. Repeated denials after a revocation are summarised in the audit log instead of filling it. Audit entries include the IP and browser.
+- **Headers:** the gateway's own pages carry strict security headers (CSP, frame, referrer), and proxied responses get `nosniff` and a referrer policy unless the app set its own.
 - Link format: `http://<product>.localhost:4300/d/<token>` (set `DEMO_BASE_HOST` / `DEMO_SCHEME=https` for a real domain).
 - Only registry entries with `demoOf` and `demoReady: true` can be served. Set `demoReady` only after confirming the instance shares no data with production.
 - The cookie is re-checked on every request: expiry and revocation apply immediately; a link works only on its own product's host.
@@ -25,4 +29,6 @@ npm run demo -- revoke <id>
 | `GATEWAY_MAX_BODY_MB` | 50 | largest upload accepted (413 above it) |
 | `GATEWAY_WS_RECHECK_MS` | 5000 | how often open WebSockets are re-validated |
 | `GATEWAY_MAX_WS_PER_GRANT` | 20 | open WebSockets allowed per demo link |
+| `GATEWAY_REDEEM_PER_MINUTE` | 20 | link opens allowed per IP per minute |
+| `GATEWAY_REDEEM_FAIL_LIMIT` | 10 | bad links per IP per 10 minutes before it is refused |
 | `AUDIT_RETENTION_DAYS` | 90 | how long audit events are kept |

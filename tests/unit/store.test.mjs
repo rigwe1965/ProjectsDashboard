@@ -11,13 +11,14 @@ const fresh = () => {
   const store = openSqlite(join(dir, 'db.sqlite'));
   return { dir, store, done: () => { store.close(); rmSync(dir, { recursive: true, force: true }); } };
 };
+const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null };
 const grant = (o = {}) => ({ id: 'aaaa1111', tokenHash: 'h1', customer: 'Acme', app: 'crm', createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z', revoked: false, ...o });
 
 test('grants: insert, find by hash, list order, revoke', () => {
   const { store, done } = fresh();
   store.grants.insert(grant());
   store.grants.insert(grant({ id: 'bbbb2222', tokenHash: 'h2', createdAt: '2026-01-03T00:00:00.000Z' }));
-  assert.deepEqual(store.grants.findByHash('h1'), grant());
+  assert.deepEqual(store.grants.findByHash('h1'), { ...grant(), ...DEFAULTS });
   assert.equal(store.grants.findByHash('nope'), null);
   assert.deepEqual(store.grants.list().map((g) => g.id), ['aaaa1111', 'bbbb2222']);
   assert.equal(store.grants.revoke('aaaa1111').revoked, true);
@@ -71,7 +72,7 @@ test('importLegacy: imports old JSON files once, keeps them, and is repeatable',
   assert.equal(store.grants.list().length, 0, 'dry run must not write');
 
   assert.deepEqual(await importLegacy(store, dir), { grants: 1, processes: 1, audit: 1, skippedAudit: false });
-  assert.deepEqual(store.grants.findByHash('hash-1'), demos[0], 'token hash and revoked flag preserved exactly');
+  assert.deepEqual(store.grants.findByHash('hash-1'), { ...demos[0], ...DEFAULTS }, 'token hash and revoked flag preserved exactly');
   assert.deepEqual(store.processState.all(), { crm: { app: { pid: 7, port: 3101 } } });
   assert.equal(store.audit.list(5)[0].ev, 'enter');
 
@@ -79,4 +80,46 @@ test('importLegacy: imports old JSON files once, keeps them, and is repeatable',
   assert.equal(store.grants.list().length, 1, 'second run adds nothing');
   assert.equal(readFileSync(join(dir, 'demos.json'), 'utf8'), before, 'original file untouched');
   done();
+});
+
+test('grants.redeem: counts uses, enforces maxUses and pins a device-locked link to the first browser', () => {
+  const { store, done } = fresh();
+  store.grants.insert(grant({ id: 'u1', tokenHash: 'u1h', maxUses: 2 }));
+  assert.equal(store.grants.redeem('u1', 'devA').ok, true);
+  assert.equal(store.grants.redeem('u1', 'devB').ok, true, 'without deviceLock any browser may use it');
+  assert.deepEqual(store.grants.redeem('u1', 'devA'), { ok: false, why: 'max-uses' });
+  assert.equal(store.grants.findByHash('u1h').uses, 2);
+
+  store.grants.insert(grant({ id: 'd1', tokenHash: 'd1h', deviceLock: true }));
+  assert.equal(store.grants.redeem('d1', 'devA').ok, true, 'first browser pins the link');
+  assert.equal(store.grants.redeem('d1', 'devA').ok, true, 'same browser can come back');
+  assert.deepEqual(store.grants.redeem('d1', 'devB'), { ok: false, why: 'device-locked' });
+  assert.equal(store.grants.findByHash('d1h').uses, 2, 'a refused attempt is not counted');
+  assert.deepEqual(store.grants.redeem('nope', 'x'), { ok: false, why: 'unknown' });
+  done();
+});
+
+test('sessions: create, get, expire, delete, prune', () => {
+  const { store, done } = fresh();
+  store.sessions.create('s1', new Date(Date.now() + 60000).toISOString());
+  store.sessions.create('s2', new Date(Date.now() - 1000).toISOString());
+  assert.ok(store.sessions.get('s1'));
+  assert.equal(store.sessions.get('s2'), null, 'expired sessions are not returned');
+  assert.equal(store.sessions.prune(), 1);
+  store.sessions.delete('s1');
+  assert.equal(store.sessions.get('s1'), null);
+  done();
+});
+
+test('an existing database from before these columns is upgraded in place', async () => {
+  const { DatabaseSync } = await import('node:sqlite');
+  const dir = mkdtempSync(join(tmpdir(), 'pd-old-'));
+  const file = join(dir, 'old.sqlite');
+  const old = new DatabaseSync(file);
+  old.exec("CREATE TABLE grants (id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, customer TEXT NOT NULL, app TEXT NOT NULL, created_at TEXT NOT NULL, expires_at TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0);");
+  old.exec("INSERT INTO grants VALUES ('old1','oh','Old','crm','2026-01-01T00:00:00.000Z','2026-01-02T00:00:00.000Z',0)");
+  old.close();
+  const store = openSqlite(file);
+  assert.deepEqual(store.grants.findByHash('oh'), { id: 'old1', tokenHash: 'oh', customer: 'Old', app: 'crm', createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z', revoked: false, ...DEFAULTS });
+  store.close(); rmSync(dir, { recursive: true, force: true });
 });

@@ -29,10 +29,14 @@ Apps: airfinder, claudeos, rmm, crm, claudeworkspace, imageapp. Optional process
 Logs go to `data/logs/`; PIDs are tracked in the database (`data/dashboard.db`, one row per process). Stop only ever kills PIDs the supervisor started itself.
 
 ## Admin console
-`npm run console` prints a tokenized localhost URL. It shows each app's processes with status, Start/Stop/Restart, Open and Log buttons. Closing the console never stops the apps.
+`npm run console` prints a tokenized localhost URL (token mode).
+
+**Password login (recommended):** run `npm run console:auth -- set-password`, then `npm run console:auth -- enable-totp` to add a 2-step code from an authenticator app. After that the console shows a sign-in page instead of the token URL (the token URL stops working). Other commands: `status`, `disable-totp`, `remove-password`, `sign-out-all`. Sign-in attempts are limited (8 per IP and 40 overall per 15 minutes) and every login, failed login and credential change is in the audit log. To reach the console from another machine set `ADMIN_BIND`, `ADMIN_ALLOWED_HOSTS` and `ADMIN_SCHEME=https`; it refuses to listen beyond localhost until a password is set.
+
+It shows each app's processes with status, Start/Stop/Restart, Open and Log buttons. Closing the console never stops the apps.
 
 ## Showcase
 `npm run showcase` builds the static public site from `showcase/products.json` and previews it at http://127.0.0.1:4200/.
 
 ## Demo gateway
-See `demo-gateway/README.md`. Ready now: `imageapp` (no database). Other apps need a separate demo database before `demoReady` is set.
+See `demo-gateway/README.md`. Ready now: `imageapp`, `airfinder`, `crm`, `claudeworkspace` (each runs as its own isolated demo instance). ClaudeOS and the RMM need a separate demo database before `demoReady` is set.

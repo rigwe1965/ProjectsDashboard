@@ -13,6 +13,10 @@ http.createServer((req, res) => {
   if (p.endsWith('/')) p += 'index.html';
   const file = normalize(join(dist, p));
   if (!file.startsWith(dist + sep) || !existsSync(file) || !statSync(file).isFile()) { res.writeHead(404); return res.end('Not found'); }
-  res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'x-content-type-options': 'nosniff' });
+  // The built site is plain HTML and CSS with no scripts, so a strict policy costs nothing. When the site is
+  // hosted elsewhere, set the same headers at the web server (see deploy/ in Stage 4).
+  res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'x-content-type-options': 'nosniff',
+    'content-security-policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+    'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'permissions-policy': 'camera=(), microphone=(), geolocation=()' });
   res.end(readFileSync(file));
 }).listen(PORT, '127.0.0.1', () => console.log(`Showcase preview: http://127.0.0.1:${PORT}/`));
