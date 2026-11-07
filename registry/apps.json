@@ -124,7 +124,7 @@
     },
     {
       "id": "claudeworkspace",
-      "name": "ClaudeWorkspace (RECI Transport)",
+      "name": "ClaudeWorkspace (CarRental)",
       "tagline": "Car rental management",
       "path": "C:\\Users\\rigwe\\Desktop\\ClaudeWorkspace\\reci-transport",
       "stack": "Turborepo, Next.js 15 x2, Supabase",
