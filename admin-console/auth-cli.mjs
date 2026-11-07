@@ -3,6 +3,7 @@
 //   set-password   choose the owner password (asks twice, hidden). Signs out all existing sessions.
 //                  --from-file <path>: read the password from a file instead (the file is deleted at once)
 //   enable-totp    turn on 2-step codes: shows a secret to add to an authenticator app, asks for one code to confirm
+//                  without a prompt: enable-totp --start --to-file <path> (secret goes to the file), then enable-totp --code <6 digits>
 //   disable-totp   turn 2-step codes off
 //   remove-password  go back to the launch-token URL (only for localhost use)
 //   sign-out-all   end every signed-in browser session
@@ -62,18 +63,42 @@ try {
     if (!(await store.meta.get('admin_totp_secret'))) console.log('Next: "npm run console:auth -- enable-totp" adds a 2-step code (recommended).');
   } else if (cmd === 'enable-totp') {
     if (!(await store.meta.get('admin_password_hash'))) throw new Error('Set a password first (set-password).');
-    const secret = newTotpSecret();
-    console.log('Add this to your authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy):');
-    console.log(`  Secret:  ${secret.match(/.{1,4}/g).join(' ')}`);
-    console.log(`  Or open: ${otpauthUrl(secret, 'owner', 'Projects Dashboard')}`);
-    const entered = await ask('Enter the 6-digit code it shows, to confirm: ');
-    const step = verifyTotp(secret, entered);
-    if (step === null) throw new Error('That code was not right. 2-step codes were NOT turned on. Run the command again.');
-    await store.meta.set('admin_totp_secret', secret);
-    await store.meta.set('admin_totp_last_step', step);
-    await store.sessions.clear();
-    await audit('admin-totp-enabled');
-    console.log('2-step codes are on. All signed-in sessions were ended.');
+    const argAfter = (flag) => { const i = process.argv.indexOf(flag); return i > 0 ? process.argv[i + 1] : undefined; };
+    const describe = (secret) => [
+      'Add this to your authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, Authy):',
+      `  Secret:  ${secret.match(/.{1,4}/g).join(' ')}`,
+      `  Or open: ${otpauthUrl(secret, 'owner', 'Projects Dashboard')}`,
+    ].join('\n');
+    let secret, entered, started = false;
+    if (process.argv.includes('--start')) {
+      // Step 1 of 2 without a prompt: keep the new secret as pending and write it to a file (not to the terminal), so it
+      // can be read privately. Nothing changes for sign-in until step 2 confirms a code.
+      const file = argAfter('--to-file');
+      if (!file) throw new Error('Usage: enable-totp --start --to-file <path>');
+      const pending = newTotpSecret();
+      await store.meta.set('admin_totp_pending', pending);
+      writeFileSync(file, describe(pending) + '\n');
+      console.log(`The secret was written to ${file}. Add it to your authenticator app, delete the file, then run: enable-totp --code <6 digits>`);
+      started = true;
+    } else if (process.argv.includes('--code')) {
+      secret = await store.meta.get('admin_totp_pending');
+      if (!secret) throw new Error('No pending secret. Run "enable-totp --start --to-file <path>" first.');
+      entered = argAfter('--code');
+    } else {
+      secret = newTotpSecret();
+      console.log(describe(secret));
+      entered = await ask('Enter the 6-digit code it shows, to confirm: ');
+    }
+    if (!started) {
+      const step = verifyTotp(secret, entered);
+      if (step === null) throw new Error('That code was not right. 2-step codes were NOT turned on. Run the command again.');
+      await store.meta.set('admin_totp_secret', secret);
+      await store.meta.set('admin_totp_last_step', step);
+      await store.meta.set('admin_totp_pending', '');
+      await store.sessions.clear();
+      await audit('admin-totp-enabled');
+      console.log('2-step codes are on. All signed-in sessions were ended.');
+    }
   } else if (cmd === 'disable-totp') {
     await store.meta.set('admin_totp_secret', ''); await store.meta.set('admin_totp_last_step', '-1');
     await audit('admin-totp-disabled'); console.log('2-step codes are off.');

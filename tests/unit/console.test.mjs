@@ -4,7 +4,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -220,5 +220,31 @@ test('CLI: set-password --from-file stores the password and deletes the file, ev
     assert.match((await runCli(['status'], { env })).out, /Password:\s+set/);
 
     assert.equal((await runCli(['set-password', '--from-file', join(d2, 'missing.txt')], { env })).code, 1);
+  } finally { rmSync(d2, { recursive: true, force: true }); }
+});
+
+test('CLI: enable-totp --start / --code works without a prompt and never prints the secret', async () => {
+  const d2 = mkdtempSync(join(tmpdir(), 'pd-cli-')); const env = { DASHBOARD_DATA: d2, DASHBOARD_REGISTRY: join(dir, 'registry.json') };
+  const secretFile = join(d2, 'totp.txt');
+  try {
+    assert.equal((await runCli(['enable-totp', '--start', '--to-file', secretFile], { env })).code, 1, 'needs a password first');
+    assert.equal((await runCli(['set-password'], { env, input: 'a long enough passphrase\na long enough passphrase\n' })).code, 0);
+    assert.equal((await runCli(['enable-totp', '--code', '123456'], { env })).code, 1, 'no pending secret yet');
+
+    const start = await runCli(['enable-totp', '--start', '--to-file', secretFile], { env });
+    assert.equal(start.code, 0, start.err);
+    const text = readFileSync(secretFile, 'utf8');
+    const secret = text.match(/Secret:\s+([A-Z2-7 ]+)\n/)[1].replace(/ /g, '');
+    assert.doesNotMatch(start.out + start.err, new RegExp(secret.slice(0, 8)), 'the secret goes to the file, not the terminal');
+    assert.match((await runCli(['status'], { env })).out, /2-step codes:\s+off/, 'not on until a code is confirmed');
+
+    const bad = await runCli(['enable-totp', '--code', '000000'], { env });
+    assert.equal(bad.code, 1); assert.match(bad.err, /NOT turned on/);
+    assert.match((await runCli(['status'], { env })).out, /2-step codes:\s+off/);
+
+    const good = await runCli(['enable-totp', '--code', totpCode(secret, Math.floor(Date.now() / 30000))], { env });
+    assert.equal(good.code, 0, good.err + good.out);
+    assert.match((await runCli(['status'], { env })).out, /2-step codes:\s+on/);
+    assert.equal((await runCli(['enable-totp', '--code', totpCode(secret, Math.floor(Date.now() / 30000))], { env })).code, 1, 'the pending secret is used up');
   } finally { rmSync(d2, { recursive: true, force: true }); }
 });
