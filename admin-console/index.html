@@ -38,7 +38,9 @@ pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:
 #toast.on{opacity:1}
 
 #demos{max-width:1100px;margin:0 auto;padding:0 16px 48px}
-#demos h2{font-size:19px;margin:8px 0 4px}
+#demos h2,#activity h2{font-size:19px;margin:8px 0 4px}
+#activity{max-width:1100px;margin:0 auto;padding:0 16px 48px}
+td.when{white-space:nowrap;color:var(--mute);font-variant-numeric:tabular-nums}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:14px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 input,select{font:inherit;font-size:14px;padding:6px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
@@ -60,6 +62,7 @@ th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:
 </header>
 <main id="grid"></main>
 <section id="demos"><h2>Customer demos</h2><div class="sub" style="margin-bottom:10px">One link per customer, valid for one product only. The link is shown once, so copy it before leaving.</div><div class="panel" id="demopanel">Loading…</div></section>
+<section id="activity"><h2>Activity</h2><div class="sub" style="margin-bottom:10px">Who signed in, what changed and who opened or was refused a demo. Newest first; times are in your time zone.</div><div class="panel"><div class="row"><select id="actkind" aria-label="Filter activity"><option value="all">Everything</option><option value="admin">Console sign-ins and changes</option><option value="demos">Customer demos</option><option value="problems">Failed or refused only</option></select><button id="actrefresh">Refresh</button></div><div class="tablewrap" id="acttable">Loading…</div></div></section>
 <dialog id="logdlg"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong id="logtitle"></strong><button onclick="logdlg.close()">Close</button></div><pre id="logbody"></pre></dialog>
 <div id="toast" role="status"></div>
 <script>
@@ -178,6 +181,31 @@ async function loadDemos(){
       : [el('tr', {}, el('td', { colspan: '6', class: 'sub' }, 'No demo links yet.'))]));
   panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), el('div', { class: 'tablewrap' }, table));
 }
+const EVENT_LABELS = {
+  'admin-login': 'Console sign-in', 'admin-login-failed': 'Console sign-in failed', 'admin-password-set': 'Password changed',
+  'admin-totp-enabled': '2-step codes turned on', 'admin-totp-disabled': '2-step codes turned off', 'admin-password-removed': 'Password removed',
+  'admin-sessions-cleared': 'All sessions ended', 'grant-created': 'Demo link created', 'grant-revoked': 'Demo link revoked',
+  'enter': 'Customer opened a demo', 'denied': 'Demo access refused', 'ws-open': 'Live connection opened', 'ws-closed': 'Live connection cut',
+};
+const BAD_EVENTS = new Set(['admin-login-failed', 'denied', 'ws-closed']);
+async function loadActivity(){
+  const box = document.getElementById('acttable');
+  try {
+    const r = await fetch('/api/audit?limit=100&kind=' + encodeURIComponent(document.getElementById('actkind').value));
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const { events } = await r.json();
+    const detail = (e) => [e.customer, e.app, e.grant && 'link ' + e.grant, e.why, e.via, e.by && 'by ' + e.by, e.ip, e.ua].filter(Boolean).join(' · ');
+    box.replaceChildren(el('table', {}, el('thead', {}, el('tr', {}, ['When', 'What', 'Details'].map(t => el('th', {}, t)))),
+      el('tbody', {}, events.length ? events.map(e => el('tr', {},
+        el('td', { class: 'when' }, new Date(e.t).toLocaleString()),
+        el('td', {}, el('span', { class: 'pill ' + (BAD_EVENTS.has(e.ev) ? 'bad' : 'ok') }, EVENT_LABELS[e.ev] || e.ev)),
+        el('td', { class: 'sub' }, detail(e))))
+        : [el('tr', {}, el('td', { colspan: '3', class: 'sub' }, 'Nothing recorded yet.'))])));
+  } catch (e) { box.textContent = 'Could not load activity.'; }
+}
+document.getElementById('actkind').onchange = loadActivity;
+document.getElementById('actrefresh').onclick = loadActivity;
+loadActivity(); setInterval(() => { if (document.visibilityState === 'visible') loadActivity(); }, 15000);
 fetch('/api/session').then(r => r.json()).then(s => { if (s.passwordMode) { const b = document.getElementById('signout'); b.hidden = false; b.onclick = async () => { await fetch('/logout', { method: 'POST' }); location.href = '/login'; }; } }).catch(() => {});
 load(); loadDemos(); setInterval(() => { if (!document.getElementById('logdlg').open && !document.activeElement?.closest?.('#demopanel')) loadDemos(); }, 10000);
 setInterval(() => { if (!working.size && !document.getElementById('logdlg').open) load(); }, 5000);

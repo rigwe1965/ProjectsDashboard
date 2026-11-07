@@ -144,6 +144,23 @@ export async function createConsole(opts = {}) {
     }
 
     if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, { passwordMode: pw });
+    // Read-only activity feed. Only a fixed set of fields leaves the server (never a token, hash or session id), and the
+    // page shows them as plain text because address, browser and customer name can come from outside.
+    if (req.method === 'GET' && url.pathname === '/api/audit') {
+      const kind = url.searchParams.get('kind') || 'all';
+      const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 300);
+      const keep = {
+        all: () => true,
+        admin: (e) => e.ev.startsWith('admin-'),
+        demos: (e) => !e.ev.startsWith('admin-'),
+        problems: (e) => e.ev === 'admin-login-failed' || e.ev === 'denied',
+      }[kind];
+      if (!keep) return json(res, 400, { error: 'unknown filter' });
+      const rows = (await store.audit.list(1000)).filter((e) => keep(e)).slice(0, limit)
+        .map((e) => ({ t: e.t, ev: e.ev, app: e.app, grant: e.grant, ip: e.ip, ua: typeof e.ua === 'string' ? e.ua.slice(0, 120) : undefined,
+          why: e.why, via: e.via, by: e.by, customer: e.customer }));
+      return json(res, 200, { events: rows });
+    }
     if (req.method === 'GET' && url.pathname === '/') return html(res, 200, readFileSync(join(here, 'index.html')));
 
     if (req.method === 'GET' && url.pathname === '/api/apps') {

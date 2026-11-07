@@ -248,3 +248,34 @@ test('CLI: enable-totp --start / --code works without a prompt and never prints 
     assert.equal((await runCli(['enable-totp', '--code', totpCode(secret, Math.floor(Date.now() / 30000))], { env })).code, 1, 'the pending secret is used up');
   } finally { rmSync(d2, { recursive: true, force: true }); }
 });
+
+test('activity feed: needs sign-in, filters, limits, and never returns anything outside the safe fields', async () => {
+  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  await store.meta.set('admin_totp_secret', '');
+  const { port } = await start({ loginMaxPerIp: 1000, loginMaxTotal: 1000 });
+  assert.equal((await req(port, { path: '/api/audit' })).status, 401, 'refused without a session');
+  const login = await post(port, '/login', { password: 'a long test passphrase' });
+  assert.equal(login.status, 200, login.body);
+  const cookie = cookieFrom(login);
+  await store.audit.addMany([
+    { ev: 'admin-login', ip: '127.0.0.1', ua: 'Mozilla/5.0' },
+    { ev: 'admin-login-failed', ip: '1.2.3.4', ua: '<img src=x onerror=alert(1)>' },
+    { ev: 'enter', grant: 'ab12cd34', app: 'toy', ip: '5.6.7.8', tokenHash: 'SECRET-HASH', sid: 'SECRET-SESSION' },
+    { ev: 'denied', grant: 'ab12cd34', app: 'toy', ip: '5.6.7.8', why: 'expired' },
+  ]);
+  const get = async (q) => req(port, { path: '/api/audit' + q, headers: { cookie } });
+  const all = await get('');
+  assert.equal(all.status, 200);
+  const { events } = JSON.parse(all.body);
+  assert.ok(events.length >= 4);
+  assert.doesNotMatch(all.body, /SECRET-HASH|SECRET-SESSION/, 'fields outside the whitelist are never sent');
+  assert.ok(events.every((e) => !('tokenHash' in e) && !('sid' in e)));
+  assert.match(all.body, /onerror=alert/, 'untrusted text is returned as data (the page shows it as plain text)');
+  assert.ok(JSON.parse((await get('?kind=admin')).body).events.every((e) => e.ev.startsWith('admin-')));
+  assert.ok(JSON.parse((await get('?kind=demos')).body).events.every((e) => !e.ev.startsWith('admin-')));
+  const problems = JSON.parse((await get('?kind=problems')).body).events;
+  assert.ok(problems.length >= 2 && problems.every((e) => e.ev === 'admin-login-failed' || e.ev === 'denied'));
+  assert.equal(JSON.parse((await get('?limit=2')).body).events.length, 2);
+  assert.equal((await get('?kind=bogus')).status, 400);
+  assert.equal((await req(port, { method: 'POST', path: '/api/audit', headers: { cookie, origin: `http://127.0.0.1:${port}` } })).status === 200, false, 'read-only');
+});
