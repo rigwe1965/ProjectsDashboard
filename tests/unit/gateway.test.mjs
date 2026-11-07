@@ -58,9 +58,14 @@ function request({ port = gwPort, host = 'toy.localhost', path = '/', method = '
     r.end();
   });
 }
+// Creates a link and opens it like a customer would, so `cookie` is the real session cookie the gateway issues.
+// (`token` is the secret from the link itself; it is NOT a valid cookie.)
 async function newGrant(app = 'toy') {
   const { grant, link } = await grants.createGrant({ customer: 'T', app, hours: 1 });
-  return { id: grant.id, token: link.split('/d/')[1], cookie: 'pd_demo=' + link.split('/d/')[1] };
+  const token = link.split('/d/')[1];
+  const opened = await request({ host: app + '.localhost', path: '/d/' + token });
+  assert.equal(opened.status, 302);
+  return { id: grant.id, token, cookie: (opened.headers['set-cookie']?.[0] || '').split(';')[0] };
 }
 function wsOpen({ cookie, port = gwPort, host = 'toy.localhost', origin }) {
   return new Promise((resolve) => {
@@ -77,7 +82,8 @@ test('redeems a link, then proxies with the gateway cookie stripped and other co
   const g = await newGrant();
   const redeem = await request({ path: '/d/' + g.token });
   assert.equal(redeem.status, 302);
-  assert.match(redeem.headers['set-cookie'][0], /^pd_demo=[a-f0-9]{48}; HttpOnly; SameSite=Lax/);
+  assert.match(redeem.headers['set-cookie'][0], /^pd_demo=[a-f0-9]{64}; HttpOnly; SameSite=Lax/);
+  assert.ok(!redeem.headers['set-cookie'][0].includes(g.token), 'the cookie must not contain the link token');
   const r = await request({ path: '/hello?x=1', headers: { cookie: `${g.cookie}; theme=dark` } });
   assert.equal(r.status, 200);
   const seenByUpstream = JSON.parse(r.body);
@@ -243,4 +249,40 @@ test('repeated bad links from one address get locked out; a good link still work
     const g = await newGrant();
     assert.equal((await request({ port: p, path: '/d/' + g.token })).status, 302, 'a valid link is not blocked');
   } finally { await strict.close(); }
+});
+
+// ---- the link token must not work as a cookie (it would skip the use limit and device lock)
+test('the link token itself is refused as a cookie, over HTTP and WebSocket', async () => {
+  const g = await newGrant();
+  assert.equal((await request({ headers: { cookie: 'pd_demo=' + g.token } })).status, 401);
+  assert.equal((await wsOpen({ cookie: 'pd_demo=' + g.token })).status, 401);
+  assert.equal((await request({ headers: { cookie: g.cookie } })).status, 200, 'the real session still works');
+  assert.equal((await request({ headers: { cookie: 'pd_demo=' + 'a'.repeat(64) } })).status, 401, 'a guessed session value is refused');
+});
+
+test('use limit cannot be skipped by presenting the link token as a cookie', async () => {
+  const { link } = await grants.createGrant({ customer: 'OnceOnly', app: 'toy', hours: 1, maxUses: 1 });
+  const token = link.split('/d/')[1];
+  const first = await request({ path: '/d/' + token });
+  assert.equal(first.status, 302);
+  const session = first.headers['set-cookie'][0].split(';')[0];
+  assert.equal((await request({ headers: { cookie: session } })).status, 200, 'the person who opened it can use the demo');
+  // someone else with the forwarded link:
+  assert.equal((await request({ path: '/d/' + token })).status, 403, 'opening it again is refused');
+  assert.equal((await request({ headers: { cookie: 'pd_demo=' + token } })).status, 401, 'and so is sending the token as a cookie');
+});
+
+test('device lock cannot be skipped by presenting the link token as a cookie', async () => {
+  const { link } = await grants.createGrant({ customer: 'Pinned', app: 'toy', hours: 1, deviceLock: true });
+  const token = link.split('/d/')[1];
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302);
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser B') })).status, 403);
+  assert.equal((await request({ headers: { cookie: 'pd_demo=' + token, ...ua('Browser B') } })).status, 401);
+});
+
+test("one grant's session does not work for another grant's product, and ends with the grant", async () => {
+  const a = await newGrant('toy');
+  assert.equal((await request({ host: 'dead.localhost', headers: { cookie: a.cookie } })).status, 403);
+  await grants.revokeGrant(a.id);
+  assert.equal((await request({ headers: { cookie: a.cookie } })).status, 403);
 });

@@ -123,3 +123,17 @@ test('an existing database from before these columns is upgraded in place', asyn
   assert.deepEqual(store.grants.findByHash('oh'), { id: 'old1', tokenHash: 'oh', customer: 'Old', app: 'crm', createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z', revoked: false, ...DEFAULTS });
   store.close(); rmSync(dir, { recursive: true, force: true });
 });
+
+test('grantSessions: a session points at its grant, expires, and is pruned; findById works', () => {
+  const { store, done } = fresh();
+  store.grants.insert(grant());
+  assert.equal(store.grants.findById('aaaa1111').customer, 'Acme');
+  assert.equal(store.grants.findById('nope'), null);
+  store.grantSessions.create('gs1', 'aaaa1111', new Date(Date.now() + 60000).toISOString());
+  store.grantSessions.create('gs2', 'aaaa1111', new Date(Date.now() - 1000).toISOString());
+  assert.equal(store.grantSessions.get('gs1').grantId, 'aaaa1111');
+  assert.equal(store.grantSessions.get('gs2'), null, 'expired');
+  assert.equal(store.grantSessions.get('missing'), null);
+  assert.equal(store.grantSessions.prune(), 1);
+  done();
+});

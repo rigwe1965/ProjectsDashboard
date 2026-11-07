@@ -11,10 +11,12 @@ import net from 'node:net';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { cookieOf as readCookie, clientIp } from '../lib/http-util.mjs';
-import { sha256 } from '../lib/auth.mjs';
+import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const COOKIE = 'pd_demo';
-const TOKEN_RE = /^[a-f0-9]{48}$/;
+// The link token (48 hex) is only ever presented at /d/<token>. The browser's cookie holds a DIFFERENT random value
+// (64 hex) minted at redemption, so the link cannot double as a cookie and skip the use limit / device lock.
+const SESSION_RE = /^[a-f0-9]{64}$/;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 
@@ -53,9 +55,21 @@ export async function createGateway(opts = {}) {
   // denials per grant and place, not every retry, so the audit log stays readable.
   const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000)) <= 3) audit(e); };
   const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 200);
+  await store.grantSessions.prune();
+  const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch(() => {}); }, 3600000);
+  pruneTimer.unref();
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();
+
+  // The grant behind the request's session cookie (null when there is no valid session). The grant's own state
+  // (revoked / expired / product) is checked by the caller on every request, so revocation stays immediate.
+  async function grantFor(req) {
+    const sid = readCookie(req, COOKIE);
+    if (!SESSION_RE.test(sid)) return null;
+    const s = await store.grantSessions.get(hashSessionId(sid));
+    return s ? (await store.grants.findById(s.grantId)) : null;
+  }
 
   function resolveRequest(req) {
     const hostHdr = (req.headers.host || '').toLowerCase();
@@ -106,13 +120,14 @@ export async function createGateway(opts = {}) {
       }
       audit({ ev: 'enter', grant: g.id, app: slug, ip, ua });
       const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
-      res.writeHead(302, { 'set-cookie': `${COOKIE}=${m[1]}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`, location: '/', 'cache-control': 'no-store' });
+      const sid = newSessionId(); // only its hash is stored
+      await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);
+      res.writeHead(302, { 'set-cookie': `${COOKIE}=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`, location: '/', 'cache-control': 'no-store' });
       return res.end();
     }
 
     // 2. Every other request needs a live grant for THIS product
-    const tok = readCookie(req, COOKIE);
-    const g = TOKEN_RE.test(tok) ? await findGrant(tok) : null;
+    const g = await grantFor(req);
     if (!g) return page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
     if (!isActive(g) || g.app !== slug) {
       await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req) });
@@ -166,8 +181,7 @@ export async function createGateway(opts = {}) {
     const { hostHdr, slug, target } = resolveRequest(req);
     if (!target) return rejectUpgrade(socket, 404, 'Not Found');
     const ip = clientIp(req, trusted);
-    const tok = readCookie(req, COOKIE);
-    const g = TOKEN_RE.test(tok) ? await findGrant(tok) : null;
+    const g = await grantFor(req);
     if (!g) return rejectUpgrade(socket, 401, 'Unauthorized');
     if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
     if ((wsCounts.get(g.id) || 0) >= o.maxWsPerGrant) return rejectUpgrade(socket, 429, 'Too Many Requests');
@@ -187,7 +201,7 @@ export async function createGateway(opts = {}) {
     wsClosers.add(close);
     // Revocation and expiry apply to sockets that are already open: look the grant up again every few seconds.
     const timer = setInterval(async () => {
-      try { const cur = await findGrant(tok); if (!isActive(cur) || cur.app !== slug) close('grant-ended'); } catch { /* try again next tick */ }
+      try { const cur = await grantFor(req); if (!isActive(cur) || cur.app !== slug) close('grant-ended'); } catch { /* try again next tick */ }
     }, o.wsRecheckMs);
     timer.unref?.();
 
@@ -231,6 +245,7 @@ export async function createGateway(opts = {}) {
     server, baseHost, store,
     listen: () => new Promise((resolve) => server.listen(o.port, '127.0.0.1', () => resolve(server.address().port))),
     close: async () => {
+      clearInterval(pruneTimer);
       for (const c of [...wsClosers]) c();
       agent.destroy();
       await new Promise((r) => { server.close(r); server.closeAllConnections?.(); });
