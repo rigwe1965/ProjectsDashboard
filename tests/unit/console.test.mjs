@@ -4,7 +4,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -199,5 +199,26 @@ test('CLI: set-password validates, confirms, stores a hash; enable-totp needs a 
     assert.equal((await runCli(['remove-password'], { env })).code, 0);
     assert.match((await runCli(['status'], { env })).out, /Password:\s+not set/);
     assert.equal((await runCli(['bogus'], { env })).code, 1);
+  } finally { rmSync(d2, { recursive: true, force: true }); }
+});
+
+test('CLI: set-password --from-file stores the password and deletes the file, even when the password is rejected', async () => {
+  const d2 = mkdtempSync(join(tmpdir(), 'pd-cli-')); const env = { DASHBOARD_DATA: d2, DASHBOARD_REGISTRY: join(dir, 'registry.json') };
+  const pwFile = join(d2, 'pw.txt');
+  try {
+    writeFileSync(pwFile, 'short\n');
+    const bad = await runCli(['set-password', '--from-file', pwFile], { env });
+    assert.equal(bad.code, 1);
+    assert.equal(existsSync(pwFile), false, 'the file is deleted even when the password is too short');
+    assert.match((await runCli(['status'], { env })).out, /Password:\s+not set/);
+
+    writeFileSync(pwFile, 'a long enough passphrase\r\nsecond line ignored\r\n');
+    const ok = await runCli(['set-password', '--from-file', pwFile], { env });
+    assert.equal(ok.code, 0, ok.err);
+    assert.equal(existsSync(pwFile), false, 'the file is deleted after reading');
+    assert.doesNotMatch(ok.out + ok.err, /a long enough passphrase/, 'the password is never echoed');
+    assert.match((await runCli(['status'], { env })).out, /Password:\s+set/);
+
+    assert.equal((await runCli(['set-password', '--from-file', join(d2, 'missing.txt')], { env })).code, 1);
   } finally { rmSync(d2, { recursive: true, force: true }); }
 });

@@ -1,11 +1,13 @@
 // Manage the admin console login.   npm run console:auth -- <command>
 //   status         show whether a password / two-step code is set
 //   set-password   choose the owner password (asks twice, hidden). Signs out all existing sessions.
+//                  --from-file <path>: read the password from a file instead (the file is deleted at once)
 //   enable-totp    turn on 2-step codes: shows a secret to add to an authenticator app, asks for one code to confirm
 //   disable-totp   turn 2-step codes off
 //   remove-password  go back to the launch-token URL (only for localhost use)
 //   sign-out-all   end every signed-in browser session
 // Passwords are never taken from command-line arguments (they would end up in shell history).
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import readline from 'node:readline';
 import { Writable } from 'node:stream';
 import { getStore, closeStore } from '../lib/store/index.mjs';
@@ -35,10 +37,24 @@ try {
     console.log(`Password:        ${pw ? 'set (password mode: sign in at /login)' : 'not set (token mode: use the URL printed at launch)'}`);
     console.log(`2-step codes:    ${totp ? 'on' : 'off'}`);
   } else if (cmd === 'set-password') {
-    const a = await ask('New password (12+ characters): ', true);
-    const problem = passwordProblem(a);
-    if (problem) throw new Error(problem);
-    if (a !== await ask('Repeat it: ', true)) throw new Error('The two passwords did not match. Nothing was changed.');
+    const fi = process.argv.indexOf('--from-file');
+    let a;
+    if (fi > 0) {
+      // For terminals where the hidden prompt does not work: the password is the first line of a file, which is
+      // overwritten and deleted as soon as it has been read (even when the password is then rejected).
+      const file = process.argv[fi + 1];
+      if (!file) throw new Error('Usage: set-password --from-file <path>');
+      try { a = readFileSync(file, 'utf8').split(/\r?\n/)[0]; }
+      finally { try { writeFileSync(file, ''); } catch { /* best effort */ } try { unlinkSync(file); } catch { /* best effort */ } }
+      console.log('Read the password from the file and deleted it.');
+      const problem = passwordProblem(a);
+      if (problem) throw new Error(problem);
+    } else {
+      a = await ask('New password (12+ characters): ', true);
+      const problem = passwordProblem(a);
+      if (problem) throw new Error(problem);
+      if (a !== await ask('Repeat it: ', true)) throw new Error('The two passwords did not match. Nothing was changed.');
+    }
     await store.meta.set('admin_password_hash', hashPassword(a));
     await store.sessions.clear();
     await audit('admin-password-set');
