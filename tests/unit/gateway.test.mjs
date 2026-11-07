@@ -175,7 +175,13 @@ test('WebSocket: an open socket is cut off soon after the grant is revoked', asy
   const closed = waitClose(ws);
   await grants.revokeGrant(g.id);
   assert.equal(await closed, true, 'socket should close within a few recheck intervals');
-  const evs = (await gw.store.audit.list(50)).filter((e) => e.grant === g.id).map((e) => e.ev + (e.why ? ':' + e.why : ''));
+  // audit writes are fire-and-forget (they must never slow a customer down), so wait for them to land
+  let evs = [];
+  for (let i = 0; i < 40; i++) {
+    evs = (await gw.store.audit.list(50)).filter((e) => e.grant === g.id).map((e) => e.ev + (e.why ? ':' + e.why : ''));
+    if (evs.includes('ws-open') && evs.includes('ws-closed:grant-ended')) break;
+    await new Promise((r) => setTimeout(r, 50));
+  }
   assert.ok(evs.includes('ws-open') && evs.includes('ws-closed:grant-ended'), evs.join());
 });
 
