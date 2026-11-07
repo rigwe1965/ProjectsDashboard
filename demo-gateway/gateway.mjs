@@ -188,6 +188,7 @@ export async function createGateway(opts = {}) {
       for (const [k, v] of Object.entries(ur.headers)) if (!HOP.has(k)) out[k] = v;
       out['x-content-type-options'] ??= 'nosniff';
       out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
+      out['x-frame-options'] ??= 'SAMEORIGIN'; // demo pages cannot be framed by another site (clickjacking)
       if (HTTPS) out['strict-transport-security'] ??= 'max-age=31536000';
       if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${o.scheme}://${hostHdr}`);
       res.writeHead(ur.statusCode, out);

@@ -61,6 +61,8 @@ export async function createConsole(opts = {}) {
   const trusted = new Set(o.trustedProxies);
   const launchToken = randomBytes(24).toString('hex');
   const busy = new Set();
+  let totpChain = Promise.resolve(); // serialises the TOTP check-and-record (one console process)
+  const withTotpLock = (fn) => { const run = totpChain.then(fn); totpChain = run.catch(() => {}); return run; };
   const secure = o.scheme === 'https' ? '; Secure' : '';
   const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
 
@@ -97,15 +99,20 @@ export async function createConsole(opts = {}) {
     const totpSecret = await store.meta.get('admin_totp_secret');
     // both checks always run, so timing does not reveal which of the two was wrong
     const pwOk = !!hash && verifyPassword(String(b.password ?? ''), hash);
-    const lastStep = Number((await store.meta.get('admin_totp_last_step')) ?? -1);
-    const step = totpSecret ? verifyTotp(totpSecret, b.code, Date.now(), lastStep) : 0;
+    // Read the last used step, check the code and record the new step as ONE unit (one login at a time), so two
+    // simultaneous logins with the same code cannot both pass. Only the password-correct case burns the code.
+    const step = await withTotpLock(async () => {
+      const lastStep = Number((await store.meta.get('admin_totp_last_step')) ?? -1);
+      const s = totpSecret ? verifyTotp(totpSecret, b.code, Date.now(), lastStep) : 0;
+      if (totpSecret && s !== null && pwOk) await store.meta.set('admin_totp_last_step', s);
+      return s;
+    });
     if (!pwOk || step === null) {
       audit({ ev: 'admin-login-failed', ip, ua });
       await store.rateLimit.hit('login-fail:all', 900000);
       if (overall) return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' });
       return json(res, 401, { error: totpSecret ? 'Wrong password or code.' : 'Wrong password.' });
     }
-    if (totpSecret) await store.meta.set('admin_totp_last_step', step);
     const id = newSessionId(), maxAge = Math.round(o.sessionHours * 3600);
     await store.sessions.create(hashSessionId(id), new Date(Date.now() + maxAge * 1000).toISOString());
     audit({ ev: 'admin-login', ip, ua });

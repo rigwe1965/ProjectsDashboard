@@ -148,6 +148,16 @@ test('password mode: a flood of failed logins from other addresses does not lock
   assert.equal((await post(port, '/login', { password: 'a long test passphrase' })).status, 200, 'the right password still works');
 });
 
+test('2-step codes: two simultaneous logins with the same code cannot both succeed', async () => {
+  const secret = newTotpSecret();
+  await store.meta.set('admin_totp_secret', secret);
+  await store.meta.set('admin_totp_last_step', '-1');
+  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 100 });
+  const code = totpCode(secret, Math.floor(Date.now() / 30000));
+  const rs = await Promise.all([1, 2, 3].map(() => post(port, '/login', { password: 'a long test passphrase', code })));
+  assert.equal(rs.filter((r) => r.status === 200).length, 1);
+});
+
 test('2-step codes: required, wrong code refused, a code cannot be used twice', async () => {
   const secret = newTotpSecret();
   await store.meta.set('admin_totp_secret', secret);
