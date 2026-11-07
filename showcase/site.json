@@ -1,7 +1,7 @@
 {
   "_note": "Edit these. brand and contactEmail are placeholders. If contactEmail is empty, the demo button points to a 'contact details coming soon' section instead of a mailto link.",
-  "brand": "Your Brand",
+  "brand": "faIyke",
   "tagline": "Practical software for small businesses",
   "intro": "Focused business applications, each built to do one job well. Pick the one that fits your business.",
-  "contactEmail": ""
+  "contactEmail": "iromanus@gmail.com"
 }
