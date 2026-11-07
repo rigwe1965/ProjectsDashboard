@@ -34,3 +34,13 @@ test('cleanEnv removes inherited virtualenv settings but keeps other PATH entrie
   assert.equal(env.KEEP, '1');
   assert.equal(env.Path, 'C:\\bin;C:\\tools');
 });
+
+test('clientIp ignores X-Forwarded-For unless the peer is a trusted proxy', async () => {
+  const { clientIp } = await import('../../lib/http-util.mjs');
+  const r = (peer, xff) => ({ socket: { remoteAddress: peer }, headers: xff ? { 'x-forwarded-for': xff } : {} });
+  assert.equal(clientIp(r('::ffff:1.2.3.4', '9.9.9.9')), '1.2.3.4');
+  const trusted = new Set(['10.0.0.1', '10.0.0.2']);
+  assert.equal(clientIp(r('10.0.0.1', '9.9.9.9'), trusted), '9.9.9.9');
+  assert.equal(clientIp(r('10.0.0.1', '6.6.6.6, 9.9.9.9, 10.0.0.2'), trusted), '9.9.9.9', 'walks from the right, skipping trusted proxies');
+  assert.equal(clientIp(r('10.0.0.1'), trusted), '10.0.0.1');
+});

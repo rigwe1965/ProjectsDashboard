@@ -1,0 +1,181 @@
+// End-to-end gateway tests against a fake upstream. Everything is temporary: own registry, own database, random ports.
+// DASHBOARD_DATA and DASHBOARD_REGISTRY must be set BEFORE the dashboard modules are imported.
+import { test, after } from 'node:test';
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { WebSocketServer, WebSocket } from 'ws';
+
+const dir = mkdtempSync(join(tmpdir(), 'pd-gw-'));
+const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(srv.address().port)));
+
+// --- fake demo instance (main), second process (for demoRoutes), and a dead port
+const seen = { wsHeaders: null };
+const main = http.createServer((req, res) => {
+  if (req.url === '/hang') return; // never answers
+  if (req.url.startsWith('/slow-upload')) { let n = 0; req.on('data', (c) => { n += c.length; }); req.on('end', () => res.end(String(n))); return; }
+  res.setHeader('content-type', 'application/json');
+  res.end(JSON.stringify({ url: req.url, host: req.headers.host, cookie: req.headers.cookie ?? null, xff: req.headers['x-forwarded-for'] ?? null }));
+});
+const wss = new WebSocketServer({ server: main });
+wss.on('connection', (ws, req) => { seen.wsHeaders = req.headers; ws.on('message', (m) => ws.send('echo:' + m)); });
+const second = http.createServer((req, res) => res.end('second:' + req.url));
+const mainPort = await listen(main), secondPort = await listen(second);
+const deadPort = await new Promise((r) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
+
+const proc = (name, port) => ({ name, cmd: 'x', port });
+const reg = { apps: [
+  { id: 'toy', name: 'Toy', path: '.', processes: [proc('app', 19001)] },
+  { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [proc('app', mainPort), proc('other', secondPort)], demoRoutes: [{ prefix: '/other', process: 'other' }] },
+  { id: 'dead', name: 'Dead', path: '.', processes: [proc('app', 19002)] },
+  { id: 'dead-demo', name: 'Dead demo', path: '.', demoOf: 'dead', demoReady: true, processes: [proc('app', deadPort)] },
+] };
+writeFileSync(join(dir, 'registry.json'), JSON.stringify(reg));
+process.env.DASHBOARD_DATA = dir;
+process.env.DASHBOARD_REGISTRY = join(dir, 'registry.json');
+
+const { createGateway } = await import('../../demo-gateway/gateway.mjs');
+const grants = await import('../../demo-gateway/grants.mjs');
+const { closeStore } = await import('../../lib/store/index.mjs');
+
+const gw = await createGateway({ port: 0, baseHost: 'localhost', upstreamTimeoutMs: 300, maxBodyBytes: 1000, wsRecheckMs: 100, maxWsPerGrant: 2 });
+const gwPort = await gw.listen();
+const gwTrusted = await createGateway({ port: 0, baseHost: 'localhost', trustedProxies: ['127.0.0.1'] });
+const trustedPort = await gwTrusted.listen();
+
+after(async () => { await gw.close(); await gwTrusted.close(); await new Promise((r) => main.close(r)); main.closeAllConnections?.(); second.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
+
+// ---- helpers
+function request({ port = gwPort, host = 'toy.localhost', path = '/', method = 'GET', headers = {}, body }) {
+  return new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, path, method, headers: { host: `${host}:${port}`, ...headers } }, (res) => {
+      let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
+    });
+    r.on('error', reject);
+    if (body) r.write(body);
+    r.end();
+  });
+}
+async function newGrant(app = 'toy') {
+  const { grant, link } = await grants.createGrant({ customer: 'T', app, hours: 1 });
+  return { id: grant.id, token: link.split('/d/')[1], cookie: 'pd_demo=' + link.split('/d/')[1] };
+}
+function wsOpen({ cookie, port = gwPort, host = 'toy.localhost', origin }) {
+  return new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { Host: `${host}:${port}`, ...(cookie ? { Cookie: cookie } : {}) }, origin });
+    ws.on('open', () => resolve({ ws }));
+    ws.on('unexpected-response', (_req, res) => { resolve({ status: res.statusCode }); res.resume(); });
+    ws.on('error', () => {});
+  });
+}
+const waitClose = (ws, ms = 3000) => new Promise((resolve) => { const t = setTimeout(() => resolve(false), ms); ws.on('close', () => { clearTimeout(t); resolve(true); }); });
+
+// ---- HTTP proxying
+test('redeems a link, then proxies with the gateway cookie stripped and other cookies kept', async () => {
+  const g = await newGrant();
+  const redeem = await request({ path: '/d/' + g.token });
+  assert.equal(redeem.status, 302);
+  assert.match(redeem.headers['set-cookie'][0], /^pd_demo=[a-f0-9]{48}; HttpOnly; SameSite=Lax/);
+  const r = await request({ path: '/hello?x=1', headers: { cookie: `${g.cookie}; theme=dark` } });
+  assert.equal(r.status, 200);
+  const seenByUpstream = JSON.parse(r.body);
+  assert.equal(seenByUpstream.url, '/hello?x=1');
+  assert.equal(seenByUpstream.host, `127.0.0.1:${mainPort}`);
+  assert.equal(seenByUpstream.cookie, 'theme=dark');
+});
+
+test('refuses requests without a valid grant, for unknown hosts, and after revocation', async () => {
+  assert.equal((await request({})).status, 401);
+  assert.equal((await request({ host: 'nope.localhost' })).status, 404);
+  assert.equal((await request({ host: 'toy.other.test' })).status, 404);
+  const g = await newGrant();
+  assert.equal((await request({ headers: { cookie: g.cookie } })).status, 200);
+  await grants.revokeGrant(g.id);
+  assert.equal((await request({ headers: { cookie: g.cookie } })).status, 403, 'revocation is immediate for HTTP');
+  assert.equal((await request({ path: '/d/' + g.token })).status, 403);
+});
+
+test("a grant for one product is refused on another product's host", async () => {
+  const g = await newGrant('toy');
+  assert.equal((await request({ host: 'dead.localhost', headers: { cookie: g.cookie } })).status, 403);
+});
+
+test('demoRoutes send path prefixes to the other process', async () => {
+  const g = await newGrant();
+  assert.equal((await request({ path: '/other/page', headers: { cookie: g.cookie } })).body, 'second:/other/page');
+});
+
+test('an unreachable demo gives 503, a silent one gives 504', async () => {
+  const dead = await newGrant('dead');
+  assert.equal((await request({ host: 'dead.localhost', headers: { cookie: dead.cookie } })).status, 503);
+  const g = await newGrant();
+  assert.equal((await request({ path: '/hang', headers: { cookie: g.cookie } })).status, 504);
+});
+
+test('uploads over the size limit are refused (declared and streamed)', async () => {
+  const g = await newGrant();
+  const big = 'x'.repeat(2000);
+  assert.equal((await request({ method: 'POST', path: '/slow-upload', headers: { cookie: g.cookie, 'content-length': String(big.length) }, body: big })).status, 413);
+  const small = await request({ method: 'POST', path: '/slow-upload', headers: { cookie: g.cookie }, body: 'x'.repeat(500) });
+  assert.equal(small.status, 200);
+  assert.equal(small.body, '500');
+});
+
+// ---- client address handling
+test('a spoofed X-Forwarded-For from an untrusted peer is dropped', async () => {
+  const g = await newGrant();
+  const r = JSON.parse((await request({ headers: { cookie: g.cookie, 'x-forwarded-for': '9.9.9.9' } })).body);
+  assert.equal(r.xff, '127.0.0.1');
+});
+test('X-Forwarded-For is kept and extended when the peer is a trusted proxy', async () => {
+  const g = await newGrant();
+  const r = JSON.parse((await request({ port: trustedPort, headers: { cookie: g.cookie, 'x-forwarded-for': '9.9.9.9' } })).body);
+  assert.equal(r.xff, '9.9.9.9, 127.0.0.1');
+});
+
+// ---- WebSockets
+test('WebSocket: works with a valid grant, Origin/Host point at the upstream, gateway cookie stripped', async () => {
+  const g = await newGrant();
+  const { ws, status } = await wsOpen({ cookie: `${g.cookie}; theme=dark`, origin: 'http://toy.localhost:' + gwPort });
+  assert.equal(status, undefined);
+  const reply = new Promise((r) => ws.once('message', (m) => r(String(m))));
+  ws.send('hi');
+  assert.equal(await reply, 'echo:hi');
+  assert.equal(seen.wsHeaders.host, `127.0.0.1:${mainPort}`);
+  assert.equal(seen.wsHeaders.origin, `http://127.0.0.1:${mainPort}`);
+  assert.equal(seen.wsHeaders.cookie, 'theme=dark');
+  ws.close();
+});
+
+test('WebSocket: refused without a grant, for a wrong host, and for a revoked grant', async () => {
+  assert.equal((await wsOpen({})).status, 401);
+  const g = await newGrant();
+  assert.equal((await wsOpen({ cookie: g.cookie, host: 'nope.localhost' })).status, 404);
+  assert.equal((await wsOpen({ cookie: g.cookie, host: 'dead.localhost' })).status, 403);
+  await grants.revokeGrant(g.id);
+  assert.equal((await wsOpen({ cookie: g.cookie })).status, 403);
+});
+
+test('WebSocket: an open socket is cut off soon after the grant is revoked', async () => {
+  const g = await newGrant();
+  const { ws } = await wsOpen({ cookie: g.cookie });
+  const closed = waitClose(ws);
+  await grants.revokeGrant(g.id);
+  assert.equal(await closed, true, 'socket should close within a few recheck intervals');
+  const evs = (await gw.store.audit.list(50)).filter((e) => e.grant === g.id).map((e) => e.ev + (e.why ? ':' + e.why : ''));
+  assert.ok(evs.includes('ws-open') && evs.includes('ws-closed:grant-ended'), evs.join());
+});
+
+test('WebSocket: at most maxWsPerGrant sockets per grant', async () => {
+  const g = await newGrant();
+  const a = await wsOpen({ cookie: g.cookie }), b = await wsOpen({ cookie: g.cookie });
+  assert.ok(a.ws && b.ws);
+  assert.equal((await wsOpen({ cookie: g.cookie })).status, 429);
+  a.ws.close(); await waitClose(a.ws);
+  await new Promise((r) => setTimeout(r, 100));
+  const c = await wsOpen({ cookie: g.cookie });
+  assert.ok(c.ws, 'a slot frees up when a socket closes');
+  b.ws.close(); c.ws.close();
+});
