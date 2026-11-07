@@ -20,6 +20,7 @@ import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
+import { logger } from '../lib/log.mjs';
 import { verifyPassword, verifyTotp, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -61,7 +62,7 @@ export async function createConsole(opts = {}) {
   const launchToken = randomBytes(24).toString('hex');
   const busy = new Set();
   const secure = o.scheme === 'https' ? '; Secure' : '';
-  const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => console.error('audit write failed:', err.message)); };
+  const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
 
   const passwordMode = async () => !!(await store.meta.get('admin_password_hash'));
   if (!LOOPBACK.has(o.bindHost) && !(await passwordMode())) {
@@ -111,6 +112,10 @@ export async function createConsole(opts = {}) {
     const host = (req.headers.host || '').split(':')[0].toLowerCase();
     if (!o.allowedHosts.includes(host)) { res.writeHead(403); return res.end('Forbidden'); }
     const url = new URL(req.url, `${o.scheme}://${req.headers.host}`);
+    // Health check for the container / load balancer: no data, no login needed.
+    if (req.method === 'GET' && url.pathname === '/_pd/healthz') {
+      try { await store.meta.get('health-check'); return json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); return json(res, 503, { ok: false }); }
+    }
     const pw = await passwordMode();
 
     if (pw) {
@@ -197,7 +202,7 @@ export async function createConsole(opts = {}) {
   }
 
   const server = http.createServer((req, res) => {
-    handle(req, res).catch((e) => { console.error('console error:', e); if (!res.headersSent) { res.writeHead(500); res.end('Error'); } else res.destroy(); });
+    handle(req, res).catch((e) => { logger.error('console error', { err: e }); if (!res.headersSent) { res.writeHead(500); res.end('Error'); } else res.destroy(); });
   });
   const pruneTimer = setInterval(() => { Promise.resolve(store.sessions.prune()).catch(() => {}); }, 3600000);
   pruneTimer.unref();

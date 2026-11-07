@@ -87,6 +87,14 @@ test('demo links: created with limits through the API, listed with use counts', 
   assert.equal(list.grants.find((g) => g.id === made.grant.id).uses, 0);
 });
 
+test('/_pd/healthz needs no login but still obeys the Host allow-list', async () => {
+  const { port } = await start();
+  const ok = await req(port, { path: '/_pd/healthz' });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(JSON.parse(ok.body), { ok: true });
+  assert.equal((await req(port, { path: '/_pd/healthz', host: 'evil.example' })).status, 403);
+});
+
 // ---------- password mode
 test('password mode: login page, sessions, wrong password, logout; launch token switched off', async () => {
   await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));

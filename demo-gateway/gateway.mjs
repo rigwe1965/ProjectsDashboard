@@ -10,7 +10,9 @@ import http from 'node:http';
 import net from 'node:net';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
-import { cookieOf as readCookie, clientIp } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, clientIp, safeEq } from '../lib/http-util.mjs';
+import { logger } from '../lib/log.mjs';
+import { createMetrics } from '../lib/metrics.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const COOKIE = 'pd_demo';
@@ -38,6 +40,7 @@ export async function createGateway(opts = {}) {
     maxBodyBytes: num(process.env.GATEWAY_MAX_BODY_MB, 50) * 1048576,
     wsRecheckMs: num(process.env.GATEWAY_WS_RECHECK_MS, 5000),
     maxWsPerGrant: num(process.env.GATEWAY_MAX_WS_PER_GRANT, 20),
+    metricsToken: process.env.METRICS_TOKEN || '', // /_pd/metrics needs this bearer token (without one: loopback only)
     redeemPerMinute: num(process.env.GATEWAY_REDEEM_PER_MINUTE, 20), // link opens per IP per minute
     redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
@@ -48,7 +51,7 @@ export async function createGateway(opts = {}) {
   const trusted = new Set(o.trustedProxies);
   const store = await getStore();
   // An audit failure must never break a customer's request.
-  const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => console.error('audit write failed:', err.message)); };
+  const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
   // Rate limits live in the database (pruned there, survive restarts).
   const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000)) > o.redeemPerMinute;
   // A browser whose link was just revoked keeps retrying (Streamlit reconnects in a loop). Record the first few
@@ -61,6 +64,28 @@ export async function createGateway(opts = {}) {
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();
+
+  // Metrics (Prometheus text at /_pd/metrics) and health (/_pd/healthz). Both are answered before host routing and
+  // before any grant check, so a load balancer or monitor needs no demo link. Metrics have no per-customer labels.
+  const metrics = createMetrics();
+  const startedAt = Date.now();
+  metrics.describe('pd_gateway_requests_total', 'HTTP responses sent by the gateway, by status class');
+  metrics.describe('pd_gateway_redeem_total', 'Demo link opens by result (ok, denied, limited)');
+  metrics.describe('pd_gateway_upstream_errors_total', 'Demo instance failures by kind (timeout, unreachable)');
+  metrics.describe('pd_gateway_websockets_total', 'WebSocket connections opened');
+  metrics.describe('pd_gateway_websockets_open', 'WebSocket connections currently open');
+  metrics.describe('pd_gateway_uptime_seconds', 'Seconds since the gateway started');
+  metrics.gauge('pd_gateway_websockets_open', () => [...wsCounts.values()].reduce((a, b) => a + b, 0));
+  metrics.gauge('pd_gateway_uptime_seconds', () => Math.round((Date.now() - startedAt) / 1000));
+  const jsonRes = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
+  async function health(res) {
+    try { await store.meta.get('health-check'); jsonRes(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); jsonRes(res, 503, { ok: false }); }
+  }
+  function metricsAllowed(req) {
+    if (o.metricsToken) return safeEq(String(req.headers.authorization || '').replace(/^Bearer /, ''), o.metricsToken);
+    const peer = String(req.socket.remoteAddress).replace(/^::ffff:/, '');
+    return (peer === '127.0.0.1' || peer === '::1') && !req.headers['x-forwarded-for']; // not something a proxy forwarded
+  }
 
   // The grant behind the request's session cookie (null when there is no valid session). The grant's own state
   // (revoked / expired / product) is checked by the caller on every request, so revocation stays immediate.
@@ -102,10 +127,11 @@ export async function createGateway(opts = {}) {
     const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
     if (m) {
       const ua = uaOf(req);
-      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.');
+      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.'); }
       const g = await findGrant(m[1]);
       if (!isActive(g) || g.app !== slug) {
         audit({ ev: 'denied', app: slug, ip, ua, why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' });
+        metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
         if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.');
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
@@ -113,11 +139,13 @@ export async function createGateway(opts = {}) {
       // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
       const use = await store.grants.redeem(g.id, sha256(ua));
       if (!use.ok) {
+        metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         audit({ ev: 'denied', grant: g.id, app: slug, ip, ua, why: use.why });
         return page(res, 403, 'Link not available', use.why === 'device-locked'
           ? 'This link is tied to the browser it was first opened in. Please contact us if you need a new one.'
           : 'This link has already been used the maximum number of times. Please contact us for a new one.');
       }
+      metrics.inc('pd_gateway_redeem_total', { result: 'ok' });
       audit({ ev: 'enter', grant: g.id, app: slug, ip, ua });
       const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
       const sid = newSessionId(); // only its hash is stored
@@ -157,6 +185,7 @@ export async function createGateway(opts = {}) {
     up.setTimeout(o.upstreamTimeoutMs, () => up.destroy(Object.assign(new Error('upstream timeout'), { code: 'ETIMEOUT' })));
     up.on('error', (e) => {
       if (res.headersSent) return res.destroy();
+      metrics.inc('pd_gateway_upstream_errors_total', { kind: e.code === 'ETIMEOUT' ? 'timeout' : 'unreachable' });
       if (e.code === 'ETIMEOUT') page(res, 504, 'Demo is taking too long', 'The demo did not answer in time. Please try again.');
       else page(res, 503, 'Demo unavailable', 'The demo is not running right now. Please try again shortly.');
     });
@@ -227,23 +256,31 @@ export async function createGateway(opts = {}) {
       upstream.write(lines.join('\r\n') + '\r\n\r\n');
       if (head?.length) upstream.write(head);
       socket.pipe(upstream); upstream.pipe(socket);
+      metrics.inc('pd_gateway_websockets_total');
       audit({ ev: 'ws-open', grant: g.id, app: slug, ip });
     });
   }
 
   const server = http.createServer({ maxHeaderSize: 16384, headersTimeout: 20000 }, (req, res) => {
+    const path = req.url.split('?')[0];
+    if (req.method === 'GET' && path === '/_pd/healthz') return void health(res);
+    if (req.method === 'GET' && path === '/_pd/metrics') {
+      if (!metricsAllowed(req)) { res.writeHead(404); return res.end(); }
+      res.writeHead(200, { 'content-type': 'text/plain; version=0.0.4', 'cache-control': 'no-store' }); return res.end(metrics.render());
+    }
+    res.on('finish', () => metrics.inc('pd_gateway_requests_total', { code: `${Math.floor(res.statusCode / 100)}xx` }));
     handle(req, res).catch((e) => {
-      console.error('gateway error:', e);
+      logger.error('gateway error', { err: e });
       if (!res.headersSent) page(res, 500, 'Something went wrong', 'Please try again shortly.'); else res.destroy();
     });
   });
   server.on('upgrade', (req, socket, head) => {
-    upgrade(req, socket, head).catch((e) => { console.error('gateway upgrade error:', e); socket.destroy(); });
+    upgrade(req, socket, head).catch((e) => { logger.error('gateway upgrade error', { err: e }); socket.destroy(); });
   });
 
   return {
-    server, baseHost, store,
-    listen: () => new Promise((resolve) => server.listen(o.port, '127.0.0.1', () => resolve(server.address().port))),
+    server, baseHost, store, metrics,
+    listen: (host = '127.0.0.1') => new Promise((resolve) => server.listen(o.port, host, () => resolve(server.address().port))),
     close: async () => {
       clearInterval(pruneTimer);
       for (const c of [...wsClosers]) c();

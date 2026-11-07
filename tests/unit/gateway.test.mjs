@@ -286,3 +286,38 @@ test("one grant's session does not work for another grant's product, and ends wi
   await grants.revokeGrant(a.id);
   assert.equal((await request({ headers: { cookie: a.cookie } })).status, 403);
 });
+
+// ---- health, metrics, logging
+test('/_pd/healthz answers on any host without a grant', async () => {
+  for (const host of ['toy.localhost', 'anything.example', '127.0.0.1']) {
+    const r = await request({ host, path: '/_pd/healthz' });
+    assert.equal(r.status, 200);
+    assert.deepEqual(JSON.parse(r.body), { ok: true });
+  }
+});
+
+test('/_pd/metrics: loopback only without a token, hidden when a proxy forwarded it, counts traffic', async () => {
+  const g = await newGrant();
+  await request({ headers: { cookie: g.cookie } });          // a 200
+  await request({ path: '/d/' + 'f'.repeat(48) });             // a denied link (403)
+  const ok = await request({ path: '/_pd/metrics' });
+  assert.equal(ok.status, 200);
+  assert.match(ok.body, /# TYPE pd_gateway_requests_total counter/);
+  assert.match(ok.body, /pd_gateway_requests_total\{code="2xx"\} \d+/);
+  assert.match(ok.body, /pd_gateway_requests_total\{code="4xx"\} \d+/);
+  assert.match(ok.body, /pd_gateway_redeem_total\{result="ok"\} \d+/);
+  assert.match(ok.body, /pd_gateway_redeem_total\{result="denied"\} \d+/);
+  assert.match(ok.body, /pd_gateway_websockets_open \d+/);
+  assert.doesNotMatch(ok.body, /127\.0\.0\.1|[a-f0-9]{48}|Customer/, 'no IPs, tokens or customer names in metrics');
+  assert.equal((await request({ path: '/_pd/metrics', headers: { 'x-forwarded-for': '9.9.9.9' } })).status, 404, 'looks proxied -> hidden');
+});
+
+test('/_pd/metrics with a token: only the right bearer token is accepted', async () => {
+  const withToken = await createGateway({ port: 0, baseHost: 'localhost', metricsToken: 'sekret-token-value' });
+  const p = await withToken.listen();
+  try {
+    assert.equal((await request({ port: p, path: '/_pd/metrics' })).status, 404);
+    assert.equal((await request({ port: p, path: '/_pd/metrics', headers: { authorization: 'Bearer wrong' } })).status, 404);
+    assert.equal((await request({ port: p, path: '/_pd/metrics', headers: { authorization: 'Bearer sekret-token-value', 'x-forwarded-for': '9.9.9.9' } })).status, 200);
+  } finally { await withToken.close(); }
+});
