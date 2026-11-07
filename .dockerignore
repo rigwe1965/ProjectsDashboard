@@ -1,0 +1,19 @@
+# Build context for deploy/Dockerfile (the repository root). Keep the image small and free of local data.
+.git
+.github
+node_modules
+data
+# stale copies of the apps (the real ones live next to this folder and are never copied here)
+/Airfinder
+/ClaudeOS
+/ClaudeWorkspace
+/CRM
+/ImageApp
+/RemoteManagementSystem
+showcase/dist
+tests/unit
+tests/journeys.mjs
+tests/ui-check.mjs
+*.log
+.env
+.env.*

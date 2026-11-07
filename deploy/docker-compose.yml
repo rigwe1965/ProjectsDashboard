@@ -1,0 +1,109 @@
+# Hosted setup: Postgres + demo gateway + admin console + Caddy (HTTPS), plus optional app containers.
+#   cd deploy && cp .env.example .env     (fill it in)  &&  cp ../registry/apps.hosted.example.json ../registry/apps.hosted.json
+#   docker compose up -d                       the dashboard
+#   docker compose --profile apps up -d        ...plus the app containers (ImageApp demo so far)
+# See deploy/README.md. Local test without a domain: add  -f docker-compose.local.yml  (plain HTTP on :8080).
+name: projects-dashboard
+
+x-dashboard-env: &dashboard-env
+  DASHBOARD_DB: postgres
+  DATABASE_URL: postgres://dashboard:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}@postgres:5432/dashboard
+  DASHBOARD_REGISTRY: /app/registry/apps.hosted.json
+  TRUSTED_PROXIES: 172.30.0.2          # Caddy's fixed address below: X-Forwarded-For is believed only from it
+  # The console creates the demo links, the gateway serves them: both must know the public address.
+  DEMO_BASE_HOST: ${DEMO_DOMAIN:?set DEMO_DOMAIN in deploy/.env}
+  DEMO_SCHEME: https
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dashboard
+      POSTGRES_USER: dashboard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dashboard -d dashboard"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+
+  gateway:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    image: projects-dashboard
+    restart: unless-stopped
+    depends_on: { postgres: { condition: service_healthy } }
+    environment:
+      <<: *dashboard-env
+      GATEWAY_BIND: 0.0.0.0
+      GATEWAY_PORT: "4300"
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4300/_pd/healthz"]
+      interval: 15s
+      timeout: 4s
+      retries: 3
+    networks: [internal]
+
+  console:
+    image: projects-dashboard
+    restart: unless-stopped
+    depends_on: { postgres: { condition: service_healthy }, gateway: { condition: service_started } }
+    command: ["node", "admin-console/server.mjs"]
+    environment:
+      <<: *dashboard-env
+      CONSOLE_PORT: "4100"
+      ADMIN_BIND: 0.0.0.0              # allowed only because a password must be set first (see README)
+      ADMIN_ALLOWED_HOSTS: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in deploy/.env},127.0.0.1
+      ADMIN_SCHEME: https
+      ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
+    volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro"]
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4100/_pd/healthz"]
+      interval: 15s
+      timeout: 4s
+      retries: 3
+    networks: [internal]
+
+  caddy:
+    build: { context: .., dockerfile: deploy/Caddy.Dockerfile }
+    restart: unless-stopped
+    depends_on: [gateway, console]
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in deploy/.env}
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN in deploy/.env}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN}
+      DEMO_DOMAIN: ${DEMO_DOMAIN}
+    volumes: [caddy_data:/data, caddy_config:/config]
+    networks:
+      internal: { ipv4_address: 172.30.0.2 }
+
+  # --- app containers (profile "apps"). Built from the app's own folder, which is only read, never modified.
+  imageapp-demo:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/ImageApp
+      dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/imageapp/Dockerfile
+    image: pd-imageapp
+    container_name: pd-imageapp-demo     # the registry's "container" name
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5400/', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [internal]
+
+networks:
+  internal:
+    # Automatic addresses come from the upper half, so Caddy's pinned 172.30.0.2 can never be taken by another container.
+    ipam: { config: [{ subnet: 172.30.0.0/24, ip_range: 172.30.0.128/25 }] }
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

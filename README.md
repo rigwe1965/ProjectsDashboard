@@ -38,5 +38,11 @@ It shows each app's processes with status, Start/Stop/Restart, Open and Log butt
 ## Showcase
 `npm run showcase` builds the static public site from `showcase/products.json` and previews it at http://127.0.0.1:4200/.
 
+## Hosting it online
+See `deploy/README.md`: Docker Compose with Postgres, Caddy (automatic HTTPS) and optional app containers. Locally it still runs on SQLite with no Docker needed.
+
+## Tests
+`npm test` (unit tests), `npm run lint`, `npm run test:e2e` (customer journeys; needs the demo instances running). With `TEST_DATABASE_URL=postgres://...` set, the same store tests also run against Postgres. CI runs everything on Windows and Linux.
+
 ## Demo gateway
 See `demo-gateway/README.md`. Ready now: `imageapp`, `airfinder`, `crm`, `claudeworkspace` (each runs as its own isolated demo instance). ClaudeOS and the RMM need a separate demo database before `demoReady` is set.

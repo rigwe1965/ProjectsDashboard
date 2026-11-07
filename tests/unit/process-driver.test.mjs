@@ -76,3 +76,12 @@ test('container names are restricted to safe characters', () => {
   for (const ok of ['pd-imageapp', 'a', 'my_app.1']) assert.equal(validContainerName(ok), true, ok);
   for (const bad of ['', '-x', 'a b', 'a;b', '$(id)', 'a'.repeat(200), null, 5]) assert.equal(validContainerName(bad), false, String(bad));
 });
+
+test('registry: the same port is fine on different hosts, still refused on the same host', () => {
+  const reg = (a, b) => ({ apps: [{ id: 'a', name: 'A', path: '.', processes: [{ name: 'x', container: 'c1', port: 5400, ...a }, { name: 'y', container: 'c2', port: 5400, ...b }] }] });
+  assert.deepEqual(validate(reg({ host: 'one' }, { host: 'two' })), []);
+  assert.match(validate(reg({ host: 'one' }, { host: 'one' })).join(), /port 5400 is used by another process on one/);
+  assert.match(validate(reg({}, {})).join(), /port 5400 is used by another process/);
+  assert.match(validate(reg({ host: 'one' }, { host: 'bad host!' })).join(), /invalid host/);
+  assert.match(validate({ reservedPorts: [5400], apps: reg({}, { host: 'two' }).apps }).join(), /reserved/, 'reserved ports apply to this machine only');
+});

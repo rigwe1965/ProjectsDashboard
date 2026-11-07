@@ -1,0 +1,20 @@
+# Local test override: no domain, no HTTPS. Everything on http://*.localhost:8080
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+#   showcase  http://localhost:8080/        console  http://admin.localhost:8080/
+#   demo link http://imageapp.demo.localhost:8080/d/<token>
+# (*.localhost names resolve to this machine in modern browsers and in curl.)
+services:
+  caddy:
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile.local", "--adapter", "caddyfile"]
+    ports: !override ["8080:80"]
+  gateway:
+    environment:
+      DEMO_SCHEME: http
+      DEMO_BASE_HOST: demo.localhost:8080
+  console:
+    environment:
+      DEMO_SCHEME: http
+      DEMO_BASE_HOST: demo.localhost:8080
+      ADMIN_SCHEME: http
+      ADMIN_ALLOWED_HOSTS: admin.localhost,127.0.0.1
+      ADMIN_PUBLIC_URL: http://admin.localhost:8080

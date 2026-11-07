@@ -1,0 +1,51 @@
+# Production reverse proxy. Caddy gets and renews HTTPS certificates automatically.
+# Needs three DNS names pointing at this server (see deploy/README.md):
+#   SITE_DOMAIN   the public showcase            e.g. example.com
+#   ADMIN_DOMAIN  the owner console              e.g. admin.example.com
+#   DEMO_DOMAIN   customer demo links            e.g. demo.example.com  (wildcard: *.demo.example.com)
+{
+	email {$ACME_EMAIL}
+	# A certificate for a demo address is only issued after the gateway confirms it is a real product name
+	# (/_pd/tls-ask), so nobody can make this server request certificates for arbitrary names.
+	on_demand_tls {
+		ask http://gateway:4300/_pd/tls-ask
+	}
+}
+
+(security_headers) {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}
+
+# Public showcase: static files built into this image
+{$SITE_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	root * /srv
+	header {
+		Content-Security-Policy "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		X-Frame-Options "DENY"
+	}
+	file_server
+}
+
+# Owner console (password + 2-step code; it refuses to start without a password when not on localhost)
+{$ADMIN_DOMAIN} {
+	import security_headers
+	reverse_proxy console:4100
+}
+
+# Customer demos: <product>.DEMO_DOMAIN. WebSockets (Streamlit) pass through reverse_proxy automatically.
+*.{$DEMO_DOMAIN} {
+	import security_headers
+	tls {
+		on_demand
+	}
+	reverse_proxy gateway:4300 {
+		flush_interval -1
+	}
+}

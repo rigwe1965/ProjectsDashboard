@@ -1,0 +1,24 @@
+# Local test proxy: plain HTTP on one port, routing by host name. No certificates, never use this on the internet.
+#   admin.localhost:8080          owner console
+#   <product>.demo.localhost:8080 customer demos
+#   localhost:8080                showcase
+{
+	auto_https off
+}
+
+:80 {
+	@admin host admin.localhost
+	handle @admin {
+		reverse_proxy console:4100
+	}
+	@demo host *.demo.localhost
+	handle @demo {
+		reverse_proxy gateway:4300 {
+			flush_interval -1
+		}
+	}
+	handle {
+		root * /srv
+		file_server
+	}
+}

@@ -1,0 +1,10 @@
+# Ignore rules for the ImageApp build context. They live HERE (next to the Dockerfile) so nothing is added to the app's own folder.
+venv
+**/__pycache__
+logs
+audits
+tests
+.git
+.env
+.env.*
+*.pyc

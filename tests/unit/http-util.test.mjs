@@ -28,7 +28,7 @@ test('portInUse detects a listening port and a free one', async () => {
 });
 
 test('cleanEnv removes inherited virtualenv settings but keeps other PATH entries', () => {
-  const env = cleanEnv({ VIRTUAL_ENV: 'x', PYTHONPATH: 'y', KEEP: '1', Path: 'C:\\bin;C:\\proj\\.venv\\Scripts;C:\\tools' });
+  const env = cleanEnv({ VIRTUAL_ENV: 'x', PYTHONPATH: 'y', KEEP: '1', Path: 'C:\\bin;C:\\proj\\.venv\\Scripts;C:\\tools' }, ';'); // a Windows PATH, whatever OS the test runs on
   assert.equal(env.VIRTUAL_ENV, undefined);
   assert.equal(env.PYTHONPATH, undefined);
   assert.equal(env.KEEP, '1');

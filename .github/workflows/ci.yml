@@ -4,8 +4,8 @@ on:
     branches: [main]
   pull_request:
 jobs:
-  test:
-    runs-on: windows-latest   # the supervisor is Windows-specific until the Stage 4 process drivers exist
+  windows:
+    runs-on: windows-latest   # where the dashboard runs day to day
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,3 +16,29 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run showcase:build
+
+  linux:
+    runs-on: ubuntu-latest    # where the hosted version runs: Postgres store and the POSIX supervisor driver
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: testpw
+          POSTGRES_DB: pdtest
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://postgres:testpw@localhost:5432/pdtest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test                              # includes the Postgres contract tests
+      - run: node tests/linux/driver-check.mjs     # real processes: start, status, stop on Linux
+      - run: docker build -f deploy/Dockerfile -t projects-dashboard .
+      - run: docker build -f deploy/Caddy.Dockerfile -t pd-caddy .

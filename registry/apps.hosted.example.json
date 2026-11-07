@@ -1,0 +1,28 @@
+{
+  "_note": "Registry for the hosted (Docker Compose) setup. Copy to registry/apps.hosted.json and edit; compose mounts that file. Demo instances are containers on the compose network: 'container' is the container name, 'host' is its service name, 'port' is the port INSIDE the container. A demo needs a base app entry (demoOf points at it); the base entry is hidden because only the demo copy is deployed.",
+  "reservedPorts": [],
+  "apps": [
+    {
+      "id": "imageapp",
+      "name": "ImageApp",
+      "tagline": "Image optimizer",
+      "path": "/unused",
+      "hidden": true,
+      "processes": [
+        { "name": "app", "container": "pd-imageapp-unused", "host": "imageapp-unused", "port": 5400, "health": "/" }
+      ],
+      "demo": { "supported": true, "notes": "No database; sessions expire after 45 minutes" }
+    },
+    {
+      "id": "imageapp-demo",
+      "name": "ImageApp (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "/unused",
+      "demoOf": "imageapp",
+      "demoReady": true,
+      "processes": [
+        { "name": "app", "container": "pd-imageapp-demo", "host": "imageapp-demo", "port": 5400, "health": "/" }
+      ]
+    }
+  ]
+}
