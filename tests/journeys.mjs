@@ -3,7 +3,7 @@
 // Run from the dashboard root: node tests/journeys.mjs   (creates and then revokes its own demo links; screenshots in data/shots)
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
-import { createGrant, loadGrants, revokeGrant } from '../demo-gateway/grants.mjs';
+import { createGrant, revokeGrant } from '../demo-gateway/grants.mjs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || "C:/Users/rigwe/Desktop/ProjectsDashboard/data/demo-src/reci-transport/node_modules/.pnpm/playwright-core@1.62.0/node_modules/playwright-core");
 const env = (f) => Object.fromEntries(readFileSync(f, 'utf8').split(/\r?\n/).filter((l) => l && !l.startsWith('#') && l.includes('=')).map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]));
@@ -96,5 +96,5 @@ try {
 } catch (e) { note('ClaudeWorkspace', 'journey', false, e.message.split('\n')[0]); }
 
 await browser.close();
-for (const id of granted) { try { revokeGrant(id); } catch {} }
+for (const id of granted) { try { revokeGrant(id); } catch { /* already revoked */ } }
 console.log(results.join('\n'));

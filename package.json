@@ -10,7 +10,17 @@
     "gateway": "node demo-gateway/server.mjs",
     "demo": "node demo-gateway/grants.mjs",
     "showcase:build": "node showcase/build.mjs",
-    "showcase": "node showcase/build.mjs && node showcase/serve.mjs"
+    "showcase": "node showcase/build.mjs && node showcase/serve.mjs",
+    "test": "node --test \"tests/unit/*.test.mjs\"",
+    "lint": "eslint .",
+    "test:e2e": "node tests/journeys.mjs"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "eslint": "^9.39.1",
+    "globals": "^16.5.0"
+  }
 }
