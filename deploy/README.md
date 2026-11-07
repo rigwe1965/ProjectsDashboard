@@ -48,7 +48,9 @@ seconds longer. Let's Encrypt limits how many certificates one domain can get pe
 ## Apps in containers
 `--profile apps` builds each app from **its own folder** using a recipe owned by the dashboard
 (`deploy/apps/<app>/Dockerfile`). The app's folder is only read; nothing is added to it. Set `APPS_ROOT` in `.env` to
-the folder that contains the apps. So far only the **ImageApp** demo has a recipe. Other apps need their own recipe
+the folder that contains the apps. So far **ImageApp** and **Airfinder** have recipes. Airfinder's real `.env`, database and logs are excluded from the build
+(`Dockerfile.dockerignore`), so the demo starts empty with its own SQLite file in a volume and its own staff login from
+`AIRFINDER_*` in `.env`; no mail account is set, so nothing is sent. Other apps need their own recipe
 (Python apps are short; the Next.js ones and anything needing a database need more thought).
 
 In `registry/apps.hosted.json` a process is either a host process (`cmd`) or an existing container
@@ -95,6 +97,6 @@ Stop and remove it with `docker compose -f docker-compose.yml -f docker-compose.
 - Demo apps must not share data with production: give every demo instance its own database, as for the local setup.
 
 ## Not done yet
-- Recipes for the other apps (Airfinder, CRM, ClaudeWorkspace, RMM, ClaudeOS).
+- Recipes for the other apps (CRM, ClaudeWorkspace, RMM, ClaudeOS).
 - Moving existing demo links from a local SQLite database into Postgres (new links are simply created on the server).
 - ClaudeOS and RMM UI demos still need their own demo data before they can be marked demo-ready.

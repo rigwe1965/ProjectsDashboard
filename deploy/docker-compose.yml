@@ -98,6 +98,28 @@ services:
       retries: 3
     networks: [internal]
 
+  airfinder-demo:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/Airfinder
+      dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/airfinder/Dockerfile
+    image: pd-airfinder
+    container_name: pd-airfinder-demo
+    restart: unless-stopped
+    environment:     # no mail account is set, so the demo never sends email
+      SECRET_KEY: ${AIRFINDER_SECRET_KEY:?set AIRFINDER_SECRET_KEY in deploy/.env}
+      JWT_SECRET: ${AIRFINDER_JWT_SECRET:?set AIRFINDER_JWT_SECRET in deploy/.env}
+      SUPER_ADMIN_EMAIL: ${AIRFINDER_ADMIN_EMAIL:-demo@example.com}
+      SUPER_ADMIN_PASSWORD: ${AIRFINDER_ADMIN_PASSWORD:?set AIRFINDER_ADMIN_PASSWORD in deploy/.env}
+      PUBLIC_BASE_URL: ${DEMO_SCHEME:-https}://airfinder.${DEMO_DOMAIN}
+    volumes: [airfinder_demo_data:/app/instance]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5200/', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [internal]
+
 networks:
   internal:
     # Automatic addresses come from the upper half, so Caddy's pinned 172.30.0.2 can never be taken by another container.
@@ -107,3 +129,4 @@ volumes:
   pgdata:
   caddy_data:
   caddy_config:
+  airfinder_demo_data:

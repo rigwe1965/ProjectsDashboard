@@ -23,6 +23,28 @@
       "processes": [
         { "name": "app", "container": "pd-imageapp-demo", "host": "imageapp-demo", "port": 5400, "health": "/" }
       ]
+    },
+    {
+      "id": "airfinder",
+      "name": "Airfinder",
+      "tagline": "Search for cheap air tickets",
+      "path": "/unused",
+      "hidden": true,
+      "processes": [
+        { "name": "app", "container": "pd-airfinder-unused", "host": "airfinder-unused", "port": 5200, "health": "/" }
+      ],
+      "demo": { "supported": true, "notes": "Own SQLite database in a volume; no mail account, so nothing is sent" }
+    },
+    {
+      "id": "airfinder-demo",
+      "name": "Airfinder (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "/unused",
+      "demoOf": "airfinder",
+      "demoReady": true,
+      "processes": [
+        { "name": "app", "container": "pd-airfinder-demo", "host": "airfinder-demo", "port": 5200, "health": "/" }
+      ]
     }
   ]
 }

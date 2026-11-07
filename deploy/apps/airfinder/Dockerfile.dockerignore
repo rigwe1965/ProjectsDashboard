@@ -1,0 +1,19 @@
+# Ignore rules for the Airfinder build context. They live HERE so nothing is added to the app's own folder.
+# Production secrets, databases and logs must never enter the image.
+.env
+.env.*
+!.env.example
+instance
+*.db
+*.log
+.git
+.claude
+.pytest_cache
+.deps_installed
+.requirements.local.txt
+**/__pycache__
+*.pyc
+/*.html
+/*.pdf
+venv
+.venv
