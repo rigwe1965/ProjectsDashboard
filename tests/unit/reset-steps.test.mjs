@@ -11,7 +11,7 @@ import { root } from '../../lib/config.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-rs-'));
 const scratchTop = join(root, 'data', '_reset-fs-test-' + process.pid), scratch = join(scratchTop, 'work'); // reset-fs only works inside data/
-after(() => { rmSync(dir, { recursive: true, force: true }); rmSync(scratchTop, { recursive: true, force: true }); });
+after(() => { rmSync(dir, { recursive: true, force: true }); rmSync(scratchTop, { recursive: true, force: true }); rmSync(join(root, 'data', 'demo-golden', 'snaptest-' + process.pid), { recursive: true, force: true }); });
 
 test('reset-fs: empties and deletes inside data/, refuses everything else', () => {
   mkdirSync(join(scratch, 'sub'), { recursive: true });
@@ -83,3 +83,27 @@ test('supervisor build: runs the build command; start refuses until what it prod
   assert.equal(bad.status, 1); assert.match(bad.stdout, /FAILED \(exit 2\)/);
 });
 
+
+test('snapshot: a saved copy is restored exactly, including SQLite companions, and stray files are removed', async () => {
+  const { take, restore, manifest, goldenDir } = await import('../../supervisor/snapshot.mjs');
+  const app = { id: 'snaptest-' + process.pid, path: scratch, snapshot: { paths: ['live.db', 'store'] } };
+  mkdirSync(join(scratch, 'store'), { recursive: true });
+  writeFileSync(join(scratch, 'live.db'), 'GOOD-DB'); writeFileSync(join(scratch, 'live.db-wal'), 'GOOD-WAL');
+  writeFileSync(join(scratch, 'store', 'a.txt'), 'GOOD-A');
+  assert.throws(() => manifest(app), /no saved copy/);
+  assert.equal(take(app), 3);
+  // a customer uses the demo
+  writeFileSync(join(scratch, 'live.db'), 'DIRTY'); rmSync(join(scratch, 'live.db-wal')); writeFileSync(join(scratch, 'live.db-shm'), 'STRAY-SHM');
+  writeFileSync(join(scratch, 'store', 'a.txt'), 'DIRTY-A'); writeFileSync(join(scratch, 'store', 'new.txt'), 'new');
+  assert.equal(restore(app).count, 3);
+  assert.equal(readFileSync(join(scratch, 'live.db'), 'utf8'), 'GOOD-DB');
+  assert.equal(readFileSync(join(scratch, 'live.db-wal'), 'utf8'), 'GOOD-WAL');
+  assert.equal(existsSync(join(scratch, 'live.db-shm')), false, 'a companion the copy does not have is removed');
+  assert.equal(readFileSync(join(scratch, 'store', 'a.txt'), 'utf8'), 'GOOD-A');
+  assert.equal(existsSync(join(scratch, 'store', 'new.txt')), false, 'files added since are gone');
+  // the registry decides where a copy may be written
+  assert.throws(() => restore({ ...app, snapshot: { paths: ['store'] } }), /no longer lists/);
+  assert.throws(() => take({ ...app, snapshot: { paths: ['../../../lib'] } }), /Refusing/);
+  assert.throws(() => take({ ...app, snapshot: { paths: ['nothing-here'] } }), /nothing to save/);
+  rmSync(goldenDir(app.id), { recursive: true, force: true });
+});

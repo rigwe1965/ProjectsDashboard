@@ -192,7 +192,8 @@ async function build(app) {
 }
 async function reset(app) {
   if (!app.reset) { console.error(`${app.id} has no "reset" in the registry.`); failed = true; return; }
-  const wasRunning = Object.keys((await store.processState.all())[app.id] ?? {}).length > 0;
+  let wasRunning = false; // answering on its port counts; a stale record of a process that is gone does not
+  for (const p of app.processes) if (!p.optional && await httpUp(p.port, p.health, p.host)) wasRunning = true;
   await stop(app);
   const logPath = join(logDir, `${app.id}-reset.log`);
   const fillStep = (v) => v.replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((q) => q.name === n).port));

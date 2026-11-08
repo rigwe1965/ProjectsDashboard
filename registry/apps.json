@@ -327,6 +327,13 @@
       "stack": "Flask API (waitress) + Streamlit, SQLite",
       "demoOf": "claudeos",
       "demoReady": true,
+      "snapshot": { "paths": ["data\\claudeos.db", "data\\chromadb"] },
+      "reset": { "steps": [
+        { "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\snapshot.mjs restore claudeos-demo", "cwd": "${DASHBOARD_ROOT}", "timeoutSec": 300 }
+      ] },
+      "demoAccounts": [
+        { "label": "Demo admin", "user": "demo" }
+      ],
       "_note": "Runs from a separate git clone of ClaudeOS's committed code (data/demo-src/claudeos, no .env, remote removed). Own SQLite and Chroma files under that folder, freshly seeded (agents, namespaces, one demo admin). Env from data/claudeos-demo.env: Supabase, SMTP and memory import are unset so nothing reaches the real systems. It DOES carry the owner's Anthropic key (owner approved 2026-11-07), so AI actions cost money: watch usage. Uses the real ClaudeOS .venv interpreter read-only.",
       "processes": [
         {
@@ -365,6 +372,11 @@
       "stack": "Flask + Streamlit + Postgres + Redis (Docker containers pd-rmm-demo-pg, pd-rmm-demo-redis)",
       "demoOf": "rmm",
       "demoReady": true,
+      "reset": { "steps": [
+        { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\rmm_reset.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 },
+        { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe seed.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 },
+        { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ..\\..\\..\\tools\\seed-rmm-demo.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 }
+      ] },
       "demoAccounts": [
         { "label": "Demo admin", "user": "admin@rmm-demo.test" }
       ],
