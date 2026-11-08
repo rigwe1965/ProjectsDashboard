@@ -379,3 +379,11 @@ test('errors: 429 answers say when to retry', async () => {
   assert.equal(last.status, 429);
   assert.ok(last.headers['retry-after']);
 });
+
+test('security: a WebSocket from another origin is refused, even with a valid session', async () => {
+  const g = await newGrant();
+  assert.equal((await wsOpen({ cookie: g.cookie, origin: 'http://evil.localhost:' + gwPort })).status, 403);
+  assert.equal((await wsOpen({ cookie: g.cookie, origin: 'not a url' })).status, 403);
+  const ok = await wsOpen({ cookie: g.cookie, origin: 'http://toy.localhost:' + gwPort });
+  assert.ok(ok.ws, 'same-origin still works'); ok.ws.close();
+});

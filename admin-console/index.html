@@ -205,7 +205,7 @@ async function loadDemos(){
 const EVENT_LABELS = {
   'admin-login': 'Console sign-in', 'admin-login-failed': 'Console sign-in failed', 'admin-password-set': 'Password changed',
   'admin-totp-enabled': '2-step codes turned on', 'admin-totp-disabled': '2-step codes turned off', 'admin-password-removed': 'Password removed',
-  'admin-sessions-cleared': 'All sessions ended', 'grant-created': 'Demo link created', 'grant-revoked': 'Demo link revoked',
+  'admin-sessions-cleared': 'All sessions ended', 'admin-logout': 'Console sign-out', 'admin-app-start': 'App started', 'admin-app-stop': 'App stopped', 'admin-app-restart': 'App restarted', 'grant-created': 'Demo link created', 'grant-revoked': 'Demo link revoked',
   'enter': 'Customer opened a demo', 'denied': 'Demo access refused', 'ws-open': 'Live connection opened', 'ws-closed': 'Live connection cut',
 };
 const BAD_EVENTS = new Set(['admin-login-failed', 'denied', 'ws-closed']);

@@ -145,6 +145,7 @@ export async function createConsole(opts = {}) {
       if (url.pathname === '/logout' && req.method === 'POST') {
         if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
         const id = readCookie(req, COOKIE); if (id) await store.sessions.delete(hashSessionId(id));
+        audit({ ev: 'admin-logout', ip: clientIp(req, trusted) });
         res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`, ...securityHeaders });
         return res.end('{"ok":true}');
       }
@@ -206,6 +207,7 @@ export async function createConsole(opts = {}) {
       if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
       if (busy.has(app.id)) return json(res, 409, { error: `${app.id} is busy with another action` });
       busy.add(app.id);
+      audit({ ev: 'admin-app-' + m[2], app: app.id, ip: clientIp(req, trusted), ...(only ? { proc: only } : {}) });
       try {
         // start/restart can legitimately wait up to 60 s per process for the app to answer
         const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])], m[2] === 'stop' ? 120000 : 300000);

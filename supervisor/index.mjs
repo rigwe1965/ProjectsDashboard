@@ -8,7 +8,7 @@
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { getStore, closeStore } from '../lib/store/index.mjs';
 import { join, resolve } from 'node:path';
-import { cleanEnv } from '../lib/clean-env.mjs';
+import { cleanEnv, minimalEnv } from '../lib/clean-env.mjs';
 import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
@@ -86,7 +86,7 @@ async function start(app, only) {
     }
     const cwd = resolve(app.path, p.cwd ?? '.');
     if (!existsSync(cwd)) { console.error(`Working directory not found for ${app.id}/${p.name}: ${cwd}`); failed = true; await closeStore(); process.exit(1); }
-    const env = cleanEnv({ ...process.env });
+    const env = cleanEnv(minimalEnv(process.env));
     if (p.envFile) { // the DASHBOARD's own env file (under data/), never the app's .env
       const f = join(root, p.envFile);
       if (!existsSync(f)) { console.error(`Env file missing for ${app.id}/${p.name}: ${p.envFile}`); process.exit(1); }

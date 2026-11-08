@@ -44,3 +44,11 @@ test('clientIp ignores X-Forwarded-For unless the peer is a trusted proxy', asyn
   assert.equal(clientIp(r('10.0.0.1', '6.6.6.6, 9.9.9.9, 10.0.0.2'), trusted), '9.9.9.9', 'walks from the right, skipping trusted proxies');
   assert.equal(clientIp(r('10.0.0.1'), trusted), '10.0.0.1');
 });
+
+test('minimalEnv keeps toolchain variables and drops everything else (secrets, database URLs, tokens)', async () => {
+  const { minimalEnv } = await import('../../lib/clean-env.mjs');
+  const out = minimalEnv({ PATH: 'p', Path: 'p2', SystemRoot: 'C:/Windows', TEMP: 't', LANG: 'en', DATABASE_URL: 'postgres://u:p@h/db', METRICS_TOKEN: 'x', ANTHROPIC_API_KEY: 'k', AWS_SECRET_ACCESS_KEY: 's', MY_NEEDED: '1' }, '');
+  assert.deepEqual(Object.keys(out).sort(), ['LANG', 'PATH', 'Path', 'SystemRoot', 'TEMP']);
+  assert.equal(minimalEnv({ MY_NEEDED: '1', DATABASE_URL: 'x' }, 'my_needed').MY_NEEDED, '1', 'opt-in passthrough by name');
+  assert.equal(minimalEnv({ MY_NEEDED: '1', DATABASE_URL: 'x' }, 'my_needed').DATABASE_URL, undefined);
+});

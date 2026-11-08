@@ -9,10 +9,16 @@ import { logger, installProcessHandlers } from '../lib/log.mjs';
 const gw = await createGateway({ port: ports.gateway });
 const RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS || 90);
 // Housekeeping must never keep the gateway from starting.
-let pruned = 0;
-try { pruned = await gw.store.audit.prune(Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90); }
-catch (err) { logger.warn('audit prune failed; continuing', { err }); }
-if (pruned) logger.info('pruned old audit events', { count: pruned, olderThanDays: RETENTION_DAYS });
+// Retention is applied at start-up and then once a day, so a long-running gateway does not keep personal data past the limit.
+const keepDays = Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90;
+async function pruneAudit() {
+  try {
+    const pruned = await gw.store.audit.prune(keepDays);
+    if (pruned) logger.info('pruned old audit events', { count: pruned, olderThanDays: keepDays });
+  } catch (err) { logger.warn('audit prune failed; continuing', { err }); }
+}
+await pruneAudit();
+setInterval(pruneAudit, 24 * 3600e3).unref();
 const port = await gw.listen(process.env.GATEWAY_BIND || '127.0.0.1').catch((err) => {
   logger.error(err.code === 'EADDRINUSE' ? 'gateway port is already in use' : 'gateway could not start listening', { err });
   process.exit(1);

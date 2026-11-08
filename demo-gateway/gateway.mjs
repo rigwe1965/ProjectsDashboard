@@ -232,6 +232,13 @@ export async function createGateway(opts = {}) {
     const g = await grantFor(req);
     if (!g) return rejectUpgrade(socket, 401, 'Unauthorized');
     if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
+    // The upstream is told a different Origin below, so its own cross-site check cannot work: do the check here. A browser
+    // always sends the page's own origin; a page on another (even sibling) host must not ride this session.
+    if (req.headers.origin) {
+      let sameHost = false;
+      try { sameHost = new URL(req.headers.origin).host.toLowerCase() === hostHdr; } catch { /* malformed Origin */ }
+      if (!sameHost) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), why: 'bad-origin', via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
+    }
     if ((wsCounts.get(g.id) || 0) >= o.maxWsPerGrant) return rejectUpgrade(socket, 429, 'Too Many Requests');
     wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 

@@ -318,3 +318,17 @@ test('errors: bad JSON bodies are 400, unknown grant is 404, failed supervisor c
   assert.equal(apps.headers['x-status-error'], 'failed', 'a failed status check is reported, not shown as "all stopped"');
   assert.equal((await req(port, { method: 'DELETE', path: '/api/demos', headers: authed })).status, 405);
 });
+
+test('security: starting an app and signing out are recorded in the audit log', async () => {
+  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  const { port } = await start({ trustedProxies: ['127.0.0.1'] });
+  const fresh = { 'x-forwarded-for': '203.0.113.88' };
+  const cookie = cookieFrom(await post(port, '/login', { password: 'a long test passphrase' }, fresh));
+  const authed = { cookie, ...fresh };
+  await post(port, '/api/apps/toy/start', {}, authed);
+  await post(port, '/logout', {}, authed);
+  await new Promise((r) => setTimeout(r, 100)); // audit writes are fire-and-forget
+  const evs = (await store.audit.list(50)).map((e) => e.ev);
+  assert.ok(evs.includes('admin-app-start'), evs.join());
+  assert.ok(evs.includes('admin-logout'), evs.join());
+});

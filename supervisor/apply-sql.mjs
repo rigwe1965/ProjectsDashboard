@@ -26,8 +26,13 @@ if (!db.username.includes(ref) && !db.hostname.includes(ref)) die(`DB user/host 
 if (/[[\]<>]|YOUR/i.test(decodeURIComponent(db.password))) die('DEMO_DB_URL still contains a password placeholder');
 
 const files = readdirSync(sqlDir).filter((f) => f.endsWith('.sql')).sort();
-const client = new Client({ connectionString: env.DEMO_DB_URL, ssl: { rejectUnauthorized: false } });
-try { await client.connect(); } catch (e) { die('cannot connect: ' + e.message.replace(/:[^:@/]*@/, ':***@')); }
+// Verify the server certificate. DEMO_DB_CA = path to the provider's CA certificate (Supabase: Database settings > SSL).
+// DEMO_DB_INSECURE_TLS=1 is an explicit, noisy opt-out for when no CA is at hand.
+let ssl = { rejectUnauthorized: true };
+if (env.DEMO_DB_CA) ssl = { rejectUnauthorized: true, ca: readFileSync(env.DEMO_DB_CA, 'utf8') };
+else if (env.DEMO_DB_INSECURE_TLS === '1') { console.warn('WARNING: DEMO_DB_INSECURE_TLS=1, the database certificate is NOT being verified.'); ssl = { rejectUnauthorized: false }; }
+const client = new Client({ connectionString: env.DEMO_DB_URL, ssl });
+try { await client.connect(); } catch (e) { die('cannot connect: ' + e.message.replace(/:[^:@/]*@/, ':***@') + (/certificate|self.signed|issuer/i.test(e.message) ? ' (certificate not trusted: set DEMO_DB_CA to the provider CA file)' : '')); }
 
 try {
   console.log(`Target: ${db.hostname} (project ref ${ref}), user ${db.username}`);
