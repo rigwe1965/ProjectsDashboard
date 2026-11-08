@@ -24,6 +24,12 @@ test('rejects a registry without apps', () => assert.equal(validate({}).length, 
 test('rejects duplicate app ids', () => {
   assert.match(validate({ apps: [app(), app({ processes: [proc({ port: 5001 })] })] }).join(), /duplicate id/);
 });
+test('rejects process names that could break out of a log path or shell command', () => {
+  for (const name of ['a"b', 'a&b', 'a b', 'a;b', '../x', 'a$(x)']) {
+    assert.match(validate({ apps: [app({ processes: [proc({ name })] })] }).join(), /process name may only contain/, name);
+  }
+  assert.deepEqual(validate({ apps: [app({ processes: [proc({ name: 'web_2-api' })] })] }), []);
+});
 test('rejects the same port used twice', () => {
   const reg = { apps: [app(), app({ id: 'b' })] };
   assert.match(validate(reg).join(), /port 5000 is used/);
