@@ -26,6 +26,9 @@ async function open(product, who) {
   await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 120000 });
   await page.getByRole('button', { name: /open the demo/i }).click(); // the shared-demo notice
   await page.waitForLoadState('domcontentloaded', { timeout: 120000 });
+  // products with a private copy per link show "Preparing your demo" (it refreshes itself) until their copy is up
+  await page.waitForFunction(() => !/^Preparing your demo/i.test(document.title), null, { timeout: 180000 });
+  await page.waitForLoadState('domcontentloaded', { timeout: 120000 });
   return { ctx, page, errs };
 }
 async function login(page, email, password, submitRe = /sign in|log in|login|anmelden|submit/i) {
