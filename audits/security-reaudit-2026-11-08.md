@@ -48,3 +48,39 @@ Step output goes to a log file under `data/logs/` (git-ignored), the same as app
 - `deploy/reset-demos.sh` on a Linux host (it was run from Git Bash on Windows).
 - The pinned action SHAs and Docker base image versions against their upstream registries.
 - Installed Next.js versions in the demo clones (`npm audit` inside `data/demo-src/*`), unchanged from the first audit.
+
+---
+
+# Second pass: after "one private demo copy per link" (`ad5386d`)
+
+Compared: `e1a59d3` to `ad5386d` plus the fix below. Read in full: `demo-gateway/instances.mjs`, `lib/instance-app.mjs`, the gateway, supervisor, snapshot and registry changes, the console change, and the new registry blocks. Checks: `npm audit` 0 vulnerabilities, lint clean, 143 tests (142 pass, 1 skipped, 0 fail), secret scan of changed files clean, plus a live run (real gateway, real supervisor, real Airfinder copies, two customers) and a check that every copy listens on `127.0.0.1` only.
+
+## Result
+No new high or medium issue. One real defect found and fixed (RB-01). Three low observations remain.
+
+| ID | Finding | Importance | Status |
+|---|---|---|---|
+| RB-01 | A browser cancelling a request marked the customer's copy as down, which restarted it and deleted their data | 4 | **Fixed** (2 tests added) |
+| RB-02 | Copies are separated by data and ports, not sandboxed; they run as the dashboard's OS user | 3 | Open, documented |
+| RB-03 | A seat whose copy cannot be stopped stays taken (retried every 30 s, logged) | 2 | Open, accepted |
+| RB-04 | Running copies are not listed in the console's process status, only counted per product | 2 | Open, accepted |
+
+## RB-01: cancelled request treated as a crash (fixed)
+When the gateway could not reach a customer's copy, it marked the copy failed so the next request would start a new one. A browser that navigates away mid-request makes the gateway abort its own upstream request, which raises the same kind of error, so an ordinary page change could trigger it. The restart builds a fresh copy and deletes the old data folder, so the customer would silently lose what they had entered. Confirmed with a failing test first. Fix: only a refused connection (nothing is listening) marks a copy down (`demo-gateway/gateway.mjs`). Tests cover both a cancelled request (copy kept, no restart) and a genuinely dead copy (restarted once).
+
+## RB-02: no OS-level isolation between copies (open, documented)
+Each copy has its own data folder, port and database, and the gateway only ever routes a customer to their own port. A compromised demo app could still read another copy's folder, because they share one OS user. This is the same trust level as before (all demos already ran as that user). Documented in `demo-gateway/README.md`. Real isolation would need separate OS users or containers.
+
+## RB-03 and RB-04 (open, accepted)
+If stopping a copy fails, its seat stays occupied and is retried every 30 seconds, with an error logged, so a stuck process cannot be silently reused. The console shows seats in use per product but not each copy's processes; `data/instances/` and the log files show them.
+
+## Checked and found sound
+- **Link handling:** a seat is checked before a link's use is counted; only valid, active, rate-limited links reach the code that starts a copy; one link can only hold one seat.
+- **Paths and commands:** slot numbers must be whole numbers within the product's limit, ids come from the registry (letters, digits, `_`, `-`), and the instance folder is built from those only, so it cannot leave `data/instances/`. `restore-to` accepts only folders inside that location.
+- **Routing:** the upstream port comes from the customer's own seat, never from the request. WebSocket upgrades are refused until the copy is ready, and an open socket counts as use.
+- **Clean-up:** copies stop and their data is deleted when the link ends, after 2 hours idle, after a failed start, and after a gateway restart; copies with no seat record are removed at start-up.
+- **Exposure:** all copy processes (ImageApp, Airfinder, ClaudeOS UI and API) listen on `127.0.0.1` only, which also settles the earlier "does Airfinder bind to all interfaces" question for this configuration.
+- **Resets and console:** private products are skipped by the automatic reset and have no Reset route (404). The console reads the seat table only.
+
+## Not verified here
+End-to-end browser use of a ClaudeOS or ImageApp copy through the gateway (their copies were started and probed directly; the gateway path was exercised live with Airfinder and in unit tests). Behaviour with all 11 seats busy on a small machine.

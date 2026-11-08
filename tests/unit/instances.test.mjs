@@ -35,7 +35,7 @@ async function supervisor(args) {
   const [cmd, , slotArg] = args, slot = Number(slotArg);
   if (cmd === 'instance-start') {
     if (failNextStart) { failNextStart = false; return { ok: false, output: 'boom' }; }
-    const srv = http.createServer((req, res) => res.end(`copy ${slot}: ${req.url}`));
+    const srv = http.createServer((req, res) => { if (req.url === '/hang') return; res.end(`copy ${slot}: ${req.url}`); });
     await new Promise((r) => srv.listen(portBase + slot * 10, '127.0.0.1', r));
     running.set(slot, srv);
     return { ok: true, output: '' };
@@ -161,4 +161,38 @@ test('instance ports and data folders stay inside the copy', async () => {
   assert.throws(() => instanceApp(app, 2), /no instance/);
   assert.throws(() => instanceApp(app, -1), /no instance/);
   assert.ok(freePort);
+});
+
+test('a browser that cancels a request does not make the gateway think the copy is down (that would restart it and wipe the data)', async () => {
+  for (const g of await grants.loadGrants()) await grants.revokeGrant(g.id).catch(() => {});
+  await gw.instanceSweep();
+  const h = await open('H');
+  await ready(h);
+  const starts = () => calls.filter((c) => c.startsWith('instance-start')).length;
+  const before = starts();
+  await new Promise((resolve) => {
+    const r = http.request({ host: '127.0.0.1', port: gwPort, path: '/hang', headers: { host: `pl.localhost:${gwPort}`, cookie: h.cookie } });
+    r.on('error', () => {}); r.end();
+    setTimeout(() => { r.destroy(); setTimeout(resolve, 150); }, 100);
+  });
+  const after = await request({ headers: { cookie: h.cookie } });
+  assert.equal(after.status, 200);
+  assert.equal(starts(), before, 'the copy must not have been restarted');
+  assert.equal((await gw.instances.lookup('pl', h.id)).state, 'ready');
+});
+
+test('a copy whose process has really died (connection refused) is started again on the next request', async () => {
+  const j = await open('J');
+  await ready(j);
+  const entry = await gw.instances.lookup('pl', j.id);
+  const srv = running.get(entry.slot); running.delete(entry.slot);
+  await new Promise((r) => { srv.close(r); srv.closeAllConnections?.(); });
+  const starts = () => calls.filter((c) => c.startsWith('instance-start')).length;
+  const before = starts();
+  const dead = await request({ headers: { cookie: j.cookie } });
+  assert.equal(dead.status, 503);
+  const realNow = Date.now; Date.now = () => realNow() + 60000;
+  try { await request({ headers: { cookie: j.cookie } }); } finally { Date.now = realNow; }
+  await ready(j);
+  assert.equal(starts(), before + 1, 'exactly one new start');
 });

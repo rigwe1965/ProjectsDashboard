@@ -266,7 +266,9 @@ export async function createGateway(opts = {}) {
     up.on('error', (e) => {
       if (res.headersSent) return res.destroy();
       metrics.inc('pd_gateway_upstream_errors_total', { kind: e.code === 'ETIMEOUT' ? 'timeout' : 'unreachable' });
-      if (slot !== null && e.code !== 'ETIMEOUT') instances.markDown(slug, slot, g.id).catch(() => {});
+      // Only a refused connection means the copy's process is gone. A browser that cancels a request also ends here (a reset or
+      // hang-up), and treating that as a crash would restart the copy and throw away the customer's data.
+      if (slot !== null && e.code === 'ECONNREFUSED') instances.markDown(slug, slot, g.id).catch(() => {});
       if (e.code === 'ETIMEOUT') page(res, 504, 'Demo is taking too long', 'The demo did not answer in time. Please try again.');
       else page(res, 503, 'Demo unavailable', 'The demo is not running right now. Please try again shortly.');
     });
