@@ -63,10 +63,11 @@ th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:
 <main id="grid"></main>
 <section id="demos"><h2>Customer demos</h2><div class="sub" style="margin-bottom:10px">One link per customer, valid for one product only. The link is shown once, so copy it before leaving.</div><div class="panel" id="demopanel">Loading…</div></section>
 <section id="activity"><h2>Activity</h2><div class="sub" style="margin-bottom:10px">Who signed in, what changed and who opened or was refused a demo. Newest first; times are in your time zone.</div><div class="panel"><div class="row"><select id="actkind" aria-label="Filter activity"><option value="all">Everything</option><option value="admin">Console sign-ins and changes</option><option value="demos">Customer demos</option><option value="problems">Failed or refused only</option></select><button id="actrefresh">Refresh</button></div><div class="tablewrap" id="acttable">Loading…</div></div></section>
-<dialog id="logdlg"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong id="logtitle"></strong><button onclick="logdlg.close()">Close</button></div><pre id="logbody"></pre></dialog>
+<dialog id="logdlg"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong id="logtitle"></strong><button id="logclose">Close</button></div><pre id="logbody"></pre></dialog>
 <div id="toast" role="status"></div>
 <script>
 const grid = document.getElementById('grid'), toast = document.getElementById('toast');
+document.getElementById('logclose').addEventListener('click', () => document.getElementById('logdlg').close());
 let working = new Set(), apps = [];
 
 function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), 4500); }
@@ -174,7 +175,7 @@ async function loadDemos(){
       el('input', { name: 'customer', placeholder: 'Customer name', required: '', maxlength: '80' }),
       el('select', { name: 'app' }, d.products.map(p => el('option', { value: p.product }, p.product))),
       el('input', { name: 'hours', type: 'number', min: '1', max: '720', value: '48', title: 'Valid for (hours)' }),
-      el('input', { name: 'maxUses', type: 'number', min: '1', max: '1000', placeholder: 'Max opens', title: 'How many times the link may be opened (empty = unlimited)' }),
+      el('input', { name: 'maxUses', type: 'number', min: '1', max: '1000', value: '5', placeholder: 'Unlimited', title: 'How many times the link may be opened (5 by default; clear it for unlimited)' }),
       el('label', { class: 'chk', title: 'The link only works in the browser that opens it first' }, el('input', { name: 'deviceLock', type: 'checkbox' }), 'Lock to first browser'),
       el('button', { type: 'submit' }, 'Create demo link'));
     f.addEventListener('submit', async (e) => {

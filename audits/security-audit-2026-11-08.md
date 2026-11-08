@@ -10,7 +10,7 @@ Importance scale: 1–10, 10 = critical. **No finding scores above 6.** There is
 
 ## Remediation status (2026-11-08)
 
-Fixed in the working tree: **SEC-01** (apps get a minimal environment; `PD_APP_ENV_PASSTHROUGH=NAME,NAME` lets an app opt in to extra variables), **SEC-04** (certificate validation on; `DEMO_DB_CA` for a provider CA, `DEMO_DB_INSECURE_TLS=1` as an explicit opt-out), **SEC-05** (audit pruning now also runs daily), **SEC-06** (WebSocket `Origin` must match the host), **SEC-09** (app start/stop/restart and sign-out are audited and labelled in the Activity view). Tests added for 01, 06 and 09; the five demo journeys pass with the new environment. All other findings are open.
+Fixed in the working tree: **SEC-01** (apps get a minimal environment; `PD_APP_ENV_PASSTHROUGH=NAME,NAME` lets an app opt in to extra variables), **SEC-04** (certificate validation on; `DEMO_DB_CA` for a provider CA, `DEMO_DB_INSECURE_TLS=1` as an explicit opt-out), **SEC-05** (audit pruning now also runs daily), **SEC-06** (WebSocket `Origin` must match the host), **SEC-09** (app start/stop/restart and sign-out are audited and labelled in the Activity view). **SEC-07** (device lock uses a random `pd_dev` cookie instead of the User-Agent; links with a use limit are spent by a button click (POST), not by a GET; the console form defaults to 5 opens) and **SEC-08** (the console's script policy is a per-response nonce; no inline handlers). Tests added for 01, 06, 07, 08 and 09; the five demo journeys pass with the new environment. All other findings are open.
 
 ## 1. Summary
 

@@ -298,6 +298,24 @@ test('activity feed: needs sign-in, filters, limits, and never returns anything 
 });
 
 // ---------- error handling
+test('security: scripts need a per-response nonce; no inline script or handler is allowed', async () => {
+  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  const { port } = await start({ trustedProxies: ['127.0.0.1'] });
+  const fresh = { 'x-forwarded-for': '203.0.113.99' };
+  const cookie = cookieFrom(await post(port, '/login', { password: 'a long test passphrase' }, fresh));
+  const one = await req(port, { headers: { cookie, ...fresh } }), two = await req(port, { headers: { cookie, ...fresh } });
+  const nonce = (r) => /script-src 'nonce-([^']+)'/.exec(r.headers['content-security-policy'])?.[1];
+  assert.ok(nonce(one) && nonce(one) !== nonce(two), 'a fresh nonce for each response');
+  assert.doesNotMatch(one.headers['content-security-policy'], /script-src[^;]*unsafe-inline/);
+  assert.ok(one.body.includes(`<script nonce="${nonce(one)}">`), 'the page script carries the nonce');
+  assert.doesNotMatch(one.body, /<script>/, 'no un-nonced script tag');
+  assert.doesNotMatch(one.body, /\son(click|load|error|submit|change)=/i, 'no inline event handler attributes');
+  const login = await req(port, { path: '/login' });
+  assert.ok(login.body.includes(`<script nonce="${nonce(login)}">`));
+  const api = await req(port, { path: '/api/session', headers: { cookie, ...fresh } });
+  assert.equal(api.headers['content-security-policy'], undefined, 'json responses are not given a page CSP (json() sets its own headers)');
+});
+
 test('errors: bad JSON bodies are 400, unknown grant is 404, failed supervisor commands are 502, unreadable status is flagged', async () => {
   await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
   const failing = async (args) => (args[0] === 'status' ? { ok: false, output: 'boom' } : { ok: false, output: 'NOT RESPONDING after 60s' });

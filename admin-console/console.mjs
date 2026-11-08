@@ -76,11 +76,17 @@ export async function createConsole(opts = {}) {
     throw new Error(`Refusing to listen on ${o.bindHost} without a password. Run "npm run console:auth set-password" first.`);
   }
 
+  // Scripts run only if they carry this response's random nonce, so injected markup cannot execute. (Styles stay inline: far lower risk.)
+  const csp = (script) => `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src ${script}; frame-ancestors 'none'; form-action 'self'; base-uri 'none'`;
   const securityHeaders = {
     'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
-    'content-security-policy': "default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'",
+    'content-security-policy': csp("'none'"), // JSON and redirects never need a script
   };
-  const html = (res, code, body) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...securityHeaders }); res.end(body); };
+  const html = (res, code, body) => {
+    const nonce = randomBytes(16).toString('base64');
+    res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...securityHeaders, 'content-security-policy': csp(`'nonce-${nonce}'`) });
+    res.end(String(body).replaceAll('<script>', `<script nonce="${nonce}">`));
+  };
   const originOk = (req) => req.headers.origin === `${o.scheme}://${req.headers.host}`;
   const readBody = async (req, max = 4096) => { let b = ''; for await (const c of req) { b += c; if (b.length > max) throw tooLarge(); } return b; };
 

@@ -18,6 +18,10 @@ import { createMetrics } from '../lib/metrics.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const COOKIE = 'pd_demo';
+// Device lock: a random id kept in this cookie (only its hash is stored with the grant). A User-Agent string is shared by
+// everyone with the same browser, so it could not pin a link to one browser.
+const DEV_COOKIE = 'pd_dev';
+const DEV_RE = /^[a-f0-9]{32}$/;
 // The link token (48 hex) is only ever presented at /d/<token>. The browser's cookie holds a DIFFERENT random value
 // (64 hex) minted at redemption, so the link cannot double as a cookie and skip the use limit / device lock.
 const SESSION_RE = /^[a-f0-9]{64}$/;
@@ -123,7 +127,7 @@ export async function createGateway(opts = {}) {
     const p = route ? target.processes.find((q) => q.name === route.process) : target.processes[0];
     return { host: p.host || '127.0.0.1', port: p.port };
   }
-  const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !c.startsWith(COOKIE + '=')).join('; ');
+  const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !c.startsWith(COOKIE + '=') && !c.startsWith(DEV_COOKIE + '=')).join('; ');
   // What the demo instance sees in X-Forwarded-For: a trusted proxy's chain plus that proxy; otherwise just the peer.
   // A client-supplied header from an untrusted peer is dropped, never passed on.
   const forwardedFor = (req) => {
@@ -151,8 +155,19 @@ export async function createGateway(opts = {}) {
         if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.', { 'retry-after': '600' });
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
+      if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST', 'cache-control': 'no-store' }); return res.end(); }
+      // A link with a use limit is not spent by a GET: mail scanners and chat link-previews fetch links automatically and
+      // would burn the customer's opens. They see a button; the customer's click is a POST, and only that counts.
+      if (req.method === 'GET' && g.maxUses != null) {
+        if (g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
+        return page(res, 200, 'Open your demo', 'Press the button to start your personal demo.<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">Open the demo</button></form>');
+      }
+      req.resume(); // a POST body (the empty form) is not needed
       // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
-      const use = await store.grants.redeem(g.id, sha256(ua));
+      let devId = readCookie(req, DEV_COOKIE);
+      const hadDev = DEV_RE.test(devId);
+      if (!hadDev) devId = randomBytes(16).toString('hex');
+      const use = await store.grants.redeem(g.id, sha256(devId));
       if (!use.ok) {
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         audit({ ev: 'denied', grant: g.id, app: slug, ip, ua, why: use.why });
@@ -165,7 +180,8 @@ export async function createGateway(opts = {}) {
       const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
       const sid = newSessionId(); // only its hash is stored
       await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);
-      res.writeHead(302, { 'set-cookie': `${COOKIE}=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`, location: '/', 'cache-control': 'no-store' });
+      const flags = `; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`;
+      res.writeHead(302, { 'set-cookie': [`${COOKIE}=${sid}${flags}`, ...(g.deviceLock && !hadDev ? [`${DEV_COOKIE}=${devId}${flags}`] : [])], location: '/', 'cache-control': 'no-store' });
       return res.end();
     }
 

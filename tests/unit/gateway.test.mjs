@@ -200,13 +200,31 @@ test('WebSocket: at most maxWsPerGrant sockets per grant', async () => {
 
 // ---- link limits and abuse protection
 const ua = (name) => ({ 'user-agent': name });
+// A browser: keeps cookies between requests. Opens a link the way a customer does.
+function browser(name = 'Browser') {
+  const jar = new Map();
+  const cookie = () => [...jar].map(([k, v]) => k + '=' + v).join('; ');
+  return {
+    jar, cookie,
+    async open(token, { post = false } = {}) {
+      const r = await request({ path: '/d/' + token, method: post ? 'POST' : 'GET', headers: { ...ua(name), ...(jar.size ? { cookie: cookie() } : {}) } });
+      for (const c of r.headers['set-cookie'] || []) { const [kv] = c.split(';'); const i = kv.indexOf('='); jar.set(kv.slice(0, i), kv.slice(i + 1)); }
+      return r;
+    },
+  };
+}
 
 test('a link with a use limit stops working after that many opens', async () => {
   const { grant, link } = await grants.createGrant({ customer: 'Limited', app: 'toy', hours: 1, maxUses: 1 });
   const token = link.split('/d/')[1];
-  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302);
-  const second = await request({ path: '/d/' + token, headers: ua('Browser A') });
+  const scanner = await request({ path: '/d/' + token, headers: ua('Mail-Scanner') });
+  assert.equal(scanner.status, 200, 'a GET only shows the button');
+  assert.match(scanner.body, /Open the demo/);
+  assert.equal((await grants.findGrant(token)).uses, 0, 'and does not spend a use');
+  assert.equal((await request({ path: '/d/' + token, method: 'POST', headers: ua('Browser A') })).status, 302);
+  const second = await request({ path: '/d/' + token, method: 'POST', headers: ua('Browser A') });
   assert.equal(second.status, 403);
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 403, 'a GET of a used-up link says so at once');
   assert.match(second.body, /maximum number of times/);
   assert.equal((await grants.findGrant(token)).uses, 1);
   assert.ok(grant.id);
@@ -215,11 +233,14 @@ test('a link with a use limit stops working after that many opens', async () => 
 test('a device-locked link only works in the browser that first opened it', async () => {
   const { link } = await grants.createGrant({ customer: 'Locked', app: 'toy', hours: 1, deviceLock: true });
   const token = link.split('/d/')[1];
-  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302);
-  const other = await request({ path: '/d/' + token, headers: ua('Browser B') });
-  assert.equal(other.status, 403);
+  const a = browser('Same-UA'), b = browser('Same-UA'); // identical User-Agent: only the cookie tells them apart
+  assert.equal((await a.open(token)).status, 302);
+  assert.ok(a.jar.has('pd_dev'), 'the first browser is given a device id');
+  const other = await b.open(token);
+  assert.equal(other.status, 403, 'a different browser with the SAME User-Agent is refused');
   assert.match(other.body, /tied to the browser/);
-  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302, 'the original browser can return');
+  assert.equal((await a.open(token)).status, 302, 'the original browser can return');
+  assert.equal((await request({ path: '/d/' + token, headers: ua('Same-UA') })).status, 403, 'and so is a client with no device id');
 });
 
 test('audit records ip and browser; a retry storm after revocation is collapsed', async () => {
@@ -275,20 +296,20 @@ test('the link token itself is refused as a cookie, over HTTP and WebSocket', as
 test('use limit cannot be skipped by presenting the link token as a cookie', async () => {
   const { link } = await grants.createGrant({ customer: 'OnceOnly', app: 'toy', hours: 1, maxUses: 1 });
   const token = link.split('/d/')[1];
-  const first = await request({ path: '/d/' + token });
+  const first = await request({ path: '/d/' + token, method: 'POST' });
   assert.equal(first.status, 302);
   const session = first.headers['set-cookie'][0].split(';')[0];
   assert.equal((await request({ headers: { cookie: session } })).status, 200, 'the person who opened it can use the demo');
   // someone else with the forwarded link:
-  assert.equal((await request({ path: '/d/' + token })).status, 403, 'opening it again is refused');
+  assert.equal((await request({ path: '/d/' + token, method: 'POST' })).status, 403, 'opening it again is refused');
   assert.equal((await request({ headers: { cookie: 'pd_demo=' + token } })).status, 401, 'and so is sending the token as a cookie');
 });
 
 test('device lock cannot be skipped by presenting the link token as a cookie', async () => {
   const { link } = await grants.createGrant({ customer: 'Pinned', app: 'toy', hours: 1, deviceLock: true });
   const token = link.split('/d/')[1];
-  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser A') })).status, 302);
-  assert.equal((await request({ path: '/d/' + token, headers: ua('Browser B') })).status, 403);
+  assert.equal((await browser('Browser A').open(token)).status, 302);
+  assert.equal((await browser('Browser B').open(token)).status, 403);
   assert.equal((await request({ headers: { cookie: 'pd_demo=' + token, ...ua('Browser B') } })).status, 401);
 });
 
