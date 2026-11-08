@@ -186,6 +186,10 @@
       "stack": "Flask + Pillow",
       "demoOf": "imageapp",
       "demoReady": true,
+      "reset": { "steps": [
+        { "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\reset-fs.mjs clear-dir ${DASHBOARD_ROOT}\\data\\demo-tmp\\imageapp", "cwd": "${DASHBOARD_ROOT}", "timeoutSec": 60 }
+      ] },
+      "demoAccounts": [],
       "_note": "Same original code, separate port, separate temp and log folders under this dashboard's data/. ImageApp has no database, so nothing is shared with your own instance.",
       "processes": [
         {
@@ -213,16 +217,32 @@
       "stack": "Next.js 15 + Prisma + Neon (crm-demo project)",
       "demoOf": "crm",
       "demoReady": true,
-      "_note": "Runs from a separate git clone of CRM's committed code (data/demo-src/crm, no .env, remote removed), so it never shares .next or .env with your own CRM. Database: separate Neon project 'crm-demo', seeded. Env comes from data/crm-demo.env, which leaves email/Stripe/WhatsApp/AI/monitoring keys unset. Verified 2026-11-06: login and APIs work directly and through the gateway. Runs in next dev mode.",
+      "build": { "cmd": "npx next build", "cwd": ".", "envFile": "data/crm-demo.env", "produces": ".next\\BUILD_ID", "timeoutSec": 1800 },
+      "reset": { "steps": [
+        { "cmd": "npx tsx prisma/seed.ts", "cwd": ".", "envFile": "data/crm-demo.env", "env": { "WIPE_FORCE": "1" }, "timeoutSec": 900 }
+      ] },
+      "demoAccounts": [
+        { "label": "Sales (limited)", "user": "sales@crm.test" },
+        { "label": "Support (limited)", "user": "support@crm.test" },
+        { "label": "Admin (owner only)", "user": "admin@crm.test", "admin": true }
+      ],
+      "_note": "Runs from a separate git clone of CRM's committed code (data/demo-src/crm, no .env, remote removed), so it never shares .next or .env with your own CRM. Database: separate Neon project 'crm-demo', seeded. Env comes from data/crm-demo.env, which leaves email/Stripe/WhatsApp/AI/monitoring keys unset. Verified 2026-11-06: login and APIs work directly and through the gateway. Runs a production build (next build, then next start): build it once with `node supervisor/index.mjs build crm-demo`, and again after the clone changes.",
       "processes": [
         {
           "name": "app",
-          "cmd": "npx next dev --turbopack -p {port}",
+          "cmd": "npx next start -p {port}",
           "cwd": ".",
           "port": 3111,
           "health": "/sign-in",
           "envFile": "data/crm-demo.env",
-          "env": { "NEXTAUTH_URL": "http://crm.localhost:4300", "AUTH_URL": "http://crm.localhost:4300", "AUTH_TRUST_HOST": "true" }
+          "env": { "NEXTAUTH_URL": "http://crm.localhost:4300", "AUTH_URL": "http://crm.localhost:4300", "AUTH_TRUST_HOST": "true", "UPSTASH_REDIS_REST_URL": "http://127.0.0.1:{port:ratelimit}" }
+        },
+        {
+          "name": "ratelimit",
+          "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\redis-rest-stub.mjs {port}",
+          "cwd": ".",
+          "port": 3114,
+          "health": "/"
         }
       ],
       "demo": { "supported": false, "notes": "This IS the demo instance" }
@@ -235,12 +255,21 @@
       "stack": "Turborepo, Next.js 15 x2, Supabase (separate demo project)",
       "demoOf": "claudeworkspace",
       "demoReady": true,
+      "build": { "cmd": "cd apps\\web && npx next build --no-lint && cd ..\\admin && npx next build --no-lint", "cwd": ".", "envFile": "data/claudeworkspace-demo.env", "env": { "NEXT_PUBLIC_APP_URL": "http://claudeworkspace.localhost:4300", "NEXT_PUBLIC_ADMIN_URL": "http://claudeworkspace.localhost:4300/admin" }, "produces": "apps\\admin\\.next\\BUILD_ID", "timeoutSec": 2400 },
+      "reset": { "steps": [
+        { "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\reset-supabase-demo.mjs data\\claudeworkspace-demo.env --yes", "cwd": "${DASHBOARD_ROOT}", "timeoutSec": 600 },
+        { "cmd": "node seed_demo.mjs", "cwd": ".", "envFile": "data/claudeworkspace-demo.env", "timeoutSec": 600 }
+      ] },
+      "demoAccounts": [
+        { "label": "Customer", "user": "customer@reci-demo.example" },
+        { "label": "Admin portal (owner only)", "user": "admin@reci-demo.example", "admin": true }
+      ],
       "demoRoutes": [{ "prefix": "/admin", "process": "admin" }],
-      "_note": "Runs from a separate git clone (data/demo-src/reci-transport, no .env). Env from data/claudeworkspace-demo.env (separate Supabase project 'reci-demo'; payments/email/AI/monitoring unset). Verified 2026-11-06: migrations, 20-vehicle seed, demo admin/customer logins, pages directly and through the gateway. Customer site at /, admin portal at /admin on the same demo link. Runs in next dev mode.",
+      "_note": "Runs from a separate git clone (data/demo-src/reci-transport, no .env). Env from data/claudeworkspace-demo.env (separate Supabase project 'reci-demo'; payments/email/AI/monitoring unset). Verified 2026-11-06: migrations, 20-vehicle seed, demo admin/customer logins, pages directly and through the gateway. Customer site at /, admin portal at /admin on the same demo link. Runs production builds (next build, then next start) of both apps: build once with `node supervisor/index.mjs build claudeworkspace-demo` (lint is skipped: the app has one failing lint rule of its own), and again after the clone changes. NEXT_PUBLIC_* addresses are fixed at build time.",
       "processes": [
         {
           "name": "web",
-          "cmd": "node_modules\\.bin\\next.cmd dev -p {port} --turbo",
+          "cmd": "node_modules\\.bin\\next.cmd start -p {port}",
           "cwd": "apps\\web",
           "port": 3112,
           "health": "/",
@@ -249,7 +278,7 @@
         },
         {
           "name": "admin",
-          "cmd": "node_modules\\.bin\\next.cmd dev -p {port} --turbo",
+          "cmd": "node_modules\\.bin\\next.cmd start -p {port}",
           "cwd": "apps\\admin",
           "port": 3113,
           "health": "/admin",
@@ -267,6 +296,15 @@
       "stack": "Flask + SQLite (clone-local database)",
       "demoOf": "airfinder",
       "demoReady": true,
+      "reset": { "steps": [
+        { "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\reset-fs.mjs delete instance\\airfinder.db", "cwd": ".", "timeoutSec": 60 },
+        { "cmd": ".venv\\Scripts\\python.exe seed_demo.py", "cwd": ".", "envFile": "data/airfinder-demo.env", "timeoutSec": 300 },
+        { "cmd": ".venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\airfinder_ready.py instance\\airfinder.db", "cwd": ".", "timeoutSec": 60 }
+      ] },
+      "demoAccounts": [
+        { "label": "Customer", "user": "emeka.okafor@techcorp.ng" },
+        { "label": "Staff portal (owner only)", "user": "admin@airfinder-demo.example", "admin": true }
+      ],
       "_note": "Runs from a separate git clone (data/demo-src/airfinder, no .env, remotes removed) with its own SQLite file in the clone's instance folder. Env from data/airfinder-demo.env. No mail account is set, so emails are only logged inside the clone. Flights are mock data; the app makes no outbound service calls. Verified 2026-11-06: search, customer and staff logins, admin API, and the gateway path.",
       "processes": [
         {
@@ -327,6 +365,9 @@
       "stack": "Flask + Streamlit + Postgres + Redis (Docker containers pd-rmm-demo-pg, pd-rmm-demo-redis)",
       "demoOf": "rmm",
       "demoReady": true,
+      "demoAccounts": [
+        { "label": "Demo admin", "user": "admin@rmm-demo.test" }
+      ],
       "_note": "Runs from a separate git clone of the RMM's committed code (data/demo-src/rmm, no .env, remote removed). Own Postgres (port 5433) and Redis (6380) in Docker, started by data/tools/rmm_demo_api.py. All devices, customers, alerts and tickets are SIMULATED (data/tools/seed-rmm-demo.py); no agent can enrol because the API listens on 127.0.0.1 only. No Celery worker, so scheduled jobs, backups and email do not run. Env from data/rmm-demo.env: SMTP, MQTT and MDM unset; AI assistant uses the RMM's own Anthropic key with agentic tools OFF and triage OFF (owner approved 2026-11-07), so AI chat costs money. Uses the real RMM venv read-only.",
       "processes": [
         {

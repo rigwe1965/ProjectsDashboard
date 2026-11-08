@@ -11,16 +11,17 @@
 // security headers. It exposes app names, ports and status only: never env values or .env contents.
 import http from 'node:http';
 import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } from 'node:fs';
-import { execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadGrants, createGrant, revokeGrant, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
-import { root, dataDir } from '../lib/config.mjs';
+import { dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
+import { runSupervisor } from '../lib/run-supervisor.mjs';
+import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
 import { verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
@@ -29,16 +30,7 @@ const COOKIE_BASE = 'pd_session';
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 
-function defaultSupervisor(args, timeout = 120000) {
-  return new Promise((resolve) => {
-    execFile(process.execPath, [join(root, 'supervisor', 'index.mjs'), ...args], { env: process.env, timeout, windowsHide: true },
-      (err, stdout, stderr) => resolve({
-        ok: !err,
-        timedOut: !!err?.killed,
-        output: ((stdout + stderr).trim() || err?.message || '') + (err?.killed ? '\n(timed out: check the status before trying again)' : ''),
-      }));
-  });
-}
+const defaultSupervisor = runSupervisor;
 
 function tail(file, maxBytes = 12000) {
   if (!existsSync(file)) return '(no log yet)';
@@ -243,7 +235,13 @@ export async function createConsole(opts = {}) {
     if (req.method === 'GET' && url.pathname === '/api/demos') {
       const gatewayUp = await portInUse(o.gatewayPort);
       const { rows } = await statusRows();
-      const products = Object.entries(demoApps()).map(([product, a]) => ({ product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed) }));
+      const grantList = await loadGrants();
+      const products = await Promise.all(Object.entries(demoApps()).map(async ([product, a]) => ({
+        product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed),
+        canReset: !!a.reset, resetting: !!a.reset && await isResetting(store, product), lastReset: a.reset ? await lastResetAt(store, product) : null,
+        inUse: a.reset ? productState(grantList, product).busy : 0, // opened links that have not ended
+        accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
+      })));
       const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
       return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
     }
@@ -253,6 +251,17 @@ export async function createConsole(opts = {}) {
       if (!b || typeof b !== 'object' || Array.isArray(b)) throw new HttpError(400, 'Expected a JSON object');
       const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock });
       return json(res, 200, { grant: publicGrant(grant), link });
+    }
+    if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([\w-]+)\/reset$/))) {
+      if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+      const product = m[1], app = demoApps()[product];
+      if (!app?.reset) throw new HttpError(404, 'That demo cannot be reset');
+      const b = JSON.parse((await readBody(req)) || '{}');
+      const inUse = productState(await loadGrants(), product).busy;
+      if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });
+      audit({ ev: 'demo-reset-requested', app: product, forced: !!inUse, ip: clientIp(req, trusted) });
+      const r = await runReset({ store, product, app, supervisor: o.supervisor, by: 'admin' });
+      return json(res, r.busy ? 409 : r.ok ? 200 : 502, r.busy ? { error: r.output } : r);
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
       if (!originOk(req)) return json(res, 403, { error: 'bad origin' });

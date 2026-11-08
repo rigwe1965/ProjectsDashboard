@@ -154,6 +154,22 @@ async function demoAct(id, action, label){
   } catch (e) { if (e.message !== 'signed out') say('Request failed'); }
   demoBusy.delete(id); loadDemos(); load();
 }
+async function demoReset(p){
+  const label = p.product + ' demo';
+  if (!confirm('Reset the ' + label + ' to its seeded state? Everything customers entered, and any password they changed, is replaced by the original sample data. The demo is unavailable for a minute or two.')) return;
+  demoBusy.add(p.instance); loadDemos();
+  try {
+    let j = await api('/api/demos/' + p.product + '/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    if (j.inUse && !j.ok) {
+      if (confirm(j.error + '
+
+Reset anyway?')) j = await api('/api/demos/' + p.product + '/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ force: true }) });
+      else { demoBusy.delete(p.instance); loadDemos(); return; }
+    }
+    say(j.ok ? label + ' was reset.' : 'Reset FAILED: ' + String(j.error || j.output || '').slice(0, 300));
+  } catch (e) { if (e.message !== 'signed out') say('Request failed'); }
+  demoBusy.delete(p.instance); loadDemos(); load();
+}
 async function loadDemos(){
   const panel = document.getElementById('demopanel');
   let d; try { d = await api('/api/demos'); if (d.error) throw new Error(d.error); } catch (e) { if (!demoPanelLoaded) panel.textContent = 'Could not load demos.'; return; }
@@ -169,7 +185,12 @@ async function loadDemos(){
   };
   const status = el('div', { class: 'row' },
     ctl('gateway', 'Gateway :' + d.gatewayPort, d.gatewayUp, d.gatewayManaged),
-    d.products.map(p => ctl(p.instance, p.product + ' demo instance', p.up, p.managed)));
+    d.products.map(p => [ctl(p.instance, p.product + ' demo instance', p.up, p.managed),
+      p.canReset ? el('button', { onclick: () => demoReset(p), disabled: (demoBusy.has(p.instance) || p.resetting) ? '' : null, title: 'Put this demo back to its seeded sample data' + (p.inUse ? ' (' + p.inUse + ' customer link' + (p.inUse === 1 ? '' : 's') + ' still active)' : '') }, p.resetting ? 'Resetting…' : 'Reset data') : null]));
+  const accounts = d.products.filter(p => p.accounts.length).map(p =>
+    el('div', { class: 'sub' }, p.product + ': give customers ' + (p.accounts.filter(a => !a.admin).map(a => a.user + ' (' + a.label + ')').join(', ') || 'no limited account is available') +
+      (p.accounts.some(a => a.admin) ? '. Owner only: ' + p.accounts.filter(a => a.admin).map(a => a.user).join(', ') : '') +
+      (p.canReset ? '. ' + (p.lastReset ? 'Last reset ' + new Date(p.lastReset).toLocaleString() : 'Not reset yet') + (p.inUse ? ', ' + p.inUse + ' link(s) in use' : '') : '')));
   const form = keepForm || (() => {
     const f = el('form', { class: 'row' },
       el('input', { name: 'customer', placeholder: 'Customer name', required: '', maxlength: '80' }),
@@ -201,7 +222,7 @@ async function loadDemos(){
         catch (e) { if (e.message !== 'signed out') say('Revoke FAILED: request did not complete'); }
         loadDemos(); } }, 'Revoke') : null)))
       : [el('tr', {}, el('td', { colspan: '6', class: 'sub' }, 'No demo links yet.'))]));
-  panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), el('div', { class: 'tablewrap' }, table));
+  panel.replaceChildren(status, ...accounts, form, ...(keepLink ? [keepLink] : []), el('div', { class: 'tablewrap' }, table));
 }
 const EVENT_LABELS = {
   'admin-login': 'Console sign-in', 'admin-login-failed': 'Console sign-in failed', 'admin-password-set': 'Password changed',

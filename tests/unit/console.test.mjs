@@ -13,7 +13,8 @@ const dir = mkdtempSync(join(tmpdir(), 'pd-con-'));
 const proc = (name, port) => ({ name, cmd: 'x', port });
 writeFileSync(join(dir, 'registry.json'), JSON.stringify({ apps: [
   { id: 'toy', name: 'Toy', path: '.', processes: [proc('app', 19001)] },
-  { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [proc('app', 19002)] },
+  { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [proc('app', 19002)], reset: { steps: [{ cmd: 'x' }] },
+    demoAccounts: [{ label: 'Limited', user: 'limited@x.test' }, { label: 'Admin', user: 'admin@x.test', admin: true }] },
 ] }));
 process.env.DASHBOARD_DATA = dir;
 process.env.DASHBOARD_REGISTRY = join(dir, 'registry.json');
@@ -181,6 +182,37 @@ test('over HTTPS the console session cookie carries the __Host- prefix and Secur
   const cookie = ok.headers['set-cookie'][0].split(';')[0];
   assert.equal((await req(port, { path: '/api/apps', headers: { cookie } })).status, 200, 'the prefixed cookie is accepted');
   assert.equal((await req(port, { path: '/api/apps', headers: { cookie: cookie.replace('__Host-', '') } })).status, 401, 'the unprefixed name is not');
+});
+
+test('demo reset: lists accounts, asks before wiping a demo that is in use, resets on request and audits it', async () => {
+  const prevHash = await store.meta.get('admin_password_hash');
+  await store.meta.set('admin_password_hash', ''); // token mode, whatever earlier tests left behind
+  const calls = [];
+  const { c, port } = await start({ supervisor: async (args) => { calls.push(args.join(' ')); return { ok: true, output: args[0] === 'status' ? '[]' : 'reset done' }; } });
+  assert.equal((await req(port, { path: '/api/demos' })).status, 401);
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const post2 = (path, body) => post(port, path, body, { cookie });
+  const list = JSON.parse((await req(port, { path: '/api/demos', headers: { cookie } })).body);
+  const toy = list.products.find((p) => p.product === 'toy');
+  assert.equal(toy.canReset, true); assert.equal(toy.inUse, 0);
+  assert.deepEqual(toy.accounts.map((a) => [a.user, a.admin]), [['limited@x.test', false], ['admin@x.test', true]]);
+  assert.equal((await post2('/api/demos/nope/reset', {})).status, 404);
+  const noOrigin = await req(port, { method: 'POST', path: '/api/demos/toy/reset', headers: { cookie, 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(noOrigin.status, 403);
+
+  const { grant } = await (await import('../../demo-gateway/grants.mjs')).createGrant({ customer: 'In use', app: 'toy', hours: 1 });
+  assert.equal((await store.grants.redeem(grant.id, 'dev')).ok, true);
+  const ask = await post2('/api/demos/toy/reset', {});
+  assert.equal(ask.status, 409); assert.equal(JSON.parse(ask.body).inUse, 1);
+  assert.ok(!calls.includes('reset toy-demo'), 'nothing was reset without the extra confirmation');
+  const forced = await post2('/api/demos/toy/reset', { force: true });
+  assert.equal(forced.status, 200, forced.body);
+  assert.ok(calls.includes('reset toy-demo'));
+  const ev = (await store.audit.list(100)).filter((e) => e.ev === 'demo-reset' || e.ev === 'demo-reset-requested');
+  assert.ok(ev.some((e) => e.ev === 'demo-reset' && e.by === 'admin' && e.ok === true));
+  assert.ok(ev.some((e) => e.ev === 'demo-reset-requested' && e.forced === true));
+  assert.ok((JSON.parse((await req(port, { path: '/api/demos', headers: { cookie } })).body)).products.find((p) => p.product === 'toy').lastReset, 'the last reset time is shown');
+  await store.meta.set('admin_password_hash', prevHash ?? '');
 });
 
 test('2-step codes: two simultaneous logins with the same code cannot both succeed', async () => {

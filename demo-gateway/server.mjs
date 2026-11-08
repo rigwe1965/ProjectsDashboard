@@ -19,6 +19,12 @@ async function pruneAudit() {
 }
 await pruneAudit();
 setInterval(pruneAudit, 24 * 3600e3).unref();
+// Shared demos go back to their seeded state once every link opened for them has ended (DEMO_AUTO_RESET=0 turns this off).
+if (process.env.DEMO_AUTO_RESET !== '0') {
+  const everyMs = Math.max(10000, Number(process.env.DEMO_RESET_CHECK_SECONDS || 60) * 1000);
+  let sweeping = false;
+  setInterval(() => { if (sweeping) return; sweeping = true; gw.resetSweep().catch((err) => logger.error('reset sweep failed', { err })).finally(() => { sweeping = false; }); }, everyMs).unref();
+}
 const port = await gw.listen(process.env.GATEWAY_BIND || '127.0.0.1').catch((err) => {
   logger.error(err.code === 'EADDRINUSE' ? 'gateway port is already in use' : 'gateway could not start listening', { err });
   process.exit(1);

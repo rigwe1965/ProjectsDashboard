@@ -1,11 +1,12 @@
-// Supervisor: status | start <app> | stop <app> | restart <app>
+// Supervisor: status | start <app> | stop <app> | restart <app> | reset <demo-instance> | build <app>
 // Safety rules:
 //  - never reads .env files, never writes into app folders
 //  - never kills by port or by name: only PIDs it recorded itself, and only if the
 //    process start time still matches (guards against PID reuse)
 //  - refuses to start a process whose port is already in use or reserved
 //  - app env vars are set on the child process only
-import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, appendFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
 import { getStore, closeStore } from '../lib/store/index.mjs';
 import { join, resolve } from 'node:path';
 import { cleanEnv, minimalEnv } from '../lib/clean-env.mjs';
@@ -35,6 +36,22 @@ function fill(str, proc, app) {
     .replaceAll('{url}', `http://localhost:${proc.port}`)
     .replaceAll('{port}', String(proc.port))
     .replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
+}
+
+// The environment for a child: a minimal base, the dashboard's own env file (under data/, never the app's .env), then the
+// registry's env values.
+function childEnv(app, p, fillStr) {
+  const env = cleanEnv(minimalEnv(process.env));
+  if (p.envFile) {
+    const f = join(root, p.envFile);
+    if (!existsSync(f)) throw new Error(`Env file missing for ${app.id}: ${p.envFile}`);
+    for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
+      const t = line.trim(); const i = t.indexOf('=');
+      if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1);
+    }
+  }
+  for (const [k, v] of Object.entries(p.env ?? {})) env[k] = fillStr(v);
+  return env;
 }
 
 const getApp = (id) => {
@@ -68,6 +85,10 @@ async function status(json) {
 async function start(app, only) {
   const todo = app.processes.filter((p) => (only ? p.name === only : !p.optional));
   if (todo.some((p) => !p.container) && !existsSync(app.path)) { console.error(`Path not found: ${app.path}`); process.exit(1); }
+  // An app that runs a production build (not a dev server) must have been built first: say so instead of failing to boot.
+  if (app.build?.produces && !existsSync(resolve(app.path, app.build.cwd ?? '.', app.build.produces))) {
+    console.error(`${app.id} has not been built yet. Run: node supervisor/index.mjs build ${app.id}`); process.exit(1);
+  }
   // pre-flight all ports first so we never half-start an app
   for (const p of todo) {
     if (reserved.has(p.port)) { console.error(`Port ${p.port} is reserved. Aborting.`); process.exit(1); }
@@ -86,16 +107,8 @@ async function start(app, only) {
     }
     const cwd = resolve(app.path, p.cwd ?? '.');
     if (!existsSync(cwd)) { console.error(`Working directory not found for ${app.id}/${p.name}: ${cwd}`); failed = true; await closeStore(); process.exit(1); }
-    const env = cleanEnv(minimalEnv(process.env));
-    if (p.envFile) { // the DASHBOARD's own env file (under data/), never the app's .env
-      const f = join(root, p.envFile);
-      if (!existsSync(f)) { console.error(`Env file missing for ${app.id}/${p.name}: ${p.envFile}`); process.exit(1); }
-      for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
-        const t = line.trim(); const i = t.indexOf('=');
-        if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1);
-      }
-    }
-    for (const [k, v] of Object.entries(p.env ?? {})) env[k] = fill(v, p, app);
+    let env;
+    try { env = childEnv(app, p, (v) => fill(v, p, app)); } catch (e) { console.error(`${e.message} (${app.id}/${p.name})`); process.exit(1); }
     const logPath = join(logDir, `${app.id}-${p.name}.log`);
     const child = driver.spawnApp({ cmd: fill(p.cmd, p, app), cwd, env, logPath });
     await new Promise((r) => setTimeout(r, 800));
@@ -145,12 +158,67 @@ async function stop(app, only) {
   if (!Object.keys(recs).length) console.log(`${app.id}: nothing left running under dashboard control.`);
 }
 
+// Put a demo instance back to its seeded state: stop it, run the registry's reset steps (each with its own env file, in order,
+// output appended to data/logs/<id>-reset.log), then start it again if it was running. A failed step stops the sequence, but the
+// instance is still started so the demo stays available (possibly with old data); the exit code says it failed.
+// Runs one reset command through the shell. On a timeout the whole process tree is stopped (a shell's children would otherwise
+// be left running), so a hung step cannot leave stray processes behind.
+function runStep(cmd, cwd, env, timeoutMs) {
+  return new Promise((resolve) => {
+    let output = '', timedOut = false, settled = false, timer;
+    const done = (r) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ output, timedOut, ...r }); } };
+    const child = spawn(cmd, { cwd, env, shell: true, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const keep = (d) => { if (output.length < 4 * 1048576) output += d; };
+    child.stdout.on('data', keep); child.stderr.on('data', keep);
+    timer = setTimeout(async () => { timedOut = true; if (child.pid) await driver.killTree(child.pid); done({ status: null }); }, timeoutMs);
+    child.on('error', (e) => done({ status: null, error: e.message }));
+    child.on('close', (code) => done({ status: code }));
+  });
+}
+// Build a demo for production (e.g. `next build`) using the registry's "build" block. Run it once, and again after the app's code
+// changes. The build runs with the demo's own env file; the dashboard never reads the app's .env.
+async function build(app) {
+  const b = app.build;
+  if (!b?.cmd) { console.error(`${app.id} has no "build" in the registry.`); failed = true; return; }
+  const cwd = resolve(app.path, b.cwd ?? '.');
+  if (!existsSync(cwd)) { console.error(`Working directory not found: ${cwd}`); failed = true; return; }
+  let env; try { env = childEnv(app, b, (v) => v); } catch (e) { console.error(e.message); failed = true; return; }
+  process.stdout.write(`Building ${app.id} (this can take a few minutes)...`);
+  const r = await runStep(b.cmd, cwd, env, (b.timeoutSec ?? 1800) * 1000);
+  const logPath = join(logDir, `${app.id}-build.log`);
+  try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} build: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`); } catch { /* best effort */ }
+  if (r.error || r.timedOut || r.status !== 0) { console.log(` FAILED (${r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status}); see data/logs/${app.id}-build.log`); failed = true; return; }
+  console.log(' done');
+}
+async function reset(app) {
+  if (!app.reset) { console.error(`${app.id} has no "reset" in the registry.`); failed = true; return; }
+  const wasRunning = Object.keys((await store.processState.all())[app.id] ?? {}).length > 0;
+  await stop(app);
+  const logPath = join(logDir, `${app.id}-reset.log`);
+  const fillStep = (v) => v.replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((q) => q.name === n).port));
+  let ok = true;
+  for (const [i, st] of app.reset.steps.entries()) {
+    const cwd = resolve(app.path, st.cwd ?? '.');
+    if (!existsSync(cwd)) { console.error(`Reset step ${i + 1}: working directory not found: ${cwd}`); ok = false; break; }
+    let env; try { env = childEnv(app, st, fillStep); } catch (e) { console.error(`Reset step ${i + 1}: ${e.message}`); ok = false; break; }
+    process.stdout.write(`Reset ${app.id} step ${i + 1}/${app.reset.steps.length}...`);
+    const r = await runStep(fillStep(st.cmd), cwd, env, (st.timeoutSec ?? 600) * 1000);
+    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} step ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`); } catch { /* log is best effort */ }
+    if (r.error || r.timedOut || r.status !== 0) { console.log(` FAILED (${r.timedOut ? 'timed out' : r.error ? r.error : 'exit ' + r.status}); see data/logs/${app.id}-reset.log`); ok = false; break; }
+    console.log(' ok');
+  }
+  if (wasRunning) await start(app);
+  if (!ok) failed = true; else console.log(`${app.id} was reset to its seeded state.`);
+}
+
 const [cmd, id, ...rest] = process.argv.slice(2);
 const only = rest.find((a) => a.startsWith('--only='))?.split('=')[1];
 if (cmd === 'status') await status(id === '--json');
 else if (cmd === 'start') await start(getApp(id), only);
 else if (cmd === 'stop') await stop(getApp(id), only);
 else if (cmd === 'restart') { const a = getApp(id); await stop(a, only); await start(a, only); }
-else console.log('Usage: node supervisor/index.mjs status | start <app> [--only=proc] | stop <app> [--only=proc] | restart <app>');
+else if (cmd === 'reset') await reset(getApp(id));
+else if (cmd === 'build') await build(getApp(id));
+else console.log('Usage: node supervisor/index.mjs status | start <app> [--only=proc] | stop <app> [--only=proc] | restart <app> | reset <demo-instance> | build <app>');
 await closeStore();
 if (failed) process.exitCode = 1;

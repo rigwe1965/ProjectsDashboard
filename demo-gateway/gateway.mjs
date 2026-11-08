@@ -14,6 +14,8 @@ import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { cookieOf as readCookie, clientIp, safeEq } from '../lib/http-util.mjs';
 import { logger } from '../lib/log.mjs';
+import { runSupervisor } from '../lib/run-supervisor.mjs';
+import { isResetting, resetSweep } from './reset.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
@@ -60,6 +62,7 @@ export async function createGateway(opts = {}) {
     redeemPerMinute: num(process.env.GATEWAY_REDEEM_PER_MINUTE, 20), // link opens per IP per minute
     redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
+    supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
     ...opts,
   };
   // Over HTTPS the __Host- prefix makes browsers refuse these cookies unless they are Secure, host-only and Path=/, so no
@@ -169,6 +172,7 @@ export async function createGateway(opts = {}) {
         if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.', { 'retry-after': '600' });
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
+      if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });
       if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST', 'cache-control': 'no-store' }); return res.end(); }
       // A GET never opens the demo or spends a use: mail scanners and chat link-previews fetch links automatically. The
       // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
@@ -354,6 +358,8 @@ export async function createGateway(opts = {}) {
 
   return {
     server, baseHost, store, metrics,
+    // One pass of the automatic reset: demos nobody can still be using go back to their seeded state (server.mjs runs it on a timer).
+    resetSweep: () => resetSweep({ store, apps: demoApps(), supervisor: o.supervisor }),
     listen: (host = '127.0.0.1') => new Promise((resolve, reject) => {
       server.once('error', reject); // e.g. EADDRINUSE
       server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
