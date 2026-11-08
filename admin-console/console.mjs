@@ -54,6 +54,7 @@ export async function createConsole(opts = {}) {
     bindHost: process.env.ADMIN_BIND || '127.0.0.1',
     allowedHosts: (process.env.ADMIN_ALLOWED_HOSTS || '127.0.0.1,localhost').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     scheme: process.env.ADMIN_SCHEME || 'http',
+    allowHttp: process.env.ADMIN_ALLOW_HTTP === '1',
     sessionHours: num(process.env.ADMIN_SESSION_HOURS, 12),
     loginMaxPerIp: 8, loginMaxTotal: 40, // sign-in attempts per 15 minutes
     loginPenaltyMs: 1500, // extra wait before answering a FAILED sign-in once the overall failure cap is passed (slows guessing spread over many addresses)
@@ -75,6 +76,11 @@ export async function createConsole(opts = {}) {
   const passwordMode = async () => !!(await store.meta.get('admin_password_hash'));
   if (!LOOPBACK.has(o.bindHost) && !(await passwordMode())) {
     throw new Error(`Refusing to listen on ${o.bindHost} without a password. Run "npm run console:auth set-password" first.`);
+  }
+  // Beyond this machine the password and session cookie would cross the network: require HTTPS (a proxy in front terminates
+  // it), unless the operator explicitly accepts plain HTTP for a test on one machine.
+  if (!LOOPBACK.has(o.bindHost) && o.scheme !== 'https' && !o.allowHttp) {
+    throw new Error(`Refusing to serve the console over plain HTTP on ${o.bindHost}. Put it behind HTTPS (ADMIN_SCHEME=https), or set ADMIN_ALLOW_HTTP=1 for a test on one machine.`);
   }
 
   // Scripts run only if they carry this response's random nonce, so injected markup cannot execute. (Styles stay inline: far lower risk.)

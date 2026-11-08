@@ -160,6 +160,17 @@ test('past the overall failure cap, wrong guesses are answered slowly but the ri
   assert.ok(Date.now() - t < 280 + 1000, 'the right password was not made to wait the penalty on top');
 });
 
+test('a console beyond this machine needs HTTPS unless plain HTTP is explicitly allowed', async () => {
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
+  await assert.rejects(createConsole({ port: 0, bindHost: '0.0.0.0', supervisor: fakeSupervisor }), /plain HTTP/);
+  await assert.rejects(createConsole({ port: 0, bindHost: '0.0.0.0', scheme: 'http', supervisor: fakeSupervisor }), /plain HTTP/);
+  for (const extra of [{ scheme: 'https' }, { allowHttp: true }]) {
+    const c = await createConsole({ port: 0, bindHost: '0.0.0.0', allowedHosts: ['127.0.0.1'], supervisor: fakeSupervisor, ...extra });
+    started.push(c);
+  }
+  started.push(await createConsole({ port: 0, supervisor: fakeSupervisor })); // loopback over HTTP is fine
+});
+
 test('2-step codes: two simultaneous logins with the same code cannot both succeed', async () => {
   const secret = newTotpSecret();
   await store.meta.set('admin_totp_secret', secret);

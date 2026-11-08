@@ -1,0 +1,12 @@
+# Weekly pull requests for out-of-date dependencies, GitHub Actions (kept pinned to commit SHAs) and Docker base images.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule: { interval: weekly }
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: { interval: weekly }
+  - package-ecosystem: docker
+    directories: ["/deploy", "/deploy/apps/*"]
+    schedule: { interval: weekly }
