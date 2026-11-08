@@ -56,6 +56,7 @@ export async function createConsole(opts = {}) {
     scheme: process.env.ADMIN_SCHEME || 'http',
     sessionHours: num(process.env.ADMIN_SESSION_HOURS, 12),
     loginMaxPerIp: 8, loginMaxTotal: 40, // sign-in attempts per 15 minutes
+    loginPenaltyMs: 1500, // extra wait before answering a FAILED sign-in once the overall failure cap is passed (slows guessing spread over many addresses)
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     supervisor: defaultSupervisor,
     gatewayPort: num(process.env.GATEWAY_PORT, 4300),
@@ -125,7 +126,12 @@ export async function createConsole(opts = {}) {
     if (!pwOk || step === null) {
       audit({ ev: 'admin-login-failed', ip, ua });
       await store.rateLimit.hit('login-fail:all', 900000);
-      if (overall) return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' }, { 'retry-after': '300' });
+      if (overall) {
+        // The cap does not lock the owner out (a correct password still signs in), so slow the guessers instead: each wrong
+        // guess now takes longer to answer, which limits how many a distributed attacker can have in flight.
+        if (o.loginPenaltyMs > 0) await new Promise((r) => setTimeout(r, o.loginPenaltyMs));
+        return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' }, { 'retry-after': '300' });
+      }
       return json(res, 401, { error: totpSecret ? 'Wrong password or code.' : 'Wrong password.' });
     }
     const id = newSessionId(), maxAge = Math.round(o.sessionHours * 3600);

@@ -18,7 +18,7 @@ const main = http.createServer((req, res) => {
   if (req.url === '/die') { res.writeHead(200, { 'content-length': '1000' }); res.write('partial'); setTimeout(() => res.socket.destroy(), 30); return; }
   if (req.url.startsWith('/slow-upload')) { let n = 0; req.on('data', (c) => { n += c.length; }); req.on('end', () => res.end(String(n))); return; }
   res.setHeader('content-type', 'application/json');
-  res.end(JSON.stringify({ url: req.url, host: req.headers.host, cookie: req.headers.cookie ?? null, xff: req.headers['x-forwarded-for'] ?? null }));
+  res.end(JSON.stringify({ url: req.url, host: req.headers.host, cookie: req.headers.cookie ?? null, xff: req.headers['x-forwarded-for'] ?? null, spoof: ['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip'].filter((h) => h in req.headers) }));
 });
 const wss = new WebSocketServer({ server: main });
 wss.on('connection', (ws, req) => { seen.wsHeaders = req.headers; ws.on('message', (m) => ws.send('echo:' + m)); });
@@ -161,6 +161,16 @@ test('a spoofed X-Forwarded-For from an untrusted peer is dropped', async () => 
   const g = await newGrant();
   const r = JSON.parse((await request({ headers: { cookie: g.cookie, 'x-forwarded-for': '9.9.9.9' } })).body);
   assert.equal(r.xff, '127.0.0.1');
+});
+test('other client-address headers a customer sends are not passed to the demo app (HTTP and WebSocket)', async () => {
+  const g = await newGrant();
+  const fake = { forwarded: 'for=9.9.9.9', 'x-real-ip': '9.9.9.9', 'true-client-ip': '9.9.9.9', 'cf-connecting-ip': '9.9.9.9', 'x-client-ip': '9.9.9.9' };
+  const r = JSON.parse((await request({ headers: { cookie: g.cookie, ...fake } })).body);
+  assert.deepEqual(r.spoof, [], 'none of them reached the app');
+  const ws = new WebSocket(`ws://127.0.0.1:${gwPort}/ws`, { headers: { Host: `toy.localhost:${gwPort}`, Cookie: g.cookie, ...fake } });
+  await new Promise((resolve) => ws.on('open', resolve));
+  ws.close();
+  for (const h of Object.keys(fake)) assert.equal(seen.wsHeaders[h], undefined, h + ' not forwarded on the upgrade');
 });
 test('X-Forwarded-For is kept and extended when the peer is a trusted proxy', async () => {
   const g = await newGrant();

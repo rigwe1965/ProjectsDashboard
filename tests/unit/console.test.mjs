@@ -143,10 +143,21 @@ test('password mode: too many wrong attempts are refused with 429 (even with the
 });
 
 test('password mode: a flood of failed logins from other addresses does not lock the owner out', async () => {
-  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 3 });
+  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 3, loginPenaltyMs: 0 });
   for (let i = 0; i < 6; i++) await post(port, '/login', { password: 'wrong wrong wrong' });
   assert.equal((await post(port, '/login', { password: 'wrong wrong wrong' })).status, 429, 'more bad guesses are refused');
   assert.equal((await post(port, '/login', { password: 'a long test passphrase' })).status, 200, 'the right password still works');
+});
+
+test('past the overall failure cap, wrong guesses are answered slowly but the right password is not delayed', async () => {
+  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 2, loginPenaltyMs: 300 });
+  for (let i = 0; i < 3; i++) await post(port, '/login', { password: 'wrong wrong wrong' });
+  let t = Date.now();
+  assert.equal((await post(port, '/login', { password: 'wrong wrong wrong' })).status, 429);
+  assert.ok(Date.now() - t >= 280, 'a wrong guess waited');
+  t = Date.now();
+  assert.equal((await post(port, '/login', { password: 'a long test passphrase' })).status, 200);
+  assert.ok(Date.now() - t < 280 + 1000, 'the right password was not made to wait the penalty on top');
 });
 
 test('2-step codes: two simultaneous logins with the same code cannot both succeed', async () => {

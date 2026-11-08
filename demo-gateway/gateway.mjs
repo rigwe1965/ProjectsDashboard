@@ -25,6 +25,9 @@ const DEV_COOKIE = 'pd_dev';
 const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>';
 // Next.js dev servers expose helper routes that return source-code excerpts and open an editor on the host. A customer has no use
 // for them, so the gateway answers them itself instead of forwarding.
+// Headers that frameworks read as "the client's address". A customer must not be able to present a false one to the demo app's
+// own logging or rate limiting, so they are dropped; the gateway's own X-Forwarded-For is the one source.
+const SPOOFABLE = new Set(['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip', 'x-cluster-client-ip', 'fastly-client-ip', 'x-original-forwarded-for']);
 const DEV_ONLY_PATH = /^\/__nextjs_[\w-]*/;
 const DEV_RE = /^[a-f0-9]{32}$/;
 // The link token (48 hex) is only ever presented at /d/<token>. The browser's cookie holds a DIFFERENT random value
@@ -203,7 +206,7 @@ export async function createGateway(opts = {}) {
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
     const { host: upHost, port } = upstreamPort(target, url.pathname);
     const headers = {};
-    for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host' && !k.startsWith('x-forwarded-')) headers[k] = v;
+    for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host' && !k.startsWith('x-forwarded-') && !SPOOFABLE.has(k)) headers[k] = v;
     const rest = cookiesForUpstream(req);
     if (rest) headers.cookie = rest;
     headers.host = `${upHost}:${port}`;
@@ -301,7 +304,7 @@ export async function createGateway(opts = {}) {
       const lines = [`${req.method} ${req.url} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) {
         const k = req.rawHeaders[i], lk = k.toLowerCase();
-        if (lk === 'host' || lk === 'cookie' || lk === 'origin' || lk.startsWith('x-forwarded-')) continue;
+        if (lk === 'host' || lk === 'cookie' || lk === 'origin' || lk.startsWith('x-forwarded-') || SPOOFABLE.has(lk)) continue;
         lines.push(`${k}: ${req.rawHeaders[i + 1]}`);
       }
       lines.push(`Host: ${upHost}:${port}`);
