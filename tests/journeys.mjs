@@ -1,5 +1,6 @@
 // Customer journeys through the gateway for all four demos (ImageApp, Airfinder, CRM, ClaudeWorkspace).
 // Start first: gateway, imageapp-demo, airfinder-demo, crm-demo, claudeworkspace-demo (node supervisor/index.mjs start <id>).
+// CRM admin sign-in uses CRM_ADMIN_PASSWORD from data/crm-demo.env when set, else SEED_USER_PASSWORD.
 // Run from the dashboard root: node tests/journeys.mjs   (creates and then revokes its own demo links; screenshots in data/shots)
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -70,7 +71,7 @@ try {
   const { ctx, page, errs } = await open('crm', 'crm');
   await page.goto('http://crm.localhost:4300/sign-in', { timeout: 180000 });
   await page.screenshot({ path: `${shots}/j-crm-signin.png` });
-  await login(page, 'admin@crm.test', crm.SEED_USER_PASSWORD, /sign in|log in|login/i);
+  await login(page, 'admin@crm.test', crm.CRM_ADMIN_PASSWORD || crm.SEED_USER_PASSWORD, /sign in|log in|login/i);
   await page.waitForTimeout(4000);
   await page.screenshot({ path: `${shots}/j-crm-dashboard.png`, fullPage: true });
   note('CRM', 'sign in as admin and reach the dashboard', /dashboard/i.test(page.url()), page.url().replace('http://crm.localhost:4300', '') + ' | ' + await text(page));
