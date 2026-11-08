@@ -3,7 +3,7 @@
 //   node supervisor/reset-fs.mjs delete <file>      delete one file (a missing file is fine)
 // Safety: it only touches paths inside the dashboard's own data/ folder, below the first level, and never the demo clones' root.
 import { existsSync, mkdirSync, readdirSync, rmSync, lstatSync } from 'node:fs';
-import { join, resolve, relative, sep } from 'node:path';
+import { join, resolve, relative, sep, isAbsolute } from 'node:path';
 import { root } from '../lib/config.mjs';
 
 const dataRoot = join(root, 'data');
@@ -12,7 +12,8 @@ export function checkPath(p) {
   const abs = resolve(p);
   const rel = relative(dataRoot, abs);
   const parts = rel.split(sep);
-  if (!rel || rel.startsWith('..') || resolve(dataRoot, rel) !== abs) throw new Error(`Refusing to touch ${abs}: it is not inside ${dataRoot}`);
+  // isAbsolute(rel): on Windows a path on another drive or a network share has no relative form, so `relative` returns it whole
+  if (!rel || isAbsolute(rel) || rel.startsWith('..') || resolve(dataRoot, rel) !== abs) throw new Error(`Refusing to touch ${abs}: it is not inside ${dataRoot}`);
   if (parts.length < 2) throw new Error(`Refusing to touch ${abs}: too close to the top of ${dataRoot}`);
   if (parts[0] === 'demo-src' && parts.length < 3) throw new Error(`Refusing to touch ${abs}: that is a whole demo clone`);
   return abs;

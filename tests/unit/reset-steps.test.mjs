@@ -22,7 +22,7 @@ test('reset-fs: empties and deletes inside data/, refuses everything else', () =
   assert.equal(deleteFile(join(scratch, 'c.txt')), true);
   assert.equal(deleteFile(join(scratch, 'c.txt')), false, 'a missing file is fine');
   assert.equal(clearDir(join(scratch, 'new')), 0, 'a missing folder is created');
-  for (const bad of [root, join(root, 'data'), join(root, 'data', 'demo-src'), join(root, 'data', 'demo-src', 'crm'), join(root, 'lib'), join(root, 'data', '..', 'lib', 'x'), tmpdir(), 'C:/', '/']) {
+  for (const bad of [root, join(root, 'data'), join(root, 'data', 'demo-src'), join(root, 'data', 'demo-src', 'crm'), join(root, 'lib'), join(root, 'data', '..', 'lib', 'x'), tmpdir(), 'C:/', '/', 'D:\\other\\x\\y', '\\\\server\\share\\a\\b']) {
     assert.throws(() => checkPath(bad), /Refusing/, bad);
   }
   assert.doesNotThrow(() => checkPath(join(root, 'data', 'demo-src', 'crm', 'x.db')));
