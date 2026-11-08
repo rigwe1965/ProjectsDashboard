@@ -24,6 +24,8 @@ async function open(product, who) {
   const page = await ctx.newPage(); const errs = [];
   page.on('pageerror', (e) => errs.push(e.message.slice(0, 120)));
   await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 120000 });
+  await page.getByRole('button', { name: /open the demo/i }).click(); // the shared-demo notice
+  await page.waitForLoadState('domcontentloaded', { timeout: 120000 });
   return { ctx, page, errs };
 }
 async function login(page, email, password, submitRe = /sign in|log in|login|anmelden|submit/i) {

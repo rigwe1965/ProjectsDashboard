@@ -69,7 +69,7 @@ function request({ port = gwPort, host = 'toy.localhost', path = '/', method = '
 async function newGrant(app = 'toy') {
   const { grant, link } = await grants.createGrant({ customer: 'T', app, hours: 1 });
   const token = link.split('/d/')[1];
-  const opened = await request({ host: app + '.localhost', path: '/d/' + token });
+  const opened = await request({ host: app + '.localhost', path: '/d/' + token, method: 'POST' });
   assert.equal(opened.status, 302);
   return { id: grant.id, token, cookie: (opened.headers['set-cookie']?.[0] || '').split(';')[0] };
 }
@@ -86,7 +86,7 @@ const waitClose = (ws, ms = 3000) => new Promise((resolve) => { const t = setTim
 // ---- HTTP proxying
 test('redeems a link, then proxies with the gateway cookie stripped and other cookies kept', async () => {
   const g = await newGrant();
-  const redeem = await request({ path: '/d/' + g.token });
+  const redeem = await request({ path: '/d/' + g.token, method: 'POST' });
   assert.equal(redeem.status, 302);
   assert.match(redeem.headers['set-cookie'][0], /^pd_demo=[a-f0-9]{64}; HttpOnly; SameSite=Lax/);
   assert.ok(!redeem.headers['set-cookie'][0].includes(g.token), 'the cookie must not contain the link token');
@@ -96,6 +96,27 @@ test('redeems a link, then proxies with the gateway cookie stripped and other co
   assert.equal(seenByUpstream.url, '/hello?x=1');
   assert.equal(seenByUpstream.host, `127.0.0.1:${mainPort}`);
   assert.equal(seenByUpstream.cookie, 'theme=dark');
+});
+
+test('a GET of any link only shows the shared-demo notice; it never opens the demo, even with no use limit', async () => {
+  const { link } = await grants.createGrant({ customer: 'Unlimited', app: 'toy', hours: 1 });
+  const token = link.split('/d/')[1];
+  const r = await request({ path: '/d/' + token });
+  assert.equal(r.status, 200);
+  assert.equal(r.headers['set-cookie'], undefined, 'no session from a GET');
+  assert.match(r.body, /shared demonstration/i);
+  assert.equal((await grants.findGrant(token)).uses, 0);
+  assert.equal((await request({ path: '/d/' + token, method: 'POST' })).status, 302);
+});
+
+test('Next.js dev-only helper routes (source excerpts, open-in-editor) are answered by the gateway, not forwarded', async () => {
+  const g = await newGrant();
+  for (const p of ['/__nextjs_original-stack-frame?file=a', '/__nextjs_launch-editor?file=a', '/__nextjs_source-map?x=1']) {
+    const r = await request({ path: p, headers: { cookie: g.cookie } });
+    assert.equal(r.status, 404, p);
+    assert.doesNotMatch(r.body, /"url"/, 'the upstream was not reached');
+  }
+  assert.equal((await request({ path: '/_next/static/x.js', headers: { cookie: g.cookie } })).status, 200, 'ordinary paths still pass');
 });
 
 test('refuses requests without a valid grant, for unknown hosts, and after revocation', async () => {
@@ -206,7 +227,7 @@ function browser(name = 'Browser') {
   const cookie = () => [...jar].map(([k, v]) => k + '=' + v).join('; ');
   return {
     jar, cookie,
-    async open(token, { post = false } = {}) {
+    async open(token, { post = true } = {}) {
       const r = await request({ path: '/d/' + token, method: post ? 'POST' : 'GET', headers: { ...ua(name), ...(jar.size ? { cookie: cookie() } : {}) } });
       for (const c of r.headers['set-cookie'] || []) { const [kv] = c.split(';'); const i = kv.indexOf('='); jar.set(kv.slice(0, i), kv.slice(i + 1)); }
       return r;
@@ -219,7 +240,8 @@ test('a link with a use limit stops working after that many opens', async () => 
   const token = link.split('/d/')[1];
   const scanner = await request({ path: '/d/' + token, headers: ua('Mail-Scanner') });
   assert.equal(scanner.status, 200, 'a GET only shows the button');
-  assert.match(scanner.body, /Open the demo/);
+  assert.match(scanner.body, /open the demo/i);
+  assert.match(scanner.body, /do not enter real personal/i, 'the shared-demo notice is shown before entry');
   assert.equal((await grants.findGrant(token)).uses, 0, 'and does not spend a use');
   assert.equal((await request({ path: '/d/' + token, method: 'POST', headers: ua('Browser A') })).status, 302);
   const second = await request({ path: '/d/' + token, method: 'POST', headers: ua('Browser A') });
@@ -240,12 +262,12 @@ test('a device-locked link only works in the browser that first opened it', asyn
   assert.equal(other.status, 403, 'a different browser with the SAME User-Agent is refused');
   assert.match(other.body, /tied to the browser/);
   assert.equal((await a.open(token)).status, 302, 'the original browser can return');
-  assert.equal((await request({ path: '/d/' + token, headers: ua('Same-UA') })).status, 403, 'and so is a client with no device id');
+  assert.equal((await request({ path: '/d/' + token, method: 'POST', headers: ua('Same-UA') })).status, 403, 'and so is a client with no device id');
 });
 
 test('audit records ip and browser; a retry storm after revocation is collapsed', async () => {
   const g = await newGrant();
-  await request({ path: '/d/' + g.token, headers: ua('Audit-Agent/1.0') });
+  await request({ path: '/d/' + g.token, method: 'POST', headers: ua('Audit-Agent/1.0') });
   await grants.revokeGrant(g.id);
   for (let i = 0; i < 12; i++) assert.equal((await request({ headers: { cookie: g.cookie } })).status, 403);
   await new Promise((r) => setTimeout(r, 50)); // audit writes are fire-and-forget
@@ -280,7 +302,7 @@ test('repeated bad links from one address get locked out; a good link still work
     assert.ok(firstLock > 0 && firstLock <= 3, 'lock-out starts within the limit: ' + statuses.join());
     assert.ok(statuses.slice(firstLock).every((s) => s === 429), 'and stays locked: ' + statuses.join());
     const g = await newGrant();
-    assert.equal((await request({ port: p, path: '/d/' + g.token })).status, 302, 'a valid link is not blocked');
+    assert.equal((await request({ port: p, path: '/d/' + g.token, method: 'POST' })).status, 302, 'a valid link is not blocked');
   } finally { await strict.close(); }
 });
 

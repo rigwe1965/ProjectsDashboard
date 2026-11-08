@@ -21,6 +21,11 @@ const COOKIE = 'pd_demo';
 // Device lock: a random id kept in this cookie (only its hash is stored with the grant). A User-Agent string is shared by
 // everyone with the same browser, so it could not pin a link to one browser.
 const DEV_COOKIE = 'pd_dev';
+// Every product's demo is one shared instance with one set of sample accounts (not one per customer), so say so before entry.
+const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>';
+// Next.js dev servers expose helper routes that return source-code excerpts and open an editor on the host. A customer has no use
+// for them, so the gateway answers them itself instead of forwarding.
+const DEV_ONLY_PATH = /^\/__nextjs_[\w-]*/;
 const DEV_RE = /^[a-f0-9]{32}$/;
 // The link token (48 hex) is only ever presented at /d/<token>. The browser's cookie holds a DIFFERENT random value
 // (64 hex) minted at redemption, so the link cannot double as a cookie and skip the use limit / device lock.
@@ -156,11 +161,11 @@ export async function createGateway(opts = {}) {
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
       if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST', 'cache-control': 'no-store' }); return res.end(); }
-      // A link with a use limit is not spent by a GET: mail scanners and chat link-previews fetch links automatically and
-      // would burn the customer's opens. They see a button; the customer's click is a POST, and only that counts.
-      if (req.method === 'GET' && g.maxUses != null) {
-        if (g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
-        return page(res, 200, 'Open your demo', 'Press the button to start your personal demo.<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">Open the demo</button></form>');
+      // A GET never opens the demo or spends a use: mail scanners and chat link-previews fetch links automatically. The
+      // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
+      if (req.method === 'GET') {
+        if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
+        return page(res, 200, 'Open your demo', SHARED_NOTICE + '<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open the demo</button></form>');
       }
       req.resume(); // a POST body (the empty form) is not needed
       // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
@@ -194,6 +199,7 @@ export async function createGateway(opts = {}) {
     }
 
     // 3. Proxy to the demo instance (never forward the gateway cookie)
+    if (DEV_ONLY_PATH.test(url.pathname)) return page(res, 404, 'Not found', 'That page does not exist.');
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
     const { host: upHost, port } = upstreamPort(target, url.pathname);
     const headers = {};
