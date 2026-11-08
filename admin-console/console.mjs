@@ -25,7 +25,7 @@ import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
 import { verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const COOKIE = 'pd_session';
+const COOKIE_BASE = 'pd_session';
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 
@@ -71,6 +71,7 @@ export async function createConsole(opts = {}) {
   let totpChain = Promise.resolve(); // serialises the TOTP check-and-record (one console process)
   const withTotpLock = (fn) => { const run = totpChain.then(fn); totpChain = run.catch(() => {}); return run; };
   const secure = o.scheme === 'https' ? '; Secure' : '';
+  const COOKIE = (o.scheme === 'https' ? '__Host-' : '') + COOKIE_BASE; // __Host-: browsers only accept it if Secure, host-only and Path=/
   const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
 
   const passwordMode = async () => !!(await store.meta.get('admin_password_hash'));

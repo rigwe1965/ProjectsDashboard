@@ -17,10 +17,12 @@ import { logger } from '../lib/log.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
-const COOKIE = 'pd_demo';
+const COOKIE_BASE = 'pd_demo';
 // Device lock: a random id kept in this cookie (only its hash is stored with the grant). A User-Agent string is shared by
 // everyone with the same browser, so it could not pin a link to one browser.
-const DEV_COOKIE = 'pd_dev';
+const DEV_BASE = 'pd_dev';
+// Cookies the gateway owns, with or without the __Host- prefix. A demo app must not be able to overwrite or clear them.
+const OURS = /^\s*(__Host-)?pd_(demo|dev)=/i;
 // Every product's demo is one shared instance with one set of sample accounts (not one per customer), so say so before entry.
 const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>';
 // Next.js dev servers expose helper routes that return source-code excerpts and open an editor on the host. A customer has no use
@@ -60,6 +62,10 @@ export async function createGateway(opts = {}) {
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     ...opts,
   };
+  // Over HTTPS the __Host- prefix makes browsers refuse these cookies unless they are Secure, host-only and Path=/, so no
+  // other site or sibling host can plant them. (Over plain HTTP the prefix is not allowed, so the plain names are used.)
+  const cookiePrefix = o.scheme === 'https' ? '__Host-' : '';
+  const COOKIE = cookiePrefix + COOKIE_BASE, DEV_COOKIE = cookiePrefix + DEV_BASE;
   const baseHost = o.baseHost || `localhost:${o.port}`;
   const baseName = baseHost.split(':')[0];
   const trusted = new Set(o.trustedProxies);
@@ -135,7 +141,7 @@ export async function createGateway(opts = {}) {
     const p = route ? target.processes.find((q) => q.name === route.process) : target.processes[0];
     return { host: p.host || '127.0.0.1', port: p.port };
   }
-  const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !c.startsWith(COOKIE + '=') && !c.startsWith(DEV_COOKIE + '=')).join('; ');
+  const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !OURS.test(c)).join('; ');
   // What the demo instance sees in X-Forwarded-For: a trusted proxy's chain plus that proxy; otherwise just the peer.
   // A client-supplied header from an untrusted peer is dropped, never passed on.
   const forwardedFor = (req) => {
@@ -217,6 +223,12 @@ export async function createGateway(opts = {}) {
       out['x-content-type-options'] ??= 'nosniff';
       out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
       out['x-frame-options'] ??= 'SAMEORIGIN'; // demo pages cannot be framed by another site (clickjacking)
+      if (out['set-cookie']) {
+        // A demo app may set its own cookies, but not ours, and not for the whole parent domain (Domain=.demo.example.com
+        // would reach every other product's demo host).
+        const kept = [].concat(out['set-cookie']).filter((c) => !OURS.test(c)).map((c) => c.replace(/;\s*domain=[^;]*/gi, ''));
+        if (kept.length) out['set-cookie'] = kept; else delete out['set-cookie'];
+      }
       if (HTTPS) out['strict-transport-security'] ??= 'max-age=31536000';
       if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${o.scheme}://${hostHdr}`);
       res.writeHead(ur.statusCode, out);

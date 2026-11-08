@@ -15,6 +15,7 @@ const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(sr
 const seen = { wsHeaders: null };
 const main = http.createServer((req, res) => {
   if (req.url === '/hang') return; // never answers
+  if (req.url === '/setcookie') { res.setHeader('set-cookie', ['theme=dark; Path=/; Domain=.localhost', 'pd_demo=evil; Path=/', '__Host-pd_dev=evil; Path=/; Secure', 'plain=1; Path=/']); return res.end('ok'); }
   if (req.url === '/die') { res.writeHead(200, { 'content-length': '1000' }); res.write('partial'); setTimeout(() => res.socket.destroy(), 30); return; }
   if (req.url.startsWith('/slow-upload')) { let n = 0; req.on('data', (c) => { n += c.length; }); req.on('end', () => res.end(String(n))); return; }
   res.setHeader('content-type', 'application/json');
@@ -172,6 +173,29 @@ test('other client-address headers a customer sends are not passed to the demo a
   ws.close();
   for (const h of Object.keys(fake)) assert.equal(seen.wsHeaders[h], undefined, h + ' not forwarded on the upgrade');
 });
+test("a demo app's Set-Cookie cannot reach the parent domain or overwrite the gateway's own cookies", async () => {
+  const g = await newGrant();
+  const r = await request({ path: '/setcookie', headers: { cookie: g.cookie } });
+  const set = [].concat(r.headers['set-cookie']);
+  assert.deepEqual(set.map((c) => c.split('=')[0]), ['theme', 'plain'], 'the gateway cookies are not passed on');
+  assert.ok(set.every((c) => !/domain=/i.test(c)), 'no Domain attribute: ' + set.join(' | '));
+  assert.match(set[0], /theme=dark; Path=\//);
+});
+
+test('over HTTPS the gateway cookies carry the __Host- prefix and Secure', async () => {
+  const sg = await createGateway({ port: 0, baseHost: 'localhost', scheme: 'https', redeemPerMinute: 1000 });
+  const p = await sg.listen();
+  try {
+    const { link } = await grants.createGrant({ customer: 'S', app: 'toy', hours: 1, deviceLock: true });
+    const r = await request({ port: p, path: '/d/' + link.split('/d/')[1], method: 'POST' });
+    assert.equal(r.status, 302);
+    const set = r.headers['set-cookie'];
+    assert.match(set[0], /^__Host-pd_demo=[a-f0-9]{64}; HttpOnly; SameSite=Lax; Path=\/; Max-Age=\d+; Secure/);
+    assert.match(set[1], /^__Host-pd_dev=[a-f0-9]{32}; .*Secure/);
+    assert.equal((await request({ port: p, headers: { cookie: set[0].split(';')[0] } })).status, 200, 'and the session works');
+  } finally { await sg.close(); }
+});
+
 test('X-Forwarded-For is kept and extended when the peer is a trusted proxy', async () => {
   const g = await newGrant();
   const r = JSON.parse((await request({ port: trustedPort, headers: { cookie: g.cookie, 'x-forwarded-for': '9.9.9.9' } })).body);

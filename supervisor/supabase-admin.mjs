@@ -6,7 +6,7 @@
 // Revoke the token at supabase.com/dashboard/account/tokens when setup is finished.
 // Guards: only ever acts on the project ref in NEXT_PUBLIC_SUPABASE_URL; migrations refuse a "public" schema that
 // already has tables not created by this tool; each file + its tracking row run as ONE request (atomic).
-import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 
 const [envFile, cmd, arg, flag] = process.argv.slice(2);
@@ -41,7 +41,8 @@ if (cmd === 'fetch-keys') {
   const lines = text.split(/\r?\n/); let hit = false;
   for (let i = 0; i < lines.length; i++) if (/^SUPABASE_SERVICE_ROLE_KEY=/.test(lines[i])) { lines[i] = 'SUPABASE_SERVICE_ROLE_KEY=' + k.api_key; hit = true; }
   if (!hit) lines.push('SUPABASE_SERVICE_ROLE_KEY=' + k.api_key);
-  writeFileSync(envFile, lines.join('\n'));
+  writeFileSync(envFile, lines.join('\n'), { mode: 0o600 }); // owner-only where the system supports it (the mode applies when the file is created)
+  try { chmodSync(envFile, 0o600); } catch { /* not supported on this system */ }
   console.log(`Saved SUPABASE_SERVICE_ROLE_KEY (${k.api_key.length} characters, key "${k.name}", type ${k.type}). Not printed.`);
   process.exit(0);
 }

@@ -171,6 +171,18 @@ test('a console beyond this machine needs HTTPS unless plain HTTP is explicitly 
   started.push(await createConsole({ port: 0, supervisor: fakeSupervisor })); // loopback over HTTP is fine
 });
 
+test('over HTTPS the console session cookie carries the __Host- prefix and Secure', async () => {
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
+  await store.meta.set('admin_totp_secret', '');
+  const { port } = await start({ scheme: 'https', allowedHosts: ['127.0.0.1'], loginMaxPerIp: 100, loginMaxTotal: 100 });
+  const ok = await post(port, '/login', { password: 'a long test passphrase' }, { origin: `https://127.0.0.1:${port}` });
+  assert.equal(ok.status, 200);
+  assert.match(ok.headers['set-cookie'][0], /^__Host-pd_session=[a-f0-9]{64}; HttpOnly; SameSite=Strict; Path=\/; Max-Age=\d+; Secure/);
+  const cookie = ok.headers['set-cookie'][0].split(';')[0];
+  assert.equal((await req(port, { path: '/api/apps', headers: { cookie } })).status, 200, 'the prefixed cookie is accepted');
+  assert.equal((await req(port, { path: '/api/apps', headers: { cookie: cookie.replace('__Host-', '') } })).status, 401, 'the unprefixed name is not');
+});
+
 test('2-step codes: two simultaneous logins with the same code cannot both succeed', async () => {
   const secret = newTotpSecret();
   await store.meta.set('admin_totp_secret', secret);
