@@ -21,6 +21,7 @@ import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
+import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
 import { verifyPassword, verifyTotp, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -31,7 +32,11 @@ const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? 
 function defaultSupervisor(args, timeout = 120000) {
   return new Promise((resolve) => {
     execFile(process.execPath, [join(root, 'supervisor', 'index.mjs'), ...args], { env: process.env, timeout, windowsHide: true },
-      (err, stdout, stderr) => resolve({ ok: !err, output: (stdout + stderr).trim() }));
+      (err, stdout, stderr) => resolve({
+        ok: !err,
+        timedOut: !!err?.killed,
+        output: ((stdout + stderr).trim() || err?.message || '') + (err?.killed ? '\n(timed out: check the status before trying again)' : ''),
+      }));
   });
 }
 
@@ -77,7 +82,7 @@ export async function createConsole(opts = {}) {
   };
   const html = (res, code, body) => { res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...securityHeaders }); res.end(body); };
   const originOk = (req) => req.headers.origin === `${o.scheme}://${req.headers.host}`;
-  const readBody = async (req, max = 4096) => { let b = ''; for await (const c of req) { b += c; if (b.length > max) throw Object.assign(new Error('too large'), { code: 413 }); } return b; };
+  const readBody = async (req, max = 4096) => { let b = ''; for await (const c of req) { b += c; if (b.length > max) throw tooLarge(); } return b; };
 
   async function sessionOk(req) {
     const id = readCookie(req, COOKIE);
@@ -92,9 +97,10 @@ export async function createConsole(opts = {}) {
     // cannot lock the real owner out.
     const overall = (await store.rateLimit.count('login-fail:all', 900000)) >= o.loginMaxTotal;
     if ((await store.rateLimit.hit('login:' + ip, 900000)) > o.loginMaxPerIp) {
-      return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' });
+      return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' }, { 'retry-after': '900' });
     }
-    let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.code === 413 ? 413 : 400, { error: 'bad request' }); }
+    let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.status === 413 ? 413 : 400, { error: 'bad request' }); }
+    if (!b || typeof b !== 'object' || Array.isArray(b)) return json(res, 400, { error: 'bad request' });
     const hash = await store.meta.get('admin_password_hash');
     const totpSecret = await store.meta.get('admin_totp_secret');
     // both checks always run, so timing does not reveal which of the two was wrong
@@ -110,7 +116,7 @@ export async function createConsole(opts = {}) {
     if (!pwOk || step === null) {
       audit({ ev: 'admin-login-failed', ip, ua });
       await store.rateLimit.hit('login-fail:all', 900000);
-      if (overall) return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' });
+      if (overall) return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' }, { 'retry-after': '300' });
       return json(res, 401, { error: totpSecret ? 'Wrong password or code.' : 'Wrong password.' });
     }
     const id = newSessionId(), maxAge = Math.round(o.sessionHours * 3600);
@@ -176,13 +182,12 @@ export async function createConsole(opts = {}) {
     if (req.method === 'GET' && url.pathname === '/') return html(res, 200, readFileSync(join(here, 'index.html')));
 
     if (req.method === 'GET' && url.pathname === '/api/apps') {
-      const { output } = await o.supervisor(['status', '--json'], 30000);
-      let rows = []; try { rows = JSON.parse(output); } catch { /* leave empty */ }
+      const { rows, statusError } = await statusRows();
       return json(res, 200, registry.apps.filter((a) => !a.hidden).map((a) => ({
         id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note,
         processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional,
           ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
-      })));
+      })), statusError ? { 'x-status-error': statusError } : {});
     }
 
     let m;
@@ -201,44 +206,65 @@ export async function createConsole(opts = {}) {
       if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
       if (busy.has(app.id)) return json(res, 409, { error: `${app.id} is busy with another action` });
       busy.add(app.id);
-      try { return json(res, 200, await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])])); }
-      finally { busy.delete(app.id); }
+      try {
+        // start/restart can legitimately wait up to 60 s per process for the app to answer
+        const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])], m[2] === 'stop' ? 120000 : 300000);
+        if (!r.ok) logger.warn('supervisor command failed', { action: m[2], app: app.id, timedOut: !!r.timedOut });
+        return json(res, r.ok ? 200 : 502, r);
+      } finally { busy.delete(app.id); }
     }
 
     if (req.method === 'GET' && url.pathname === '/api/demos') {
       const gatewayUp = await portInUse(o.gatewayPort);
-      const { output } = await o.supervisor(['status', '--json'], 30000);
-      let rows = []; try { rows = JSON.parse(output); } catch { /* leave empty */ }
+      const { rows } = await statusRows();
       const products = Object.entries(demoApps()).map(([product, a]) => ({ product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed) }));
       const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
       return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
     }
     if (req.method === 'POST' && url.pathname === '/api/demos') {
       if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
-      let body; try { body = await readBody(req); } catch { return json(res, 413, { error: 'too large' }); }
-      try {
-        const b = JSON.parse(body || '{}');
-        const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock });
-        return json(res, 200, { grant: publicGrant(grant), link });
-      } catch (e) { return json(res, 400, { error: e.message }); }
+      const b = JSON.parse((await readBody(req)) || '{}'); // SyntaxError -> 400, too large -> 413 (see toResponse)
+      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new HttpError(400, 'Expected a JSON object');
+      const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock });
+      return json(res, 200, { grant: publicGrant(grant), link });
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
       if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
-      try { await revokeGrant(m[1]); return json(res, 200, { ok: true }); } catch (e) { return json(res, 404, { error: e.message }); }
+      await revokeGrant(m[1]); // throws a 404 HttpError when there is no such grant; a database failure is a real 500
+      return json(res, 200, { ok: true });
     }
 
+    const known = url.pathname === '/' || /^\/api\/(session|audit|apps|demos)(\/|$)/.test(url.pathname) || url.pathname === '/login' || url.pathname === '/logout';
+    if (known && req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST' }); return res.end('Method not allowed'); }
     res.writeHead(404); res.end('Not found');
   }
 
+  // Process status as rows. A failed or unreadable status check is reported, never silently shown as "everything stopped".
+  async function statusRows() {
+    const { ok, output } = await o.supervisor(['status', '--json'], 30000);
+    try { return { rows: JSON.parse(output), statusError: null }; } catch {
+      logger.warn('supervisor status unreadable', { ok, output: String(output).slice(0, 300) });
+      return { rows: [], statusError: ok ? 'unreadable' : 'failed' };
+    }
+  }
+
   const server = http.createServer((req, res) => {
-    handle(req, res).catch((e) => { logger.error('console error', { err: e }); if (!res.headersSent) { res.writeHead(500); res.end('Error'); } else res.destroy(); });
+    handle(req, res).catch((e) => {
+      const { status, body } = toResponse(e);
+      if (status >= 500) logger.error('console error', { err: e, method: req.method, path: String(req.url).split('?')[0] });
+      if (res.headersSent) return res.destroy();
+      json(res, status, body);
+    });
   });
-  const pruneTimer = setInterval(() => { Promise.resolve(store.sessions.prune()).catch(() => {}); }, 3600000);
+  const pruneTimer = setInterval(() => { Promise.resolve(store.sessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, 3600000);
   pruneTimer.unref();
 
   return {
     server, launchToken, passwordMode,
-    listen: () => new Promise((resolve) => server.listen(o.port, o.bindHost, () => resolve(server.address().port))),
+    listen: () => new Promise((resolve, reject) => {
+      server.once('error', reject); // e.g. EADDRINUSE
+      server.listen(o.port, o.bindHost, () => { server.off('error', reject); resolve(server.address().port); });
+    }),
     close: () => new Promise((r) => { clearInterval(pruneTimer); server.close(r); server.closeAllConnections?.(); }),
   };
 }

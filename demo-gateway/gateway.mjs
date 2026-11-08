@@ -8,6 +8,8 @@
 // re-checked every `wsRecheckMs`, so revoking a grant also cuts off sockets that are already open.
 import http from 'node:http';
 import net from 'node:net';
+import { pipeline } from 'node:stream';
+import { randomBytes } from 'node:crypto';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { cookieOf as readCookie, clientIp, safeEq } from '../lib/http-util.mjs';
@@ -25,8 +27,8 @@ const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? 
 const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https';
 const OWN_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
   'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(HTTPS ? { 'strict-transport-security': 'max-age=31536000' } : {}) };
-const page = (res, code, title, msg) => {
-  res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS });
+const page = (res, code, title, msg, headers = {}) => {
+  res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS, ...headers });
   res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">${title}</h1><p>${msg}</p>`);
 };
 
@@ -58,8 +60,8 @@ export async function createGateway(opts = {}) {
   // denials per grant and place, not every retry, so the audit log stays readable.
   const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000)) <= 3) audit(e); };
   const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 200);
-  await store.grantSessions.prune();
-  const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch(() => {}); }, 3600000);
+  try { await store.grantSessions.prune(); } catch (err) { logger.warn('session prune failed at startup', { err }); }
+  const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, 3600000);
   pruneTimer.unref();
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
   const wsCounts = new Map(); // grant id -> open sockets
@@ -75,6 +77,7 @@ export async function createGateway(opts = {}) {
   metrics.describe('pd_gateway_websockets_total', 'WebSocket connections opened');
   metrics.describe('pd_gateway_websockets_open', 'WebSocket connections currently open');
   metrics.describe('pd_gateway_uptime_seconds', 'Seconds since the gateway started');
+  metrics.describe('pd_gateway_handler_errors_total', 'Unexpected errors inside a request handler (answered with a 500)');
   metrics.gauge('pd_gateway_websockets_open', () => [...wsCounts.values()].reduce((a, b) => a + b, 0));
   metrics.gauge('pd_gateway_uptime_seconds', () => Math.round((Date.now() - startedAt) / 1000));
   const jsonRes = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
@@ -139,13 +142,13 @@ export async function createGateway(opts = {}) {
     const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
     if (m) {
       const ua = uaOf(req);
-      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.'); }
+      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.', { 'retry-after': '60' }); }
       const g = await findGrant(m[1]);
       if (!isActive(g) || g.app !== slug) {
         audit({ ev: 'denied', app: slug, ip, ua, why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' });
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
-        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.');
+        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.', { 'retry-after': '600' });
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
       // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
@@ -192,7 +195,9 @@ export async function createGateway(opts = {}) {
       if (HTTPS) out['strict-transport-security'] ??= 'max-age=31536000';
       if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${o.scheme}://${hostHdr}`);
       res.writeHead(ur.statusCode, out);
-      ur.pipe(res); // pipe() applies backpressure: a slow browser slows the upstream instead of buffering in memory
+      // pipeline() keeps pipe()'s backpressure (a slow browser slows the upstream) and also ends the browser's response
+      // when the upstream dies mid-body, instead of leaving it hanging
+      pipeline(ur, res, (err) => { if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') logger.debug('proxy stream ended early', { err }); });
     });
     // An upstream that accepts the connection but never answers must not hold the customer's request open forever.
     up.setTimeout(o.upstreamTimeoutMs, () => up.destroy(Object.assign(new Error('upstream timeout'), { code: 'ETIMEOUT' })));
@@ -204,6 +209,7 @@ export async function createGateway(opts = {}) {
     });
     // If the browser goes away mid-request, stop working for it.
     res.on('close', () => { if (!res.writableFinished) up.destroy(); });
+    req.on('error', () => up.destroy()); // the browser dropped mid-upload
     let seen = 0;
     req.on('data', (c) => {
       seen += c.length;
@@ -242,8 +248,16 @@ export async function createGateway(opts = {}) {
     };
     wsClosers.add(close);
     // Revocation and expiry apply to sockets that are already open: look the grant up again every few seconds.
+    // If the database cannot be asked, the grant cannot be confirmed: after three failed checks in a row, fail closed.
+    let fails = 0;
     const timer = setInterval(async () => {
-      try { const cur = await grantFor(req); if (!isActive(cur) || cur.app !== slug) close('grant-ended'); } catch { /* try again next tick */ }
+      try {
+        const cur = await grantFor(req); fails = 0;
+        if (!isActive(cur) || cur.app !== slug) close('grant-ended');
+      } catch (err) {
+        logger.warn('ws grant re-check failed', { grant: g.id, fails: fails + 1, err });
+        if (++fails >= 3) close('recheck-failed');
+      }
     }, o.wsRecheckMs);
     timer.unref?.();
 
@@ -284,8 +298,10 @@ export async function createGateway(opts = {}) {
     }
     res.on('finish', () => metrics.inc('pd_gateway_requests_total', { code: `${Math.floor(res.statusCode / 100)}xx` }));
     handle(req, res).catch((e) => {
-      logger.error('gateway error', { err: e });
-      if (!res.headersSent) page(res, 500, 'Something went wrong', 'Please try again shortly.'); else res.destroy();
+      const id = randomBytes(4).toString('hex'); // shown to the customer, so a report can be matched to the log line
+      logger.error('gateway error', { err: e, id, method: req.method, host: req.headers.host, path: req.url.split('?')[0].replace(/\/d\/[a-f0-9]{48}/, '/d/...') });
+      metrics.inc('pd_gateway_handler_errors_total');
+      if (!res.headersSent) page(res, 500, 'Something went wrong', `Please try again shortly. Reference: ${id}`); else res.destroy();
     });
   });
   server.on('upgrade', (req, socket, head) => {
@@ -294,7 +310,10 @@ export async function createGateway(opts = {}) {
 
   return {
     server, baseHost, store, metrics,
-    listen: (host = '127.0.0.1') => new Promise((resolve) => server.listen(o.port, host, () => resolve(server.address().port))),
+    listen: (host = '127.0.0.1') => new Promise((resolve, reject) => {
+      server.once('error', reject); // e.g. EADDRINUSE
+      server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
+    }),
     close: async () => {
       clearInterval(pruneTimer);
       for (const c of [...wsClosers]) c();

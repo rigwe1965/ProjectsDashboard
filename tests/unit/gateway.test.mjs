@@ -15,6 +15,7 @@ const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(sr
 const seen = { wsHeaders: null };
 const main = http.createServer((req, res) => {
   if (req.url === '/hang') return; // never answers
+  if (req.url === '/die') { res.writeHead(200, { 'content-length': '1000' }); res.write('partial'); setTimeout(() => res.socket.destroy(), 30); return; }
   if (req.url.startsWith('/slow-upload')) { let n = 0; req.on('data', (c) => { n += c.length; }); req.on('end', () => res.end(String(n))); return; }
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({ url: req.url, host: req.headers.host, cookie: req.headers.cookie ?? null, xff: req.headers['x-forwarded-for'] ?? null }));
@@ -356,4 +357,25 @@ test('/_pd/tls-ask approves only real demo addresses, and only for direct (unpro
   assert.equal(await ask('localhost'), 404, 'the bare base host');
   assert.equal(await ask(''), 404);
   assert.equal(await ask('toy.localhost', { 'x-forwarded-for': '9.9.9.9' }), 404, 'a public request that came through the proxy');
+});
+
+test('errors: an upstream that dies mid-response ends the customer response instead of hanging', async () => {
+  const g = await newGrant();
+  const outcome = await new Promise((resolve) => {
+    const t = setTimeout(() => resolve('hung'), 3000);
+    const r = http.request({ host: '127.0.0.1', port: gwPort, path: '/die', headers: { host: `toy.localhost:${gwPort}`, cookie: g.cookie } }, (res) => {
+      res.on('data', () => {}); res.on('end', () => { clearTimeout(t); resolve('ended'); }); res.on('error', () => { clearTimeout(t); resolve('ended'); });
+      res.on('close', () => { clearTimeout(t); resolve('ended'); });
+    });
+    r.on('error', () => { clearTimeout(t); resolve('ended'); }); r.end();
+  });
+  assert.equal(outcome, 'ended');
+});
+
+test('errors: 429 answers say when to retry', async () => {
+  const bad = 'a'.repeat(48);
+  let last;
+  for (let i = 0; i < 15; i++) last = await request({ host: 'toy.localhost', path: '/d/' + bad, headers: { 'x-forwarded-for': '9.9.9.9' }, port: trustedPort });
+  assert.equal(last.status, 429);
+  assert.ok(last.headers['retry-after']);
 });

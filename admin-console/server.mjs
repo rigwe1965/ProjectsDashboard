@@ -2,10 +2,13 @@
 import { createConsole } from './console.mjs';
 import { ports } from '../lib/config.mjs';
 import { closeStore } from '../lib/store/index.mjs';
-import { logger } from '../lib/log.mjs';
+import { logger, installProcessHandlers } from '../lib/log.mjs';
 
 const c = await createConsole({ port: ports.console });
-const port = await c.listen();
+const port = await c.listen().catch((err) => {
+  logger.error(err.code === 'EADDRINUSE' ? 'console port is already in use' : 'console could not start listening', { err });
+  process.exit(1);
+});
 const where = process.env.ADMIN_PUBLIC_URL || `http://127.0.0.1:${port}`;
 if (await c.passwordMode()) {
   console.log(`Admin console running. Sign in with your password (and authenticator code, if enabled):\n  ${where}/`);
@@ -23,3 +26,4 @@ async function shutdown(sig) {
   process.exit(0);
 }
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => shutdown(sig));
+installProcessHandlers((why) => { process.exitCode = 1; shutdown(why); });

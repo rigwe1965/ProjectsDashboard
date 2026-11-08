@@ -296,3 +296,25 @@ test('activity feed: needs sign-in, filters, limits, and never returns anything 
   assert.equal((await get('?kind=bogus')).status, 400);
   assert.equal((await req(port, { method: 'POST', path: '/api/audit', headers: { cookie, origin: `http://127.0.0.1:${port}` } })).status === 200, false, 'read-only');
 });
+
+// ---------- error handling
+test('errors: bad JSON bodies are 400, unknown grant is 404, failed supervisor commands are 502, unreadable status is flagged', async () => {
+  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  const failing = async (args) => (args[0] === 'status' ? { ok: false, output: 'boom' } : { ok: false, output: 'NOT RESPONDING after 60s' });
+  const { port } = await start({ supervisor: failing, trustedProxies: ['127.0.0.1'] });
+  const fresh = { 'x-forwarded-for': '203.0.113.77' }; // its own rate-limit bucket
+  assert.equal((await post(port, '/login', null, fresh)).status, 400, 'a JSON null body is a bad request, not a 500');
+  const good = await post(port, '/login', { password: 'a long test passphrase' }, fresh);
+  const cookie = cookieFrom(good);
+  const authed = { cookie };
+  assert.equal((await post(port, '/api/demos', null, authed)).status, 400);
+  assert.equal((await post(port, '/api/demos', { customer: 'X', app: 'nope' }, authed)).status, 400);
+  assert.equal((await post(port, '/api/demos/deadbeef/revoke', {}, authed)).status, 404, 'unknown grant');
+  const start502 = await post(port, '/api/apps/toy/start', {}, authed);
+  assert.equal(start502.status, 502);
+  assert.equal(JSON.parse(start502.body).ok, false);
+  const apps = await req(port, { path: '/api/apps', headers: authed });
+  assert.equal(apps.status, 200);
+  assert.equal(apps.headers['x-status-error'], 'failed', 'a failed status check is reported, not shown as "all stopped"');
+  assert.equal((await req(port, { method: 'DELETE', path: '/api/demos', headers: authed })).status, 405);
+});

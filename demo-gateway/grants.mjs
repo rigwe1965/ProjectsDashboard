@@ -7,6 +7,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { dataDir, registryPath } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { getStore, closeStore } from '../lib/store/index.mjs';
+import { HttpError } from '../lib/errors.mjs';
+import { logger } from '../lib/log.mjs';
 
 export { dataDir, registryPath };
 export const MAX_HOURS = 720;
@@ -15,9 +17,17 @@ export const hashToken = (t) => createHash('sha256').update(t).digest('hex');
 export const loadGrants = async () => (await getStore()).grants.list();
 
 // product id -> demo instance entry (only instances explicitly marked demoReady)
+// If apps.json is saved in a broken state while the gateway runs, keep serving the last valid copy instead of failing every request.
+let lastGood = null;
 export function demoApps() {
-  const reg = loadRegistry(registryPath);
-  return Object.fromEntries(reg.apps.filter((a) => a.demoOf && a.demoReady === true).map((a) => [a.demoOf, a]));
+  try {
+    const reg = loadRegistry(registryPath);
+    lastGood = Object.fromEntries(reg.apps.filter((a) => a.demoOf && a.demoReady === true).map((a) => [a.demoOf, a]));
+  } catch (err) {
+    if (!lastGood) throw err;
+    logger.error('registry reload failed; using the last valid copy', { err });
+  }
+  return lastGood;
 }
 
 export async function findGrant(token) {
@@ -28,12 +38,12 @@ export const isActive = (g) => g && !g.revoked && Date.parse(g.expiresAt) > Date
 // maxUses: how many times the link may be opened (empty = unlimited). deviceLock: pin the link to the first browser that opens it.
 export async function createGrant({ customer, app, hours = 48, maxUses = null, deviceLock = false }) {
   customer = String(customer || '').trim().slice(0, 80);
-  if (!customer || !app) throw new Error('Customer and app are required');
-  if (!demoApps()[app]) throw new Error('"' + app + '" has no demo-ready instance');
+  if (!customer || !app) throw new HttpError(400, 'Customer and app are required');
+  if (!demoApps()[app]) throw new HttpError(400, '"' + app + '" has no demo-ready instance');
   hours = Number(hours);
-  if (!(hours > 0 && hours <= MAX_HOURS)) throw new Error('Hours must be between 1 and ' + MAX_HOURS);
+  if (!(hours > 0 && hours <= MAX_HOURS)) throw new HttpError(400, 'Hours must be between 1 and ' + MAX_HOURS);
   maxUses = maxUses === null || maxUses === undefined || maxUses === '' ? null : Number(maxUses);
-  if (maxUses !== null && !(Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000)) throw new Error('Uses must be a whole number from 1 to 1000');
+  if (maxUses !== null && !(Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000)) throw new HttpError(400, 'Uses must be a whole number from 1 to 1000');
   const token = randomBytes(24).toString('hex');
   const grant = { id: randomBytes(4).toString('hex'), tokenHash: hashToken(token), customer, app, createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + hours * 3600e3).toISOString(), revoked: false, uses: 0, maxUses, deviceLock: !!deviceLock, lastUsedAt: null };
@@ -45,7 +55,7 @@ export async function createGrant({ customer, app, hours = 48, maxUses = null, d
 export async function revokeGrant(id) {
   const store = await getStore();
   const t = await store.grants.revoke(id);
-  if (!t) throw new Error('No such grant');
+  if (!t) throw new HttpError(404, 'No such grant');
   await store.audit.add({ ev: 'grant-revoked', grant: t.id, app: t.app });
   return t;
 }

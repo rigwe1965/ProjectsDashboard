@@ -4,13 +4,19 @@ import { createGateway } from './gateway.mjs';
 import { demoApps } from './grants.mjs';
 import { ports } from '../lib/config.mjs';
 import { closeStore } from '../lib/store/index.mjs';
-import { logger } from '../lib/log.mjs';
+import { logger, installProcessHandlers } from '../lib/log.mjs';
 
 const gw = await createGateway({ port: ports.gateway });
 const RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS || 90);
-const pruned = await gw.store.audit.prune(RETENTION_DAYS);
+// Housekeeping must never keep the gateway from starting.
+let pruned = 0;
+try { pruned = await gw.store.audit.prune(Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90); }
+catch (err) { logger.warn('audit prune failed; continuing', { err }); }
 if (pruned) logger.info('pruned old audit events', { count: pruned, olderThanDays: RETENTION_DAYS });
-const port = await gw.listen(process.env.GATEWAY_BIND || '127.0.0.1');
+const port = await gw.listen(process.env.GATEWAY_BIND || '127.0.0.1').catch((err) => {
+  logger.error(err.code === 'EADDRINUSE' ? 'gateway port is already in use' : 'gateway could not start listening', { err });
+  process.exit(1);
+});
 logger.info('demo gateway listening', { port, publicHost: gw.baseHost, scheme: process.env.DEMO_SCHEME || 'http', products: Object.keys(demoApps()) });
 
 // Graceful shutdown: stop taking connections, close open WebSockets, close the database, then exit.
@@ -24,3 +30,4 @@ async function shutdown(sig) {
   process.exit(0);
 }
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => shutdown(sig));
+installProcessHandlers((why) => { process.exitCode = 1; shutdown(why); });

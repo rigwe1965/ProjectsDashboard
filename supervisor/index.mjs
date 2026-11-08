@@ -26,6 +26,7 @@ const store = await getStore();
 
 // OS-specific parts (starting, PID identity, port listener, killing) live in lib/process-driver.mjs.
 const driver = getDriver();
+let failed = false; // any start that did not come up or stop that did not stop makes the exit code non-zero
 const startTime = (pid) => driver.startTime(pid);
 const listenerPid = (port) => driver.listenerPid(port);
 
@@ -80,9 +81,11 @@ async function start(app, only) {
       let up = false;
       for (let i = 0; i < 60 && !up; i++) { up = await httpUp(p.port, p.health, p.host); if (!up) await new Promise((r) => setTimeout(r, 1000)); }
       console.log(up ? ' UP' : ' NOT RESPONDING after 60s (docker logs ' + p.container + ')');
+      if (!up) failed = true;
       continue;
     }
     const cwd = resolve(app.path, p.cwd ?? '.');
+    if (!existsSync(cwd)) { console.error(`Working directory not found for ${app.id}/${p.name}: ${cwd}`); failed = true; await closeStore(); process.exit(1); }
     const env = cleanEnv({ ...process.env });
     if (p.envFile) { // the DASHBOARD's own env file (under data/), never the app's .env
       const f = join(root, p.envFile);
@@ -96,12 +99,15 @@ async function start(app, only) {
     const logPath = join(logDir, `${app.id}-${p.name}.log`);
     const child = driver.spawnApp({ cmd: fill(p.cmd, p, app), cwd, env, logPath });
     await new Promise((r) => setTimeout(r, 800));
+    if (child.spawnError || !child.pid) { console.error(`Could not start ${app.id}/${p.name}: ${child.spawnError?.message ?? 'no process id'}`); failed = true; continue; }
     const rec = { pid: child.pid, startTime: startTime(child.pid), port: p.port, startedAt: new Date().toISOString() };
     await store.processState.set(app.id, p.name, rec);
     process.stdout.write(`Started ${app.id}/${p.name} (pid ${child.pid}) on :${p.port}, waiting for it to respond...`);
     let ok = false;
-    for (let i = 0; i < 60 && !ok; i++) { ok = await httpUp(p.port, p.health); if (!ok) await new Promise((r) => setTimeout(r, 1000)); }
-    console.log(ok ? ' UP' : ' NOT RESPONDING after 60s (see data/logs)');
+    // stop waiting early when the shell wrapper has already exited without the port opening (the app crashed on boot)
+    for (let i = 0; i < 60 && !ok; i++) { ok = await httpUp(p.port, p.health); if (!ok) { if (child.exited && !listenerPid(p.port)) break; await new Promise((r) => setTimeout(r, 1000)); } }
+    console.log(ok ? ' UP' : child.exited && !listenerPid(p.port) ? ` EXITED (code ${child.exitCode}); see data/logs` : ' NOT RESPONDING after 60s (see data/logs)');
+    if (!ok) failed = true;
     const lp = listenerPid(p.port);
     if (lp) await store.processState.set(app.id, p.name, { ...rec, listenPid: lp, listenStartTime: startTime(lp) });
   }
@@ -113,7 +119,7 @@ async function stop(app, only) {
     if (only && name !== only) continue;
     if (rec.container) {
       try { await stopContainer(rec.container); console.log(`Stopped ${app.id}/${name} (container ${rec.container})`); }
-      catch (e) { console.log(`${app.id}/${name}: could NOT stop container ${rec.container}: ${e.message}. Record kept.`); continue; }
+      catch (e) { console.log(`${app.id}/${name}: could NOT stop container ${rec.container}: ${e.message}. Record kept.`); failed = true; continue; }
       await store.processState.remove(app.id, name); delete recs[name];
       continue;
     }
@@ -129,6 +135,7 @@ async function stop(app, only) {
     const stillOn = rec.port ? listenerPid(rec.port) : null;
     if (rec.listenPid && stillOn === rec.listenPid && startTime(stillOn) === rec.listenStartTime) {
       console.log(`${app.id}/${name}: could NOT stop it, pid ${stillOn} is still listening on :${rec.port}. Record kept.`);
+      failed = true;
       continue;
     }
     console.log(killed ? `Stopped ${app.id}/${name} (${killed} process tree(s))` : `${app.id}/${name}: recorded process is no longer running; clearing record`);
@@ -146,3 +153,4 @@ else if (cmd === 'stop') await stop(getApp(id), only);
 else if (cmd === 'restart') { const a = getApp(id); await stop(a, only); await start(a, only); }
 else console.log('Usage: node supervisor/index.mjs status | start <app> [--only=proc] | stop <app> [--only=proc] | restart <app>');
 await closeStore();
+if (failed) process.exitCode = 1;

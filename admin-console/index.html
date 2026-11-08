@@ -72,21 +72,34 @@ let working = new Set(), apps = [];
 function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), 4500); }
 function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null) e.append(c); return e; }
 
+// One place for API calls: a lost session sends you to sign in, failures become readable messages.
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  if (r.status === 401) {
+    if (document.getElementById('signout').hidden) say('Session ended. Re-open the URL printed in the terminal.');
+    else location.href = '/login';
+    throw new Error('signed out');
+  }
+  let j = {}; try { j = await r.json(); } catch { /* non-JSON body */ }
+  if (!r.ok && !j.error && j.ok !== false) j.error = 'HTTP ' + r.status;
+  return j;
+}
+const outcome = (j) => (j.error ? j.error : ((j.ok === false ? 'FAILED: ' : '') + ((j.output || '').split('\n').slice(-2).join(' · ') || 'Done')));
+
 async function act(app, action, proc){
   const key = app.id + (proc || '');
   if (action !== 'start' && !confirm(`${action[0].toUpperCase()+action.slice(1)} ${app.name}${proc ? ' / ' + proc : ''}?`)) return;
   working.add(key); render();
   try {
-    const r = await fetch(`/api/apps/${app.id}/${action}${proc ? '?proc=' + proc : ''}`, { method: 'POST' });
-    const j = await r.json();
-    say(j.error ? j.error : (j.output.split('\n').slice(-2).join(' · ') || 'Done'));
-  } catch (e) { say('Request failed'); }
+    say(outcome(await api(`/api/apps/${app.id}/${action}${proc ? '?proc=' + proc : ''}`, { method: 'POST' })));
+  } catch (e) { if (e.message !== 'signed out') say('Request failed'); }
   working.delete(key); await load();
 }
 
 async function showLog(app, proc){
   document.getElementById('logtitle').textContent = `${app.name} / ${proc} log`;
-  const r = await fetch(`/api/apps/${app.id}/logs?proc=${proc}`); const j = await r.json();
+  let j; try { j = await api(`/api/apps/${app.id}/logs?proc=${proc}`); } catch { return say('Could not load the log'); }
+  if (j.error) return say(j.error);
   const body = document.getElementById('logbody'); body.textContent = j.log || '(empty)';
   document.getElementById('logdlg').showModal(); body.scrollTop = body.scrollHeight;
 }
@@ -121,24 +134,29 @@ function render(){
 }
 
 async function load(){
-  try { apps = await (await fetch('/api/apps')).json(); document.getElementById('updated').textContent = 'Updated ' + new Date().toLocaleTimeString(); render(); }
+  try {
+    const r = await fetch('/api/apps');
+    if (r.status === 401) { if (!document.getElementById('signout').hidden) location.href = '/login'; throw new Error('signed out'); }
+    apps = await r.json();
+    document.getElementById('updated').textContent = (r.headers.get('x-status-error') ? 'Status check failed (' + r.headers.get('x-status-error') + '), states may be wrong. ' : 'Updated ') + new Date().toLocaleTimeString(); render();
+  }
   catch { document.getElementById('updated').textContent = 'Console unreachable'; }
 }
 
 const demoBusy = new Set();
+let demoPanelLoaded = false;
 async function demoAct(id, action, label){
   if (action === 'stop' && !confirm('Stop ' + label + '? Customers using it will lose access until it is started again.')) return;
   demoBusy.add(id); loadDemos();
   try {
-    const r = await fetch('/api/apps/' + id + '/' + action, { method: 'POST' });
-    const j = await r.json();
-    say(j.error ? j.error : (j.output.split('\n').slice(-2).join(' · ') || 'Done'));
-  } catch { say('Request failed'); }
+    say(outcome(await api('/api/apps/' + id + '/' + action, { method: 'POST' })));
+  } catch (e) { if (e.message !== 'signed out') say('Request failed'); }
   demoBusy.delete(id); loadDemos(); load();
 }
 async function loadDemos(){
   const panel = document.getElementById('demopanel');
-  let d; try { d = await (await fetch('/api/demos')).json(); } catch { return; }
+  let d; try { d = await api('/api/demos'); if (d.error) throw new Error(d.error); } catch (e) { if (!demoPanelLoaded) panel.textContent = 'Could not load demos.'; return; }
+  demoPanelLoaded = true;
   const keepForm = panel.querySelector('form'); const keepLink = panel.querySelector('.linkbox');
   const ctl = (id, label, up, managed) => {
     const b = demoBusy.has(id);
@@ -162,8 +180,7 @@ async function loadDemos(){
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
       const b = Object.fromEntries(new FormData(f)); b.deviceLock = b.deviceLock === 'on';
-      const r = await fetch('/api/demos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
-      const j = await r.json();
+      let j; try { j = await api('/api/demos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }); } catch { return say('Request failed'); }
       if (j.error) return say(j.error);
       f.querySelector('[name=customer]').value = '';
       const box = el('div', { class: 'linkbox' }, el('strong', {}, 'Link for ' + j.grant.customer + ' (shown once):'), el('code', {}, j.link),
@@ -177,7 +194,11 @@ async function loadDemos(){
       el('td', {}, g.customer), el('td', {}, g.app), el('td', {}, new Date(g.expiresAt).toLocaleString()),
       el('td', { title: g.lastUsedAt ? 'Last opened ' + new Date(g.lastUsedAt).toLocaleString() : 'Not opened yet' }, g.uses + (g.maxUses ? ' / ' + g.maxUses : '') + (g.deviceLock ? ' (locked)' : '')),
       el('td', {}, el('span', { class: 'pill ' + (g.state === 'active' ? 'ok' : g.state === 'revoked' ? 'bad' : '') }, g.state)),
-      el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => { if (!confirm('Revoke the demo link for ' + g.customer + '?')) return; await fetch('/api/demos/' + g.id + '/revoke', { method: 'POST' }); loadDemos(); } }, 'Revoke') : null)))
+      el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => {
+        if (!confirm('Revoke the demo link for ' + g.customer + '?')) return;
+        try { const j = await api('/api/demos/' + g.id + '/revoke', { method: 'POST' }); say(j.error ? 'Revoke FAILED: ' + j.error : 'Revoked'); }
+        catch (e) { if (e.message !== 'signed out') say('Revoke FAILED: request did not complete'); }
+        loadDemos(); } }, 'Revoke') : null)))
       : [el('tr', {}, el('td', { colspan: '6', class: 'sub' }, 'No demo links yet.'))]));
   panel.replaceChildren(status, form, ...(keepLink ? [keepLink] : []), el('div', { class: 'tablewrap' }, table));
 }
