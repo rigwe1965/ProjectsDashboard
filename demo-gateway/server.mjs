@@ -25,6 +25,12 @@ if (process.env.DEMO_AUTO_RESET !== '0') {
   let sweeping = false;
   setInterval(() => { if (sweeping) return; sweeping = true; gw.resetSweep().catch((err) => logger.error('reset sweep failed', { err })).finally(() => { sweeping = false; }); }, everyMs).unref();
 }
+// Private demo copies (one per link): clean up after a restart, then every 30 seconds stop the copies whose link has ended or that sit unused.
+gw.instanceReconcile().catch((err) => logger.error('instance clean-up at start-up failed', { err }));
+{
+  let sweeping = false;
+  setInterval(() => { if (sweeping) return; sweeping = true; gw.instanceSweep().catch((err) => logger.error('instance sweep failed', { err })).finally(() => { sweeping = false; }); }, 30000).unref();
+}
 const port = await gw.listen(process.env.GATEWAY_BIND || '127.0.0.1').catch((err) => {
   logger.error(err.code === 'EADDRINUSE' ? 'gateway port is already in use' : 'gateway could not start listening', { err });
   process.exit(1);

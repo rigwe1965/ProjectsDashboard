@@ -75,7 +75,7 @@ export async function resetDue(store, product) {
 export async function resetSweep({ store, apps, supervisor }) {
   const done = [];
   for (const [product, app] of Object.entries(apps)) {
-    if (!app.reset) continue;
+    if (!app.reset || app.perLink) continue; // a product with private copies has no shared data to reset
     try {
       if ((await resetDue(store, product)) !== 'due') continue;
       logger.info('resetting demo to its seeded state', { product });

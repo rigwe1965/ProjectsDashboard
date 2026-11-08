@@ -189,6 +189,12 @@
       "reset": { "steps": [
         { "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\reset-fs.mjs clear-dir ${DASHBOARD_ROOT}\\data\\demo-tmp\\imageapp", "cwd": "${DASHBOARD_ROOT}", "timeoutSec": 60 }
       ] },
+      "perLink": { "max": 4, "portBase": 21000, "idleMinutes": 120,
+        "env": {"IMAGEAPP_TEMP_DIR":"{inst}/tmp","LOG_DIR":"{inst}/logs"},
+        "prepare": [
+          {"cmd":"node ${DASHBOARD_ROOT}\\supervisor\\reset-fs.mjs clear-dir {inst}/tmp","cwd":"${DASHBOARD_ROOT}","timeoutSec":60},
+          {"cmd":"node ${DASHBOARD_ROOT}\\supervisor\\reset-fs.mjs clear-dir {inst}/logs","cwd":"${DASHBOARD_ROOT}","timeoutSec":60}
+        ] },
       "demoAccounts": [],
       "_note": "Same original code, separate port, separate temp and log folders under this dashboard's data/. ImageApp has no database, so nothing is shared with your own instance.",
       "processes": [
@@ -301,6 +307,12 @@
         { "cmd": ".venv\\Scripts\\python.exe seed_demo.py", "cwd": ".", "envFile": "data/airfinder-demo.env", "timeoutSec": 300 },
         { "cmd": ".venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\airfinder_ready.py instance\\airfinder.db", "cwd": ".", "timeoutSec": 60 }
       ] },
+      "perLink": { "max": 4, "portBase": 21100, "idleMinutes": 120,
+        "env": {"DATABASE_URL":"sqlite:///{inst}/airfinder.db"},
+        "prepare": [
+          {"cmd":".venv\\Scripts\\python.exe seed_demo.py","cwd":".","envFile":"data/airfinder-demo.env","timeoutSec":300},
+          {"cmd":".venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\airfinder_ready.py {inst}/airfinder.db","cwd":".","timeoutSec":60}
+        ] },
       "demoAccounts": [
         { "label": "Customer", "user": "emeka.okafor@techcorp.ng" },
         { "label": "Staff portal (owner only)", "user": "admin@airfinder-demo.example", "admin": true }
@@ -331,6 +343,11 @@
       "reset": { "steps": [
         { "cmd": "node ${DASHBOARD_ROOT}\\supervisor\\snapshot.mjs restore claudeos-demo", "cwd": "${DASHBOARD_ROOT}", "timeoutSec": 300 }
       ] },
+      "perLink": { "max": 3, "portBase": 21200, "idleMinutes": 120,
+        "env": {"SQLITE_PATH":"{inst}/claudeos.db","CHROMADB_PATH":"{inst}/chromadb","LOG_PATH":"{inst}/logs"},
+        "prepare": [
+          {"cmd":"node ${DASHBOARD_ROOT}\\supervisor\\snapshot.mjs restore-to claudeos-demo {inst}","cwd":"${DASHBOARD_ROOT}","timeoutSec":300}
+        ] },
       "demoAccounts": [
         { "label": "Demo admin", "user": "demo" }
       ],

@@ -85,7 +85,7 @@ test('supervisor build: runs the build command; start refuses until what it prod
 
 
 test('snapshot: a saved copy is restored exactly, including SQLite companions, and stray files are removed', async () => {
-  const { take, restore, manifest, goldenDir } = await import('../../supervisor/snapshot.mjs');
+  const { take, restore, restoreTo, manifest, goldenDir } = await import('../../supervisor/snapshot.mjs');
   const app = { id: 'snaptest-' + process.pid, path: scratch, snapshot: { paths: ['live.db', 'store'] } };
   mkdirSync(join(scratch, 'store'), { recursive: true });
   writeFileSync(join(scratch, 'live.db'), 'GOOD-DB'); writeFileSync(join(scratch, 'live.db-wal'), 'GOOD-WAL');
@@ -105,5 +105,14 @@ test('snapshot: a saved copy is restored exactly, including SQLite companions, a
   assert.throws(() => restore({ ...app, snapshot: { paths: ['store'] } }), /no longer lists/);
   assert.throws(() => take({ ...app, snapshot: { paths: ['../../../lib'] } }), /Refusing/);
   assert.throws(() => take({ ...app, snapshot: { paths: ['nothing-here'] } }), /nothing to save/);
+  // a per-customer copy: the saved data goes into a folder of its own, under the same names; nothing else may be written
+  const { dataDir } = await import('../../lib/config.mjs');
+  const copyRoot = join(dataDir, 'instances', 'snaptest-' + process.pid);
+  assert.equal(restoreTo(app, join(copyRoot, '0')).count, 3);
+  assert.equal(readFileSync(join(copyRoot, '0', 'live.db'), 'utf8'), 'GOOD-DB');
+  assert.equal(readFileSync(join(copyRoot, '0', 'store', 'a.txt'), 'utf8'), 'GOOD-A');
+  assert.throws(() => restoreTo(app, join(scratch, 'elsewhere')), /not inside the instances folder/);
+  assert.throws(() => restoreTo(app, join(dataDir, 'instances')), /not inside the instances folder/);
+  rmSync(copyRoot, { recursive: true, force: true });
   rmSync(goldenDir(app.id), { recursive: true, force: true });
 });

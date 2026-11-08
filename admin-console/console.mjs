@@ -22,6 +22,7 @@ import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
+import { listInstances } from '../demo-gateway/instances.mjs';
 import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
 import { verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
@@ -238,8 +239,9 @@ export async function createConsole(opts = {}) {
       const grantList = await loadGrants();
       const products = await Promise.all(Object.entries(demoApps()).map(async ([product, a]) => ({
         product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed),
-        canReset: !!a.reset, resetting: !!a.reset && await isResetting(store, product), lastReset: a.reset ? await lastResetAt(store, product) : null,
-        inUse: a.reset ? productState(grantList, product).busy : 0, // opened links that have not ended
+        canReset: !!a.reset && !a.perLink, resetting: !!a.reset && !a.perLink && await isResetting(store, product), lastReset: a.reset && !a.perLink ? await lastResetAt(store, product) : null,
+        perLink: !!a.perLink, copies: a.perLink ? Object.values(await listInstances(store, product)).filter((e) => e.state === 'ready' || e.state === 'starting').length : 0, seats: a.perLink?.max ?? 0,
+        inUse: a.reset && !a.perLink ? productState(grantList, product).busy : 0, // opened links that have not ended
         accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
       })));
       const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
@@ -255,7 +257,7 @@ export async function createConsole(opts = {}) {
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([\w-]+)\/reset$/))) {
       if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
       const product = m[1], app = demoApps()[product];
-      if (!app?.reset) throw new HttpError(404, 'That demo cannot be reset');
+      if (!app?.reset || app.perLink) throw new HttpError(404, 'That demo cannot be reset');
       const b = JSON.parse((await readBody(req)) || '{}');
       const inUse = productState(await loadGrants(), product).busy;
       if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });

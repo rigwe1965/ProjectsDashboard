@@ -15,6 +15,7 @@ import { loadRegistry } from '../lib/registry.mjs';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
 import { getDriver } from '../lib/process-driver.mjs';
 import { containerRunning, startContainer, stopContainer } from '../lib/docker.mjs';
+import { instanceApp, validSlot, freshInstanceDir, removeInstanceDir } from '../lib/instance-app.mjs';
 
 const logDir = join(dataDir, 'logs');
 const registry = loadRegistry();
@@ -35,6 +36,7 @@ function fill(str, proc, app) {
   return str
     .replaceAll('{url}', `http://localhost:${proc.port}`)
     .replaceAll('{port}', String(proc.port))
+    .replaceAll('{inst}', app.inst ?? '')
     .replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
 }
 
@@ -158,6 +160,34 @@ async function stop(app, only) {
   if (!Object.keys(recs).length) console.log(`${app.id}: nothing left running under dashboard control.`);
 }
 
+// One private copy of a demo for one customer link (registry "perLink"): a fresh data folder, the prepare steps that fill it, then
+// the app's processes on that copy's own ports. `instance-stop` stops them and deletes the folder. The copy is never listed in the registry.
+const perLinkApp = (base, slotArg) => {
+  const slot = Number(slotArg);
+  if (!base.perLink || !validSlot(base, slot)) { console.error(`${base.id} has no instance "${slotArg}" (see perLink in the registry).`); process.exit(2); }
+  return instanceApp(base, slot);
+};
+async function instanceStart(base, slotArg) {
+  const app = perLinkApp(base, slotArg);
+  freshInstanceDir(base.id, app.slot);
+  const fillStep = (v) => fill(v, { port: '' }, app).replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((q) => q.name === n).port));
+  const logPath = join(logDir, `${app.id}-prepare.log`);
+  for (const [i, st] of (base.perLink.prepare ?? []).entries()) {
+    const cwd = resolve(app.path, st.cwd ?? '.');
+    if (!existsSync(cwd)) { console.error(`Prepare step ${i + 1}: working directory not found: ${cwd}`); failed = true; return; }
+    let env; try { env = childEnv(app, { ...st, env: { ...(base.perLink.env ?? {}), ...(st.env ?? {}) } }, fillStep); } catch (e) { console.error(`Prepare step ${i + 1}: ${e.message}`); failed = true; return; }
+    const r = await runStep(fillStep(st.cmd), cwd, env, (st.timeoutSec ?? 300) * 1000);
+    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} prepare ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`); } catch { /* best effort */ }
+    if (r.error || r.timedOut || r.status !== 0) { console.log(`Prepare step ${i + 1}/${base.perLink.prepare.length} FAILED (${r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status}); see data/logs/${app.id}-prepare.log`); failed = true; return; }
+  }
+  await start(app);
+}
+async function instanceStop(base, slotArg) {
+  const app = perLinkApp(base, slotArg);
+  await stop(app);
+  if (!failed) removeInstanceDir(base.id, app.slot); // keep the data if a process could not be stopped
+}
+
 // Put a demo instance back to its seeded state: stop it, run the registry's reset steps (each with its own env file, in order,
 // output appended to data/logs/<id>-reset.log), then start it again if it was running. A failed step stops the sequence, but the
 // instance is still started so the demo stays available (possibly with old data); the exit code says it failed.
@@ -220,6 +250,8 @@ else if (cmd === 'stop') await stop(getApp(id), only);
 else if (cmd === 'restart') { const a = getApp(id); await stop(a, only); await start(a, only); }
 else if (cmd === 'reset') await reset(getApp(id));
 else if (cmd === 'build') await build(getApp(id));
-else console.log('Usage: node supervisor/index.mjs status | start <app> [--only=proc] | stop <app> [--only=proc] | restart <app> | reset <demo-instance> | build <app>');
+else if (cmd === 'instance-start') await instanceStart(getApp(id), rest[0]);
+else if (cmd === 'instance-stop') await instanceStop(getApp(id), rest[0]);
+else console.log('Usage: node supervisor/index.mjs status | start <app> [--only=proc] | stop <app> [--only=proc] | restart <app> | reset <demo-instance> | build <app> | instance-start|instance-stop <app> <slot>');
 await closeStore();
 if (failed) process.exitCode = 1;

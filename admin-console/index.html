@@ -185,11 +185,12 @@ async function loadDemos(){
   };
   const status = el('div', { class: 'row' },
     ctl('gateway', 'Gateway :' + d.gatewayPort, d.gatewayUp, d.gatewayManaged),
-    d.products.map(p => [ctl(p.instance, p.product + ' demo instance', p.up, p.managed),
+    d.products.map(p => [p.perLink ? null : ctl(p.instance, p.product + ' demo instance', p.up, p.managed),
       p.canReset ? el('button', { onclick: () => demoReset(p), disabled: (demoBusy.has(p.instance) || p.resetting) ? '' : null, title: 'Put this demo back to its seeded sample data' + (p.inUse ? ' (' + p.inUse + ' customer link' + (p.inUse === 1 ? '' : 's') + ' still active)' : '') }, p.resetting ? 'Resetting…' : 'Reset data') : null]));
-  const accounts = d.products.filter(p => p.accounts.length).map(p =>
-    el('div', { class: 'sub' }, p.product + ': give customers ' + (p.accounts.filter(a => !a.admin).map(a => a.user + ' (' + a.label + ')').join(', ') || 'no limited account is available') +
+  const accounts = d.products.filter(p => p.accounts.length || p.perLink).map(p =>
+    el('div', { class: 'sub' }, p.product + (p.accounts.length ? ': give customers ' + (p.accounts.filter(a => !a.admin).map(a => a.user + ' (' + a.label + ')').join(', ') || 'no limited account is available') : '') +
       (p.accounts.some(a => a.admin) ? '. Owner only: ' + p.accounts.filter(a => a.admin).map(a => a.user).join(', ') : '') +
+      (p.perLink ? '. Each link gets its own private copy, started when it is opened and deleted when the link ends (' + p.copies + ' of ' + p.seats + ' in use)' : '') +
       (p.canReset ? '. ' + (p.lastReset ? 'Last reset ' + new Date(p.lastReset).toLocaleString() : 'Not reset yet') + (p.inUse ? ', ' + p.inUse + ' link(s) in use' : '') : '')));
   const form = keepForm || (() => {
     const f = el('form', { class: 'row' },

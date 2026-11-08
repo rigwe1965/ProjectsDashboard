@@ -7,8 +7,8 @@
 // The copy lives in data/demo-golden/<app-id>/. Every path (live and saved) must be inside the dashboard's data/ folder.
 // A SQLite file's -wal and -shm companions are saved and restored with it, so no half-written state survives a restore.
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, join, resolve } from 'node:path';
-import { root } from '../lib/config.mjs';
+import { basename, join, resolve, sep } from 'node:path';
+import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { checkPath } from './reset-fs.mjs';
 
@@ -61,14 +61,29 @@ export function restore(app) {
   return { count: m.items.length, takenAt: m.takenAt };
 }
 
+// Copy the saved data into a folder of its own (a per-customer copy of the demo), under the same file names. Only folders inside
+// data/instances/ are accepted; the live demo's files are not touched.
+export function restoreTo(app, dest) {
+  const abs = resolve(dest);
+  if (!abs.startsWith(resolve(dataDir, 'instances') + sep)) throw new Error(`Refusing to write ${abs}: it is not inside the instances folder`);
+  const m = manifest(app);
+  const dir = goldenDir(app.id);
+  const allowed = new Set(targets(app).flatMap(withCompanions));
+  for (const it of m.items) if (!allowed.has(it.target)) throw new Error(`The saved copy wants ${it.target}, which the registry no longer lists. Take a new copy.`);
+  mkdirSync(abs, { recursive: true });
+  for (const it of m.items) cpSync(join(dir, it.stored), join(abs, basename(it.target)), { recursive: true });
+  return { count: m.items.length, takenAt: m.takenAt };
+}
+
 if (process.argv[1]?.endsWith('snapshot.mjs')) {
-  const [cmd, id] = process.argv.slice(2);
+  const [cmd, id, dest] = process.argv.slice(2);
   try {
     const app = loadRegistry().apps.find((a) => a.id === id);
     if (!app) throw new Error(`Unknown app "${id ?? ''}"`);
     if (cmd === 'take') console.log(`Saved ${take(app)} item(s) as the golden copy of ${id}.`);
     else if (cmd === 'restore') { const r = restore(app); console.log(`Restored ${r.count} item(s) from the copy taken ${r.takenAt}.`); }
+    else if (cmd === 'restore-to' && dest) { const r = restoreTo(app, dest); console.log(`Copied ${r.count} item(s) from the copy taken ${r.takenAt} into ${dest}.`); }
     else if (cmd === 'info') { const m = manifest(app); console.log(`${id}: copy taken ${m.takenAt}, ${m.items.length} item(s).`); }
-    else { console.error('Usage: snapshot.mjs take|restore|info <app-id>'); process.exitCode = 2; }
+    else { console.error('Usage: snapshot.mjs take|restore|restore-to|info <app-id> [folder]'); process.exitCode = 2; }
   } catch (e) { console.error(e.message); process.exitCode = 1; }
 }

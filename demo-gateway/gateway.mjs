@@ -16,6 +16,8 @@ import { cookieOf as readCookie, clientIp, safeEq } from '../lib/http-util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { isResetting, resetSweep } from './reset.mjs';
+import { createInstances } from './instances.mjs';
+import { instanceApp } from '../lib/instance-app.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
@@ -26,6 +28,7 @@ const DEV_BASE = 'pd_dev';
 // Cookies the gateway owns, with or without the __Host- prefix. A demo app must not be able to overwrite or clear them.
 const OURS = /^\s*(__Host-)?pd_(demo|dev)=/i;
 // Every product's demo is one shared instance with one set of sample accounts (not one per customer), so say so before entry.
+const PRIVATE_NOTICE = 'This is your own private copy of the demonstration, filled with sample data. It is started for you when you open it and deleted when your link ends, so nobody else can see what you enter.<br><br><strong>Please still avoid entering real personal, customer or confidential information.</strong>';
 const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>';
 // Next.js dev servers expose helper routes that return source-code excerpts and open an editor on the host. A customer has no use
 // for them, so the gateway answers them itself instead of forwarding.
@@ -73,6 +76,7 @@ export async function createGateway(opts = {}) {
   const baseName = baseHost.split(':')[0];
   const trusted = new Set(o.trustedProxies);
   const store = await getStore();
+  const instances = createInstances({ store, supervisor: o.supervisor }); // private copies, one per link (registry perLink)
   // An audit failure must never break a customer's request.
   const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
   // Rate limits live in the database (pruned there, survive restarts).
@@ -139,7 +143,8 @@ export async function createGateway(opts = {}) {
   // A demo instance may have several processes (e.g. customer site + admin portal); registry demoRoutes maps path prefixes to them.
   // Returns { host, port }: the demo instance is on this machine by default, or on another host (a container) when the
   // registry process has a "host".
-  function upstreamPort(target, pathname) {
+  function upstreamPort(target, pathname, slot = null) {
+    if (slot !== null) target = instanceApp(target, slot); // this customer's private copy: its own ports
     const route = (target.demoRoutes || []).find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'));
     const p = route ? target.processes.find((q) => q.name === route.process) : target.processes[0];
     return { host: p.host || '127.0.0.1', port: p.port };
@@ -178,9 +183,11 @@ export async function createGateway(opts = {}) {
       // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
       if (req.method === 'GET') {
         if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
-        return page(res, 200, 'Open your demo', SHARED_NOTICE + '<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open the demo</button></form>');
+        return page(res, 200, 'Open your demo', (target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE) + '<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open the demo</button></form>');
       }
       req.resume(); // a POST body (the empty form) is not needed
+      // a private copy needs a free seat: say so BEFORE the link's use is counted
+      if (target.perLink && !(await instances.hasRoom(slug, target, g.id))) return page(res, 503, 'All demo seats are taken', 'Every private demo seat is in use right now. Please try this link again in a few minutes.', { 'retry-after': '120' });
       // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
       let devId = readCookie(req, DEV_COOKIE);
       const hadDev = DEV_RE.test(devId);
@@ -198,6 +205,7 @@ export async function createGateway(opts = {}) {
       const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
       const sid = newSessionId(); // only its hash is stored
       await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);
+      if (target.perLink) await instances.ensure(slug, target, g.id); // allocates the seat and starts the copy in the background
       const flags = `; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`;
       res.writeHead(302, { 'set-cookie': [`${COOKIE}=${sid}${flags}`, ...(g.deviceLock && !hadDev ? [`${DEV_COOKIE}=${devId}${flags}`] : [])], location: '/', 'cache-control': 'no-store' });
       return res.end();
@@ -214,7 +222,20 @@ export async function createGateway(opts = {}) {
     // 3. Proxy to the demo instance (never forward the gateway cookie)
     if (DEV_ONLY_PATH.test(url.pathname)) return page(res, 404, 'Not found', 'That page does not exist.');
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
-    const { host: upHost, port } = upstreamPort(target, url.pathname);
+    let slot = null;
+    if (target.perLink) {
+      let inst = await instances.lookup(slug, g.id);
+      if (inst?.state !== 'ready') inst = await instances.ensure(slug, target, g.id).then((r) => ({ ...r, state: r.status }));
+      if (inst.state !== 'ready') {
+        if (inst.state === 'full') return page(res, 503, 'All demo seats are taken', 'Every private demo seat is in use right now. Please try again in a few minutes.', { 'retry-after': '60' });
+        if (inst.state === 'failed') return page(res, 503, 'Demo could not start', 'Your private demo did not start. Please wait a moment and refresh this page to try again.', { 'retry-after': '20' });
+        // starting: a page that checks again by itself
+        res.writeHead(503, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS, 'retry-after': '3' });
+        return res.end('<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=refresh content=3><title>Preparing your demo</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">Preparing your demo</h1><p>Your private copy is being set up. This page refreshes by itself and takes up to a minute.</p>');
+      }
+      slot = inst.slot; instances.touch(slug, slot);
+    }
+    const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
     const headers = {};
     for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host' && !k.startsWith('x-forwarded-') && !SPOOFABLE.has(k)) headers[k] = v;
     const rest = cookiesForUpstream(req);
@@ -245,6 +266,7 @@ export async function createGateway(opts = {}) {
     up.on('error', (e) => {
       if (res.headersSent) return res.destroy();
       metrics.inc('pd_gateway_upstream_errors_total', { kind: e.code === 'ETIMEOUT' ? 'timeout' : 'unreachable' });
+      if (slot !== null && e.code !== 'ETIMEOUT') instances.markDown(slug, slot, g.id).catch(() => {});
       if (e.code === 'ETIMEOUT') page(res, 504, 'Demo is taking too long', 'The demo did not answer in time. Please try again.');
       else page(res, 503, 'Demo unavailable', 'The demo is not running right now. Please try again shortly.');
     });
@@ -284,7 +306,13 @@ export async function createGateway(opts = {}) {
     wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 
     const url = new URL(req.url, `${o.scheme}://${hostHdr}`);
-    const { host: upHost, port } = upstreamPort(target, url.pathname);
+    let slot = null;
+    if (target.perLink) {
+      const inst = await instances.lookup(slug, g.id);
+      if (inst?.state !== 'ready') return rejectUpgrade(socket, 503, 'Service Unavailable');
+      slot = inst.slot; instances.touch(slug, slot);
+    }
+    const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
     const upstream = net.connect({ host: upHost, port });
     let connected = false, closed = false;
     const close = (why) => {
@@ -301,6 +329,7 @@ export async function createGateway(opts = {}) {
     const timer = setInterval(async () => {
       try {
         const cur = await grantFor(req); fails = 0;
+        if (slot !== null) instances.touch(slug, slot); // an open socket counts as use
         if (!isActive(cur) || cur.app !== slug) close('grant-ended');
       } catch (err) {
         logger.warn('ws grant re-check failed', { grant: g.id, fails: fails + 1, err });
@@ -360,6 +389,10 @@ export async function createGateway(opts = {}) {
     server, baseHost, store, metrics,
     // One pass of the automatic reset: demos nobody can still be using go back to their seeded state (server.mjs runs it on a timer).
     resetSweep: () => resetSweep({ store, apps: demoApps(), supervisor: o.supervisor }),
+    // Private copies (one per link): stop those whose link ended or that sit unused; remove leftovers after a restart (server.mjs runs these).
+    instanceSweep: () => instances.sweep(demoApps()),
+    instanceReconcile: () => instances.reconcile(demoApps()),
+    instances,
     listen: (host = '127.0.0.1') => new Promise((resolve, reject) => {
       server.once('error', reject); // e.g. EADDRINUSE
       server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
