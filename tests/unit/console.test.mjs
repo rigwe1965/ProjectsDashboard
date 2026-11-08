@@ -20,7 +20,8 @@ process.env.DASHBOARD_REGISTRY = join(dir, 'registry.json');
 
 const { createConsole } = await import('../../admin-console/console.mjs');
 const { getStore, closeStore } = await import('../../lib/store/index.mjs');
-const { hashPassword, newTotpSecret, totpCode } = await import('../../lib/auth.mjs');
+const { hashPassword, newTotpSecret, totpCode, seal, isSealed, newDataKey } = await import('../../lib/auth.mjs');
+const { scryptSync, randomBytes } = await import('node:crypto');
 const store = await getStore();
 const fakeSupervisor = async () => ({ ok: true, output: '[]' });
 
@@ -97,7 +98,7 @@ test('/_pd/healthz needs no login but still obeys the Host allow-list', async ()
 
 // ---------- password mode
 test('password mode: login page, sessions, wrong password, logout; launch token switched off', async () => {
-  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
   const { c, port } = await start();
   const anon = await req(port, {});
   assert.equal(anon.status, 302); assert.equal(anon.headers.location, '/login');
@@ -156,6 +157,33 @@ test('2-step codes: two simultaneous logins with the same code cannot both succe
   const code = totpCode(secret, Math.floor(Date.now() / 30000));
   const rs = await Promise.all([1, 2, 3].map(() => post(port, '/login', { password: 'a long test passphrase', code })));
   assert.equal(rs.filter((r) => r.status === 200).length, 1);
+});
+
+test('2-step secret at rest: an encrypted secret signs in with the key, and is refused (not bypassed) without it', async () => {
+  const keyHex = newDataKey(), secret = newTotpSecret();
+  await store.meta.set('admin_totp_secret', seal(secret, Buffer.from(keyHex, 'hex')));
+  await store.meta.set('admin_totp_last_step', '-1');
+  assert.ok(isSealed(await store.meta.get('admin_totp_secret')));
+  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 100 });
+  const step = Math.floor(Date.now() / 30000);
+  const prev = process.env.ADMIN_DATA_KEY;
+  try {
+    delete process.env.ADMIN_DATA_KEY;
+    assert.equal((await post(port, '/login', { password: 'a long test passphrase', code: totpCode(secret, step) })).status, 401, 'no key: sign-in fails closed');
+    process.env.ADMIN_DATA_KEY = keyHex;
+    assert.equal((await post(port, '/login', { password: 'a long test passphrase', code: totpCode(secret, step) })).status, 200, 'with the key it works');
+  } finally { if (prev === undefined) delete process.env.ADMIN_DATA_KEY; else process.env.ADMIN_DATA_KEY = prev; }
+});
+
+test('sign-in upgrades an older, cheaper password hash', async () => {
+  const salt = randomBytes(16), pw = 'a long test passphrase';
+  const old = `scrypt$16384$8$1$${salt.toString('base64')}$${scryptSync(pw, salt, 64, { N: 16384, r: 8, p: 1 }).toString('base64')}`;
+  await store.meta.set('admin_password_hash', old);
+  await store.meta.set('admin_totp_secret', '');
+  const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 100 });
+  assert.equal((await post(port, '/login', { password: pw })).status, 200);
+  assert.match(await store.meta.get('admin_password_hash'), /^scrypt\$131072\$/, 'now stored at the current cost');
+  assert.equal((await post(port, '/login', { password: pw })).status, 200, 'and still signs in');
 });
 
 test('2-step codes: required, wrong code refused, a code cannot be used twice', async () => {
@@ -219,6 +247,23 @@ test('CLI: set-password validates, confirms, stores a hash; enable-totp needs a 
   } finally { rmSync(d2, { recursive: true, force: true }); }
 });
 
+test('CLI: with ADMIN_DATA_KEY set the 2-step secret is stored encrypted; gen-key makes a usable key', async () => {
+  const d2 = mkdtempSync(join(tmpdir(), 'pd-cli-')); const base = { DASHBOARD_DATA: d2, DASHBOARD_REGISTRY: join(dir, 'registry.json') };
+  const key = (await runCli(['gen-key'], { env: base })).out.trim();
+  assert.match(key, /^[a-f0-9]{64}$/);
+  const env = { ...base, ADMIN_DATA_KEY: key }, f = join(d2, 't.txt');
+  try {
+    await runCli(['set-password'], { env, input: 'a long enough passphrase\na long enough passphrase\n' });
+    await runCli(['enable-totp', '--start', '--to-file', f], { env });
+    const secret = readFileSync(f, 'utf8').match(/Secret:\s+([A-Z2-7 ]+)\n/)[1].replace(/ /g, '');
+    const ok = await runCli(['enable-totp', '--code', totpCode(secret, Math.floor(Date.now() / 30000))], { env });
+    assert.equal(ok.code, 0, ok.err + ok.out);
+    assert.match((await runCli(['status'], { env })).out, /2-step secret:\s+encrypted/);
+    assert.match((await runCli(['status'], { env: base })).out, /encrypted \(ADMIN_DATA_KEY is not set/, 'without the key it says it cannot be read');
+    assert.doesNotMatch(readFileSync(join(d2, 'dashboard.db')).toString('latin1'), new RegExp(secret), 'the secret is not in the database file');
+  } finally { rmSync(d2, { recursive: true, force: true }); }
+});
+
 test('CLI: set-password --from-file stores the password and deletes the file, even when the password is rejected', async () => {
   const d2 = mkdtempSync(join(tmpdir(), 'pd-cli-')); const env = { DASHBOARD_DATA: d2, DASHBOARD_REGISTRY: join(dir, 'registry.json') };
   const pwFile = join(d2, 'pw.txt');
@@ -262,12 +307,13 @@ test('CLI: enable-totp --start / --code works without a prompt and never prints 
     const good = await runCli(['enable-totp', '--code', totpCode(secret, Math.floor(Date.now() / 30000))], { env });
     assert.equal(good.code, 0, good.err + good.out);
     assert.match((await runCli(['status'], { env })).out, /2-step codes:\s+on/);
+    assert.equal(existsSync(secretFile), false, 'the setup file holding the secret is deleted once setup is confirmed');
     assert.equal((await runCli(['enable-totp', '--code', totpCode(secret, Math.floor(Date.now() / 30000))], { env })).code, 1, 'the pending secret is used up');
   } finally { rmSync(d2, { recursive: true, force: true }); }
 });
 
 test('activity feed: needs sign-in, filters, limits, and never returns anything outside the safe fields', async () => {
-  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
   await store.meta.set('admin_totp_secret', '');
   const { port } = await start({ loginMaxPerIp: 1000, loginMaxTotal: 1000 });
   assert.equal((await req(port, { path: '/api/audit' })).status, 401, 'refused without a session');
@@ -299,7 +345,7 @@ test('activity feed: needs sign-in, filters, limits, and never returns anything 
 
 // ---------- error handling
 test('security: scripts need a per-response nonce; no inline script or handler is allowed', async () => {
-  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
   const { port } = await start({ trustedProxies: ['127.0.0.1'] });
   const fresh = { 'x-forwarded-for': '203.0.113.99' };
   const cookie = cookieFrom(await post(port, '/login', { password: 'a long test passphrase' }, fresh));
@@ -317,7 +363,7 @@ test('security: scripts need a per-response nonce; no inline script or handler i
 });
 
 test('errors: bad JSON bodies are 400, unknown grant is 404, failed supervisor commands are 502, unreadable status is flagged', async () => {
-  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
   const failing = async (args) => (args[0] === 'status' ? { ok: false, output: 'boom' } : { ok: false, output: 'NOT RESPONDING after 60s' });
   const { port } = await start({ supervisor: failing, trustedProxies: ['127.0.0.1'] });
   const fresh = { 'x-forwarded-for': '203.0.113.77' }; // its own rate-limit bucket
@@ -338,7 +384,7 @@ test('errors: bad JSON bodies are 400, unknown grant is 404, failed supervisor c
 });
 
 test('security: starting an app and signing out are recorded in the audit log', async () => {
-  await store.meta.set('admin_password_hash', hashPassword('a long test passphrase'));
+  await store.meta.set('admin_password_hash', await hashPassword('a long test passphrase'));
   const { port } = await start({ trustedProxies: ['127.0.0.1'] });
   const fresh = { 'x-forwarded-for': '203.0.113.88' };
   const cookie = cookieFrom(await post(port, '/login', { password: 'a long test passphrase' }, fresh));

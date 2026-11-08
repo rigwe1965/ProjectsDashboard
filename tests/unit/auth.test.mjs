@@ -1,15 +1,51 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { hashPassword, verifyPassword, passwordProblem, base32Encode, base32Decode, totpCode, verifyTotp, newTotpSecret, otpauthUrl, hashSessionId, newSessionId } from '../../lib/auth.mjs';
+import { scryptSync, randomBytes } from 'node:crypto';
+import { needsRehash, seal, unseal, isSealed, dataKey, newDataKey, hashPassword, verifyPassword, passwordProblem, base32Encode, base32Decode, totpCode, verifyTotp, newTotpSecret, otpauthUrl, hashSessionId, newSessionId } from '../../lib/auth.mjs';
 
-test('passwords: hash and verify, wrong password and garbage hashes fail', () => {
-  const h = hashPassword('correct horse battery');
-  assert.match(h, /^scrypt\$16384\$8\$1\$/);
-  assert.equal(verifyPassword('correct horse battery', h), true);
-  assert.equal(verifyPassword('correct horse batterx', h), false);
-  assert.equal(verifyPassword('', h), false);
-  assert.equal(verifyPassword('x', 'not-a-hash'), false);
-  assert.notEqual(hashPassword('same password here'), hashPassword('same password here'), 'each hash has its own salt');
+test('passwords: hash and verify, wrong password and garbage hashes fail', async () => {
+  const h = await hashPassword('correct horse battery');
+  assert.match(h, /^scrypt\$131072\$8\$1\$/, 'current cost: N=2^17');
+  assert.equal(await verifyPassword('correct horse battery', h), true);
+  assert.equal(await verifyPassword('correct horse batterx', h), false);
+  assert.equal(await verifyPassword('', h), false);
+  assert.equal(await verifyPassword('x', 'not-a-hash'), false);
+  assert.equal(await verifyPassword('x', 'scrypt$1048576$64$1$AAAA$AAAA'), false, 'a hash that asks for absurd memory is refused');
+  assert.notEqual(await hashPassword('same password here'), await hashPassword('same password here'), 'each hash has its own salt');
+  assert.equal(needsRehash(h), false);
+});
+
+test('passwords: hashes made with the old, cheaper setting still verify and are flagged for upgrade', async () => {
+  const salt = randomBytes(16), key = scryptSync('an old password here', salt, 64, { N: 16384, r: 8, p: 1 });
+  const old = `scrypt$16384$8$1$${salt.toString('base64')}$${key.toString('base64')}`;
+  assert.equal(await verifyPassword('an old password here', old), true);
+  assert.equal(await verifyPassword('another password here', old), false);
+  assert.equal(needsRehash(old), true);
+  assert.equal(needsRehash('garbage'), false);
+});
+
+test('passwords: hashing does not block the event loop, and a burst of attempts is queued', async () => {
+  let ticks = 0; const t = setInterval(() => { ticks++; }, 5);
+  const hs = await Promise.all([1, 2, 3, 4].map((i) => hashPassword('burst password ' + i)));
+  clearInterval(t);
+  assert.ok(ticks >= 5, 'timers kept firing while hashing: ' + ticks);
+  assert.equal(new Set(hs).size, 4);
+});
+
+test('sealing: the 2-step secret round-trips with a key, tampering and a wrong key fail, plain values pass through', () => {
+  const key = Buffer.from(newDataKey(), 'hex'), other = Buffer.from(newDataKey(), 'hex');
+  const secret = newTotpSecret();
+  const s = seal(secret, key);
+  assert.ok(isSealed(s)); assert.ok(!s.includes(secret));
+  assert.equal(unseal(s, key), secret);
+  assert.notEqual(seal(secret, key), s, 'a new nonce each time');
+  assert.throws(() => unseal(s, other), 'wrong key');
+  assert.throws(() => unseal(s.slice(0, -4) + 'AAAA', key), 'tampered');
+  assert.throws(() => unseal(s, null), /ADMIN_DATA_KEY/, 'sealed but no key');
+  assert.equal(seal(secret, null), secret, 'no key: stored as before');
+  assert.equal(unseal(secret, null), secret, 'a plain (older) value is still readable');
+  assert.equal(dataKey({ ADMIN_DATA_KEY: 'short' }), null);
+  assert.equal(dataKey({ ADMIN_DATA_KEY: key.toString('hex') }).equals(key), true);
 });
 
 test('password rules', () => {

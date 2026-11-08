@@ -22,7 +22,7 @@ import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../li
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
 import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
-import { verifyPassword, verifyTotp, newSessionId, hashSessionId } from '../lib/auth.mjs';
+import { verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const COOKIE = 'pd_session';
@@ -108,14 +108,17 @@ export async function createConsole(opts = {}) {
     let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.status === 413 ? 413 : 400, { error: 'bad request' }); }
     if (!b || typeof b !== 'object' || Array.isArray(b)) return json(res, 400, { error: 'bad request' });
     const hash = await store.meta.get('admin_password_hash');
-    const totpSecret = await store.meta.get('admin_totp_secret');
+    const totpStored = await store.meta.get('admin_totp_secret');
+    const totpSecret = totpStored || '';
+    let totpPlain = null; // the usable secret; stays null when it is encrypted and the key is missing or wrong (sign-in then fails closed)
+    if (totpStored) { try { totpPlain = unseal(totpStored); } catch (err) { logger.error('cannot read the 2-step secret; sign-in is refused', { err }); } }
     // both checks always run, so timing does not reveal which of the two was wrong
-    const pwOk = !!hash && verifyPassword(String(b.password ?? ''), hash);
+    const pwOk = !!hash && await verifyPassword(String(b.password ?? ''), hash);
     // Read the last used step, check the code and record the new step as ONE unit (one login at a time), so two
     // simultaneous logins with the same code cannot both pass. Only the password-correct case burns the code.
     const step = await withTotpLock(async () => {
       const lastStep = Number((await store.meta.get('admin_totp_last_step')) ?? -1);
-      const s = totpSecret ? verifyTotp(totpSecret, b.code, Date.now(), lastStep) : 0;
+      const s = totpSecret ? (totpPlain ? verifyTotp(totpPlain, b.code, Date.now(), lastStep) : null) : 0;
       if (totpSecret && s !== null && pwOk) await store.meta.set('admin_totp_last_step', s);
       return s;
     });
@@ -128,6 +131,8 @@ export async function createConsole(opts = {}) {
     const id = newSessionId(), maxAge = Math.round(o.sessionHours * 3600);
     await store.sessions.create(hashSessionId(id), new Date(Date.now() + maxAge * 1000).toISOString());
     audit({ ev: 'admin-login', ip, ua });
+    // the password was right: if its hash was made with an older, cheaper setting, replace it with a current one
+    if (needsRehash(hash)) { try { await store.meta.set('admin_password_hash', await hashPassword(String(b.password))); } catch (err) { logger.warn('could not upgrade the password hash', { err }); } }
     res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`, ...securityHeaders });
     res.end(JSON.stringify({ ok: true }));
   }

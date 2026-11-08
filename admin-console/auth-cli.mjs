@@ -7,12 +7,14 @@
 //   disable-totp   turn 2-step codes off
 //   remove-password  go back to the launch-token URL (only for localhost use)
 //   sign-out-all   end every signed-in browser session
+//   gen-key        print a new random ADMIN_DATA_KEY; with it set, the 2-step secret is stored encrypted
 // Passwords are never taken from command-line arguments (they would end up in shell history).
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import readline from 'node:readline';
+import { resolve } from 'node:path';
 import { Writable } from 'node:stream';
 import { getStore, closeStore } from '../lib/store/index.mjs';
-import { passwordProblem, hashPassword, newTotpSecret, verifyTotp, otpauthUrl } from '../lib/auth.mjs';
+import { passwordProblem, hashPassword, newTotpSecret, verifyTotp, otpauthUrl, seal, unseal, isSealed, dataKey, newDataKey } from '../lib/auth.mjs';
 
 const out = process.stdout;
 const muted = new Writable({ write(chunk, enc, cb) { if (!this.muted) out.write(chunk, enc); cb(); } });
@@ -37,6 +39,7 @@ try {
     const pw = await store.meta.get('admin_password_hash'), totp = await store.meta.get('admin_totp_secret');
     console.log(`Password:        ${pw ? 'set (password mode: sign in at /login)' : 'not set (token mode: use the URL printed at launch)'}`);
     console.log(`2-step codes:    ${totp ? 'on' : 'off'}`);
+    if (totp) console.log(`2-step secret:   ${isSealed(totp) ? 'encrypted' + (dataKey() ? '' : ' (ADMIN_DATA_KEY is not set here, so it cannot be read)') : 'NOT encrypted' + (dataKey() ? ' (the console encrypts it when it next starts)' : ': set ADMIN_DATA_KEY (npm run console:auth -- gen-key) to encrypt it')}`);
   } else if (cmd === 'set-password') {
     const fi = process.argv.indexOf('--from-file');
     let a;
@@ -56,7 +59,7 @@ try {
       if (problem) throw new Error(problem);
       if (a !== await ask('Repeat it: ', true)) throw new Error('The two passwords did not match. Nothing was changed.');
     }
-    await store.meta.set('admin_password_hash', hashPassword(a));
+    await store.meta.set('admin_password_hash', await hashPassword(a));
     await store.sessions.clear();
     await audit('admin-password-set');
     console.log('Password saved. All signed-in sessions were ended. Restart the console, then sign in at its address.');
@@ -76,12 +79,13 @@ try {
       const file = argAfter('--to-file');
       if (!file) throw new Error('Usage: enable-totp --start --to-file <path>');
       const pending = newTotpSecret();
-      await store.meta.set('admin_totp_pending', pending);
+      await store.meta.set('admin_totp_pending', seal(pending));
+      await store.meta.set('admin_totp_pending_file', resolve(file));
       writeFileSync(file, describe(pending) + '\n');
-      console.log(`The secret was written to ${file}. Add it to your authenticator app, delete the file, then run: enable-totp --code <6 digits>`);
+      console.log(`The secret was written to ${file}. Add it to your authenticator app, then run: enable-totp --code <6 digits> (that deletes the file).`);
       started = true;
     } else if (process.argv.includes('--code')) {
-      secret = await store.meta.get('admin_totp_pending');
+      secret = unseal(await store.meta.get('admin_totp_pending'));
       if (!secret) throw new Error('No pending secret. Run "enable-totp --start --to-file <path>" first.');
       entered = argAfter('--code');
     } else {
@@ -92,12 +96,18 @@ try {
     if (!started) {
       const step = verifyTotp(secret, entered);
       if (step === null) throw new Error('That code was not right. 2-step codes were NOT turned on. Run the command again.');
-      await store.meta.set('admin_totp_secret', secret);
+      await store.meta.set('admin_totp_secret', seal(secret));
       await store.meta.set('admin_totp_last_step', step);
       await store.meta.set('admin_totp_pending', '');
+      const leftover = await store.meta.get('admin_totp_pending_file');
+      if (leftover) { // the setup file holds the secret in the clear: remove it now that setup is done
+        try { writeFileSync(leftover, ''); } catch { /* best effort */ } try { unlinkSync(leftover); } catch { /* best effort */ }
+        await store.meta.set('admin_totp_pending_file', '');
+      }
       await store.sessions.clear();
       await audit('admin-totp-enabled');
       console.log('2-step codes are on. All signed-in sessions were ended.');
+      if (!dataKey()) console.log('Note: the secret is stored unencrypted. Set ADMIN_DATA_KEY (npm run console:auth -- gen-key) for the console to encrypt it.');
     }
   } else if (cmd === 'disable-totp') {
     await store.meta.set('admin_totp_secret', ''); await store.meta.set('admin_totp_last_step', '-1');
@@ -106,10 +116,13 @@ try {
     await store.meta.set('admin_password_hash', ''); await store.meta.set('admin_totp_secret', '');
     await store.sessions.clear(); await audit('admin-password-removed');
     console.log('Password and 2-step codes removed. The console uses the launch-token URL again (localhost only).');
+  } else if (cmd === 'gen-key') {
+    console.log(newDataKey());
+    console.error('Keep this value outside the dashboard folder (for example in your service or container environment) as ADMIN_DATA_KEY. If it is lost, run disable-totp and enable-totp again.');
   } else if (cmd === 'sign-out-all') {
     await store.sessions.clear(); await audit('admin-sessions-cleared'); console.log('All sessions ended.');
   } else {
-    console.log('Usage: npm run console:auth -- status | set-password | enable-totp | disable-totp | remove-password | sign-out-all');
+    console.log('Usage: npm run console:auth -- status | set-password | enable-totp | disable-totp | remove-password | sign-out-all | gen-key');
     code = cmd ? 1 : 0;
   }
 } catch (e) { console.error(e.message); code = 1; }
