@@ -9,7 +9,7 @@ Checks run: `npm audit` (0 vulnerabilities), `npx eslint .` (clean), `npm test` 
 No new high or medium issue was introduced. One real defect in a new safety guard was found and fixed (RA-01). Four low-importance observations remain (RA-02 to RA-05); none needs action before use.
 
 | ID | Finding | Importance | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | RA-01 | `reset-fs.mjs` path guard accepted paths on another Windows drive or a network share | 3 | **Fixed** (test added) |
 | RA-02 | Reset and snapshot guards compare path text, not real paths (symlinks) | 2 | Open, accepted |
 | RA-03 | Setup file path for the 2-step secret is stored in the database and later truncated and deleted | 2 | Open, accepted |
@@ -32,6 +32,7 @@ Production mode needed stand-ins, which the compose file supplies: admin 2-step 
 Step output goes to a log file under `data/logs/` (git-ignored), the same as app logs. The console and gateway only see "step failed, see the log"; step output is not returned to the browser.
 
 ## Checked and found sound
+
 - **SEC-01:** apps receive an allow-listed environment; the supervisor and console keep theirs. Registry `env` and `envFile` values are added after filtering.
 - **SEC-04:** certificate validation is on by default; the opt-out prints a warning.
 - **Link redemption (SEC-07):** a GET never spends a use; a POST does. The token is still the only secret, and the same rate limits apply before either. The device cookie is a random value stored hashed; a client-supplied value is only hashed, never trusted.
@@ -44,6 +45,7 @@ Step output goes to a log file under `data/logs/` (git-ignored), the same as app
 - **Supply chain (SEC-15):** workflow token is read-only; actions are pinned to commit SHAs; `npm audit` runs in CI; Dependabot covers npm, actions and Docker. The pinned SHAs were not re-checked against GitHub from here.
 
 ## Not verifiable here
+
 - The hosted ClaudeWorkspace reset against a real Supabase project (only a dummy address was available).
 - `deploy/reset-demos.sh` on a Linux host (it was run from Git Bash on Windows).
 - The pinned action SHAs and Docker base image versions against their upstream registries.
@@ -59,7 +61,7 @@ Compared: `e1a59d3` to `ad5386d` plus the fix below. Read in full: `demo-gateway
 No new high or medium issue. One real defect found and fixed (RB-01). Three low observations remain.
 
 | ID | Finding | Importance | Status |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | RB-01 | A browser cancelling a request marked the customer's copy as down, which restarted it and deleted their data | 4 | **Fixed** (2 tests added) |
 | RB-02 | Copies are separated by data and ports, not sandboxed; they run as the dashboard's OS user | 3 | Open, documented |
 | RB-03 | A seat whose copy cannot be stopped stays taken (retried every 30 s, logged) | 2 | Open, accepted |
@@ -75,6 +77,7 @@ Each copy has its own data folder, port and database, and the gateway only ever 
 If stopping a copy fails, its seat stays occupied and is retried every 30 seconds, with an error logged, so a stuck process cannot be silently reused. The console shows seats in use per product but not each copy's processes; `data/instances/` and the log files show them.
 
 ## Checked and found sound
+
 - **Link handling:** a seat is checked before a link's use is counted; only valid, active, rate-limited links reach the code that starts a copy; one link can only hold one seat.
 - **Paths and commands:** slot numbers must be whole numbers within the product's limit, ids come from the registry (letters, digits, `_`, `-`), and the instance folder is built from those only, so it cannot leave `data/instances/`. `restore-to` accepts only folders inside that location.
 - **Routing:** the upstream port comes from the customer's own seat, never from the request. WebSocket upgrades are refused until the copy is ready, and an open socket counts as use.
@@ -90,7 +93,7 @@ End-to-end browser use of a ClaudeOS or ImageApp copy through the gateway (their
 # Follow-up: open items closed
 
 | ID | What changed | Status |
-|---|---|---|
+| --- | --- | --- |
 | RA-02 | `checkPath` (reset and snapshot) now resolves the real location of the closest existing part of the path and refuses it if a link or junction leads outside `data/`. Test added. | **Fixed** |
 | RA-03 | `enable-totp --code` only deletes the setup file if it is a plain file that still starts with the text `--start` wrote; otherwise it leaves it and says so. The file is now created readable by the owner only. | **Fixed** |
 | RA-05 | Prepare, build and reset logs are created owner-only, and the values of secret-looking settings (keys, tokens, passwords, URLs) are replaced with `***` if a script prints them. | **Fixed** |

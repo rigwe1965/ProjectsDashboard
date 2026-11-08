@@ -28,7 +28,7 @@ The core design is sound and noticeably more careful than typical for a project 
 The gaps are mostly **least privilege and defence in depth**: what the managed demo apps inherit and how they run, WebSocket origin handling, a few unbounded or never-run retention paths, and soft defaults.
 
 | ID | Finding | Category | Importance |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | SEC-01 | Managed apps inherit the supervisor's entire environment | Secrets / Config | **6** |
 | SEC-02 | Customer-facing demo instances run framework *dev servers* | Config & Hardening | **5** |
 | SEC-03 | All customers share one demo instance and one set of seeded credentials | Data flow / cross-tenant | **5** |
@@ -62,11 +62,13 @@ The gaps are mostly **least privilege and defence in depth**: what the managed d
 **Risk:** the console runs the supervisor, so the supervisor's environment is the console's environment. In hosted mode that includes `DATABASE_URL` for the dashboard's Postgres (admin password hash, TOTP secret, session hashes, grants, audit log), `METRICS_TOKEN`, and anything else the shell holds. In local mode it is whatever the owner's shell has: cloud keys, API keys, tokens. A bug or malicious dependency in any demo app (code that customers interact with) can read all of it. In the hosted compose file the demo apps run in separate containers, so this applies to **host-process mode**, which is how the local setup works today.
 
 **Remediation:** pass an allow-list, then add the registry's variables.
+
 ```js
 // supervisor/index.mjs, replace line 89
 const KEEP = /^(PATH|PATHEXT|SYSTEMROOT|SYSTEMDRIVE|WINDIR|COMSPEC|TEMP|TMP|HOME|USERPROFILE|APPDATA|LOCALAPPDATA|PROGRAMFILES.*|PROGRAMDATA|NUMBER_OF_PROCESSORS|PROCESSOR_.*|OS|LANG|LC_.*|TZ)$/i;
 const env = cleanEnv(Object.fromEntries(Object.entries(process.env).filter(([k]) => KEEP.test(k))));
 ```
+
 Then run the five demo journeys (`npm run test:e2e`) to find any variable a toolchain genuinely needs (for example `NVM_*`, `CONDA_*`, `PNPM_HOME`) and add only those.
 
 ---
@@ -80,6 +82,7 @@ Then run the five demo journeys (`npm run test:e2e`) to find any variable a tool
 **Risk:** information disclosure (source paths, code, stack traces) to any customer, and a larger attack surface than a production build. The impact is bounded because the instances hold demo data and no real service keys. **Unable to verify** which Next.js version is installed in `data/demo-src/crm` and `data/demo-src/claudeworkspace`; `npm audit` run in those folders would show whether any dev-server advisory applies.
 
 **Remediation:**
+
 1. Preferred: give the demo builds the minimal dummy values production mode wants (a stub email provider, `CRON_SECRET`, an MFA key, an in-memory rate-limiter) and run `next build && next start`.
 2. Otherwise, at least keep the gateway as the only way in (already the case) and add response headers at the gateway so error pages are not framed or cached. The gateway already sets `X-Frame-Options`.
 3. Pin and update Next.js in the demo clones, and run `npm audit` there regularly.
@@ -95,9 +98,11 @@ Then run the five demo journeys (`npm run test:e2e`) to find any variable a tool
 **Risk:** a customer who is told the demo password can read or alter what the previous customer typed in (names, emails, uploaded images, notes). A customer can also change the demo admin's password or delete seeded data, breaking the demo for everyone (this is probably what happened to `admin@crm.test`: its password was changed after seeding). **Unable to verify** whether ImageApp serves uploads at guessable or listable URLs; a request log or a look at the app's upload route would settle it.
 
 **Remediation:** pick one:
+
 - Reset each demo instance to its seed on a schedule or when a link is revoked or expires (`WIPE_FORCE`-style seed already exists for the CRM).
 - Tell customers (in the link email) not to enter real personal data, and make that visible in the demo banner.
 - For sensitive products, one instance per grant.
+
 Also create demo accounts with limited roles where the product allows, rather than handing out an admin.
 
 ---
@@ -105,20 +110,24 @@ Also create demo accounts with limited roles where the product allows, rather th
 ### SEC-04: `apply-sql.mjs` disables TLS certificate validation · 5/10
 **Category:** Cryptography & Transport
 **Location:** `supervisor/apply-sql.mjs:29`
+
 ```js
 const client = new Client({ connectionString: env.DEMO_DB_URL, ssl: { rejectUnauthorized: false } });
 ```
+
 **Description:** the connection encrypts but accepts any certificate, so a network attacker between the machine and the Supabase demo database can impersonate it. The credentials in `DEMO_DB_URL` and the SQL being applied cross that connection.
 
 **Risk:** credential theft or tampered migrations on a hostile network (public Wi-Fi, a compromised router). The target is a demo database, which limits the damage.
 
 **Remediation:** validate against the provider's CA.
+
 ```js
 import { readFileSync } from 'node:fs';
 // download the project's CA from the Supabase dashboard (Database settings -> SSL), keep it in data/
 const ca = env.DEMO_DB_CA ? readFileSync(env.DEMO_DB_CA, 'utf8') : undefined;
 const client = new Client({ connectionString: env.DEMO_DB_URL, ssl: ca ? { ca, rejectUnauthorized: true } : { rejectUnauthorized: true } });
 ```
+
 If the pooler's certificate chain is not in the system store, the `ca` file fixes that. `supabase-admin.mjs` uses `fetch` over HTTPS, which validates normally.
 
 ---
@@ -132,6 +141,7 @@ If the pooler's certificate chain is not in the system store, the `ca` file fixe
 **Risk:** retention longer than stated; the audit table grows without bound.
 
 **Remediation:**
+
 ```js
 // demo-gateway/server.mjs, after the first prune
 const pruneAudit = () => gw.store.audit.prune(Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90)
@@ -139,6 +149,7 @@ const pruneAudit = () => gw.store.audit.prune(Number.isFinite(RETENTION_DAYS) ? 
   .catch((err) => logger.warn('audit prune failed', { err }));
 setInterval(pruneAudit, 24 * 3600e3).unref();
 ```
+
 Also document the retention period for customers if you collect their data, and consider truncating the IP (for example the last octet) before storing.
 
 ---
@@ -152,6 +163,7 @@ Also document the retention period for customers if you collect their data, and 
 **Risk:** needs a victim with a live grant and script running on a sibling demo host (an XSS or hostile content in a demo app). Low likelihood, moderate impact on that session.
 
 **Remediation:** check the browser's Origin against the request's own host before forwarding.
+
 ```js
 // in upgrade(), after the grant checks and before opening the upstream
 const origin = req.headers.origin;
@@ -161,6 +173,7 @@ if (origin) {
   if (!sameHost) return rejectUpgrade(socket, 403, 'Forbidden');
 }
 ```
+
 (`hostHdr` is already lower-cased in `resolveRequest`.) Add a gateway test that a WebSocket with a foreign Origin gets 403.
 
 ---
@@ -170,12 +183,14 @@ if (origin) {
 **Location:** `demo-gateway/grants.mjs` `createGrant` (`maxUses = null`, `hours = 48`); `demo-gateway/gateway.mjs:155` (`store.grants.redeem(g.id, sha256(ua))`); `lib/store/sqlite.mjs` / `postgres.mjs` `redeem` (device compare).
 
 **Description:**
+
 - By default a link can be opened any number of times until it expires (48 hours by default, up to 720). Anyone who gets the URL can use it: forwarded email, a shared chat, a link-preview or mail-scanner bot (the redeem is a plain `GET`).
 - "Lock to first browser" compares a hash of the **User-Agent string**. Every user of the same browser build has the same value, so it stops casual sharing only between different browsers or devices; it is not a device binding.
 
 **Risk:** a forwarded link keeps working; the documented promise ("tied to the browser it was first opened in") is stronger than what is enforced.
 
 **Remediation:**
+
 - Default `maxUses` to a small number in the UI form (for example 5) and keep "unlimited" as an explicit choice.
 - Make the lock real: on first redeem set a long-lived random `pd_dev` cookie, store its hash as `device_hash`, and compare that on later redeems instead of the UA hash. (The cookie is HttpOnly and per-subdomain.)
 - Optionally require a click-through page for redeem (a `POST`), so link scanners that only `GET` do not consume a use.
@@ -189,6 +204,7 @@ if (origin) {
 **Description:** the page writes all untrusted text with `textContent`/`el()` (verified, including the audit view), so I found no current XSS. But the CSP does not backstop a future mistake, and the console is the single most valuable target (start/stop apps, mint customer links).
 
 **Remediation:** use a per-response nonce and drop the inline handler.
+
 ```js
 // console.mjs
 const nonce = randomBytes(16).toString('base64');
@@ -196,6 +212,7 @@ const csp = securityHeaders['content-security-policy'].replace("script-src 'unsa
 const page = readFileSync(join(here, 'index.html'), 'utf8').replace('<script>', `<script nonce="${nonce}">`);
 res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', ...securityHeaders, 'content-security-policy': csp });
 ```
+
 and in `index.html` replace `onclick="logdlg.close()"` with an `addEventListener` in the script. Do the same for `login.html`. Leave `style-src 'unsafe-inline'` for now; it is much lower risk.
 
 ---
@@ -207,10 +224,12 @@ and in `index.html` replace `onclick="logdlg.close()"` with an `addEventListener
 **Description:** sign-ins, failed sign-ins, grant creation and revocation, and CLI password/2FA changes are all audited. Starting, stopping or restarting a product, and sign-out, are not, although they change what customers can reach.
 
 **Remediation:**
+
 ```js
 // after the busy.add(app.id) line in the start/stop/restart route
 audit({ ev: 'admin-app-' + m[2], app: app.id, ip: clientIp(req, trusted), ...(only ? { proc: only } : {}) });
 ```
+
 and add `'admin-app-start'` etc. to the UI's `EVENT_LABELS` (`index.html`). The `admin-` prefix already routes them into the "Console sign-ins and changes" filter.
 
 ---
@@ -222,6 +241,7 @@ and add `'admin-app-start'` etc. to the UI's `EVENT_LABELS` (`index.html`). The 
 **Description:** scrypt with N=2^14 is the minimum commonly cited; current OWASP guidance is N=2^17 (r=8, p=1). `scryptSync` also blocks the single event loop for the duration of each attempt, so up to 8 attempts per IP from many addresses can stall the console.
 
 **Remediation:** hash and verify asynchronously and raise the cost for new hashes. Stored hashes already record their parameters, so old ones keep verifying.
+
 ```js
 import { scrypt } from 'node:crypto';
 import { promisify } from 'node:util';
@@ -233,6 +253,7 @@ export async function hashPassword(pw) {
   return `scrypt$${SCRYPT.N}$${SCRYPT.r}$${SCRYPT.p}$${salt.toString('base64')}$${key.toString('base64')}`;
 }
 ```
+
 `verifyPassword` becomes async the same way (pass `maxmem` too); update its three callers (`console.mjs` login, `auth-cli.mjs` indirectly via `hashPassword`, tests). Memory use is about 128 MB per attempt at N=2^17, so keep the per-IP limit.
 
 ---
@@ -244,12 +265,14 @@ export async function hashPassword(pw) {
 **Description:** `lib/auth.mjs` documents that the TOTP secret must be recoverable, so it lives in the database as plain text. Anyone who can read `data/dashboard.db` (a backup, a copied folder, a database dump) gets both factors' material except the password. The `--start --to-file` flow writes the secret to a file and relies on the user to delete it (the `set-password --from-file` flow deletes its file; this one does not). The pending secret stays in `meta` if setup is abandoned.
 
 **Remediation:** encrypt the secret with a key held outside the database.
+
 ```js
 // lib/auth.mjs
 import { createCipheriv, createDecipheriv } from 'node:crypto';
 const key = () => Buffer.from(process.env.ADMIN_DATA_KEY || '', 'hex'); // 32 bytes, generated once
 export const seal = (s) => { const iv = randomBytes(12), c = createCipheriv('aes-256-gcm', key(), iv); const enc = Buffer.concat([c.update(s, 'utf8'), c.final()]); return [iv, c.getAuthTag(), enc].map((b) => b.toString('base64')).join('.'); };
 ```
+
 (with a matching `open()`); use it for `admin_totp_secret` and `admin_totp_pending`. Fall back to plain if the key is unset, with a warning. For the file flow, have step 2 (`--code`) delete the file if its path was recorded, or print a reminder.
 
 ---
@@ -261,9 +284,11 @@ export const seal = (s) => { const iv = randomBytes(12), c = createCipheriv('aes
 **Description:** this is a deliberate trade-off, documented in the code and tested: after 40 failures overall, wrong guesses get 429 but a correct password still signs in, so a botnet cannot lock the owner out. The side effect is that an attacker spreading guesses over many IPs is limited only by 8 per IP per 15 minutes. With a 12+ character password and scrypt this is not practical for the password. For the 6-digit code (about 1,000,000 possibilities, 3 accepted per window) it matters only if the attacker already has the password.
 
 **Remediation (optional):** keep the owner-lockout protection, but also slow the attacker: add a growing delay for failed attempts when `overall` is true.
+
 ```js
 if (overall) await new Promise((r) => setTimeout(r, 1500)); // before the 429/401 response
 ```
+
 and require the TOTP step to be verified before the password result is revealed (the code already runs both checks, which avoids a timing oracle). Put the console behind Caddy's `rate_limit` or an IP allow-list if the admin hostname is stable.
 
 ---
@@ -275,6 +300,7 @@ and require the TOTP step to be verified before the password result is revealed 
 **Description:** the gateway correctly drops client-supplied `X-Forwarded-*` and sets its own. Other headers that some frameworks treat as the client address (`Forwarded`, `X-Real-IP`, `True-Client-IP`, `CF-Connecting-IP`, `X-Client-IP`) pass through, so a customer can present a false address to the demo app's own logging or rate limiting.
 
 **Remediation:**
+
 ```js
 const SPOOFABLE = new Set(['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip']);
 // handle(): add `&& !SPOOFABLE.has(k)` to the header filter
@@ -290,11 +316,13 @@ const SPOOFABLE = new Set(['forwarded', 'x-real-ip', 'true-client-ip', 'cf-conne
 **Description:** the guard refuses a non-loopback bind without a password, but not without HTTPS. With `ADMIN_BIND=0.0.0.0`, a password set and `ADMIN_SCHEME` left at `http`, the password and the session cookie (no `Secure` flag) travel in clear text. The local compose override does exactly this on purpose, for a test on one machine.
 
 **Remediation:** refuse unless the operator opts in.
+
 ```js
 if (!LOOPBACK.has(o.bindHost) && o.scheme !== 'https' && process.env.ADMIN_ALLOW_HTTP !== '1') {
   throw new Error('Refusing to serve the console over plain HTTP on a non-loopback address. Put it behind HTTPS (ADMIN_SCHEME=https), or set ADMIN_ALLOW_HTTP=1 for a local test.');
 }
 ```
+
 and set `ADMIN_ALLOW_HTTP: "1"` in `deploy/docker-compose.local.yml` only.
 
 ---
@@ -306,6 +334,7 @@ and set `ADMIN_ALLOW_HTTP: "1"` in `deploy/docker-compose.local.yml` only.
 **Description:** the workflow has no `permissions:` block, so the `GITHUB_TOKEN` gets the repository default (which can be read/write). Actions are pinned by tag (`actions/checkout@v4`), not commit. There is no scheduled dependency update and no `npm audit` step. The project has only one runtime dependency (`pg`) and `npm audit` is clean today, so the exposure is small.
 
 **Remediation:**
+
 ```yaml
 # .github/workflows/ci.yml, top level
 permissions:
@@ -313,6 +342,7 @@ permissions:
 # add to both jobs after `npm ci`
       - run: npm audit --omit=dev --audit-level=high
 ```
+
 ```yaml
 # .github/dependabot.yml
 version: 2
@@ -321,6 +351,7 @@ updates:
   - { package-ecosystem: github-actions, directory: "/", schedule: { interval: weekly } }
   - { package-ecosystem: docker, directory: "/deploy", schedule: { interval: weekly } }
 ```
+
 Pin the actions to commit SHAs (Dependabot will keep them current).
 
 ---
@@ -332,6 +363,7 @@ Pin the actions to commit SHAs (Dependabot will keep them current).
 **Description:** good already: the dashboard image runs as the non-root `node` user, Postgres is not published, only Caddy exposes 80/443, and no Docker socket is mounted. Missing: `no-new-privileges`, dropped capabilities, read-only root filesystems and resource limits; images are tag-pinned but not digest-pinned.
 
 **Remediation (gateway and console):**
+
 ```yaml
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -340,6 +372,7 @@ Pin the actions to commit SHAs (Dependabot will keep them current).
     pids_limit: 256
     mem_limit: 512m
 ```
+
 (`/data` for logs stays a volume. If the SQLite store is used inside the container it also needs the volume writable.) Pin images by digest in the Dockerfiles once a version is chosen, and let Dependabot refresh them.
 
 ---
@@ -351,6 +384,7 @@ Pin the actions to commit SHAs (Dependabot will keep them current).
 **Description:** `cmd` comes from `registry/apps.json` and is meant to be a shell command, so that is trusted by design. `logPath` includes `proc.name`, which is only checked to be non-empty, so a process name containing `"` or `&` would break out of the quoting. The registry is owner-controlled, so this is hardening rather than an exploitable path.
 
 **Remediation:**
+
 ```js
 // lib/registry.mjs, in validate()
 if (p.name && !/^[\w-]+$/.test(p.name)) errs.push(`${pw}: process name may only contain letters, digits, _ and -`);
@@ -365,6 +399,7 @@ if (p.name && !/^[\w-]+$/.test(p.name)) errs.push(`${pw}: process name may only 
 **Description:** over HTTPS, the `__Host-` prefix makes browsers reject a cookie that was set insecurely or with a `Domain`. A demo app can also send `Set-Cookie: x=1; Domain=.demo.example.com`, which would apply to every product's demo host. These are trusted demo apps, so this is low.
 
 **Remediation:** use `__Host-pd_session` / `__Host-pd_demo` when `Secure` (https), and optionally strip `Domain=` from upstream cookies:
+
 ```js
 if (out['set-cookie']) out['set-cookie'] = [].concat(out['set-cookie']).map((c) => c.replace(/;\s*domain=[^;]*/i, ''));
 ```
@@ -384,7 +419,7 @@ if (out['set-cookie']) out['set-cookie'] = [].concat(out['set-cookie']).map((c) 
 ## 3. Coverage by requested category
 
 | Category | Result |
-|---|---|
+| --- | --- |
 | **Authentication & Authorization** | Strong core (SEC-07, 10, 12 are refinements). No hard-coded credentials in tracked files. Product binding and revocation are enforced per request. Gateway `/_pd/metrics` is token-protected or loopback-only; `/_pd/tls-ask` answers only direct calls. |
 | **Input Validation & Injection** | No SQL injection found (parameterised throughout). No command injection from request data: the only shell use takes owner-controlled registry values (SEC-17). Path traversal is blocked in `showcase/serve.mjs` (`startsWith(dist + sep)` after `normalize`) and in the console's log route (`proc` must match the registry). The showcase malformed-URL crash was fixed earlier in this session. Request bodies are size-limited (4 KB console, 50 MB proxied, header size 16 KB). |
 | **Secrets & Sensitive Data** | No secrets in tracked files or git history. Logs never include secrets; I also masked link tokens in the new 500-error log line. See SEC-01, 11, 19. |
@@ -396,7 +431,7 @@ if (out['set-cookie']) out['set-cookie'] = [].concat(out['set-cookie']).map((c) 
 ## 4. Unable to verify
 
 | Item | What would confirm it |
-|---|---|
+| --- | --- |
 | Whether ImageApp uploads are reachable by other customers | Upload a file as customer A and request its URL (or the app's list route) as customer B. |
 | Installed Next.js versions in `data/demo-src/crm` and `claudeworkspace` | `npm ls next` and `npm audit` in those folders. |
 | Whether Airfinder's `run.py` binds to all interfaces (registry line ~274) | The app's `run.py` host argument, or `netstat -ano | findstr :5210` while it runs (look for `0.0.0.0`). The registry itself notes RMM's `start_api.py` binds `0.0.0.0`. |

@@ -9,6 +9,7 @@ Method: full read of the files above. Finding EH-01 was reproduced by running th
 ## Remediation status (2026-11-08)
 
 All 20 findings were addressed in the working tree (not committed). Tests: 98 pass, lint clean. Changes beyond the snippets below:
+
 - The `/api/apps` response keeps its array shape; a failed status check is signalled with an `x-status-error` response header, which the UI shows.
 - `demoApps()` falls back to the last valid registry (and logs) if `apps.json` breaks while running.
 - Registry validation now rejects `{port:name}` references to unknown processes.
@@ -38,7 +39,7 @@ What is missing is consistency and a safety net:
 - There are no retries, timeouts or fallbacks around the database, subprocesses or upstreams.
 
 | ID | Finding | Importance |
-|---|---|---|
+| --- | --- | --- |
 | EH-01 | `showcase/serve.mjs`: malformed URL crashes the server (reproduced) | **7** |
 | EH-02 | Supervisor reports `ok:true` / HTTP 200 for failed or unresponsive starts | **7** |
 | EH-03 | Open WebSockets are not closed when the grant re-check fails (fails open) | **7** |
@@ -67,12 +68,15 @@ What is missing is consistency and a safety net:
 ### EH-01: Showcase server crashes on a malformed URL · Importance 7/10
 
 **Where:** `showcase/serve.mjs:12`
+
 ```js
 let p = decodeURIComponent(new URL(req.url, 'http://x').pathname);
 ```
+
 **Reproduced:** with `SHOWCASE_PORT=4299 node showcase/serve.mjs`, `GET /` returned 200. `GET /%E0%A4%A` then made the process exit with `URIError: URI malformed`, and every later request failed to connect. Anything that reaches the port can do this, and the server is bound to 127.0.0.1 only, so the impact is limited to local processes today. If the showcase is ever hosted from this file, that limit goes away. `statSync` and `readFileSync` on lines 15 and 21 can also throw (file deleted between the check and the read) and would crash the process the same way.
 
 **Fix** (replace the handler body):
+
 ```js
 http.createServer((req, res) => {
   try {
@@ -101,6 +105,7 @@ http.createServer((req, res) => {
 ### EH-02: Supervisor reports success for failed or unresponsive starts · Importance 7/10
 
 **Where:**
+
 - `admin-console/console.mjs:31-36` (`defaultSupervisor`): `ok: !err` is based only on the exit code.
 - `admin-console/console.mjs:204`: the route always answers `json(res, 200, …)`.
 - `supervisor/index.mjs:82`, `:104`: a start that never responds only prints `NOT RESPONDING after 60s`, then exits 0.
@@ -111,6 +116,7 @@ http.createServer((req, res) => {
 **Fix:** make the supervisor exit non-zero on those paths, then map failure to a real status.
 
 `supervisor/index.mjs` (track a flag instead of only printing):
+
 ```js
 let failed = false;
 // in start(), both places that print NOT RESPONDING:
@@ -122,11 +128,14 @@ failed = true;
 await closeStore();
 if (failed) process.exitCode = 1;
 ```
+
 `console.mjs:204`:
+
 ```js
 const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])]);
 return json(res, r.ok ? 200 : 502, r);
 ```
+
 `index.html` (two places, `act` and `demoAct`): `say(j.error ? j.error : (j.output.split('\n').slice(-2).join(' · ') || 'Done'))` → also show failure styling when `!r.ok`.
 
 ---
@@ -134,14 +143,17 @@ return json(res, r.ok ? 200 : 502, r);
 ### EH-03: WebSocket revocation re-check fails open · Importance 7/10
 
 **Where:** `demo-gateway/gateway.mjs:245-247`
+
 ```js
 const timer = setInterval(async () => {
   try { const cur = await grantFor(req); if (!isActive(cur) || cur.app !== slug) close('grant-ended'); } catch { /* try again next tick */ }
 }, o.wsRecheckMs);
 ```
+
 **Failure scenario:** the database becomes unreachable (Postgres outage, SQLite locked beyond `busy_timeout`). `grantFor` throws on every tick, the error is swallowed with no log, and every open socket stays up indefinitely. A grant the owner revokes during the outage keeps working. The README promise is that revocation also cuts off open sockets.
 
 **Fix:** count consecutive failures, log them, and close after a short grace window:
+
 ```js
 let fails = 0;
 const timer = setInterval(async () => {
@@ -164,6 +176,7 @@ const timer = setInterval(async () => {
 **Impact:** Node 22 terminates on an unhandled rejection or uncaught exception. The log line is a raw stack on stderr, not the structured `logger` format, so JSON log collectors see broken output. The graceful `shutdown()` in `admin-console/server.mjs:262` and `demo-gateway/server.mjs:288` is skipped, so open WebSockets and the DB handle are not closed. EH-01 is an example of what this would contain.
 
 **Fix:** add to `lib/log.mjs` and call from both `server.mjs` files:
+
 ```js
 // lib/log.mjs
 export function installProcessHandlers(onFatal) {
@@ -171,10 +184,12 @@ export function installProcessHandlers(onFatal) {
   process.on('uncaughtException', (err) => { logger.error('uncaught exception', { err }); onFatal?.('uncaughtException'); });
 }
 ```
+
 ```js
 // in each server.mjs, after shutdown() is defined
 installProcessHandlers((why) => { process.exitCode = 1; shutdown(why); });
 ```
+
 `shutdown()` already has a 10-second force-exit. Exit rather than continue: state after an uncaught exception is unknown, and the container restart policy brings the service back.
 
 ---
@@ -188,6 +203,7 @@ installProcessHandlers((why) => { process.exitCode = 1; shutdown(why); });
 **Failure scenario:** `execFile` kills the supervisor mid-start. The console reports `ok:false` with partial output. The record in `process_state` may be half-written, and the UI gives no reason. The `busy` lock is released while a child app may still be coming up.
 
 **Fix:** derive the timeout from the work, and say so when it fires.
+
 ```js
 function defaultSupervisor(args, timeout = 120000) {
   return new Promise((resolve) => {
@@ -210,13 +226,16 @@ await o.supervisor([...], slow ? 300000 : 120000)
 ### EH-06: Every demo error becomes 400/404, with raw messages returned · Importance 6/10
 
 **Where:** `console.mjs:219-223` and `:225-228`
+
 ```js
 try { const b = JSON.parse(body || '{}'); const { grant, link } = await createGrant({...}); return json(res, 200, …); }
 catch (e) { return json(res, 400, { error: e.message }); }
 ...
 try { await revokeGrant(m[1]); … } catch (e) { return json(res, 404, { error: e.message }); }
 ```
+
 **Problems:**
+
 - A database failure inside `createGrant` (`store.grants.insert`, `grants.mjs:346`) is reported as a 400 "client error", and the driver's message is returned to the browser. For Postgres this includes text such as `duplicate key value violates unique constraint "grants_pkey"` or connection errors.
 - A database failure during revoke is reported as 404 "No such grant", which tells the owner the grant does not exist when the revoke simply did not happen.
 - A JSON body such as `null` makes `b.customer` throw a `TypeError` whose message ("Cannot read properties of null…") is returned to the client.
@@ -224,12 +243,15 @@ try { await revokeGrant(m[1]); … } catch (e) { return json(res, 404, { error: 
 This is the same gap as EH-10, shown in code. Fix with a small error class so validation errors are distinguishable:
 
 `lib/errors.mjs` (new, see EH-10 for the full file):
+
 ```js
 export class HttpError extends Error {
   constructor(status, message, opts = {}) { super(message, opts); this.status = status; this.expose = status < 500; }
 }
 ```
+
 `demo-gateway/grants.mjs` (throw typed errors instead of `new Error`):
+
 ```js
 import { HttpError } from '../lib/errors.mjs';
 if (!customer || !app) throw new HttpError(400, 'Customer and app are required');
@@ -237,7 +259,9 @@ if (!demoApps()[app]) throw new HttpError(400, `"${app}" has no demo-ready insta
 // …
 if (!t) throw new HttpError(404, 'No such grant');
 ```
+
 `console.mjs` (let the central catch decide):
+
 ```js
 if (req.method === 'POST' && url.pathname === '/api/demos') {
   if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
@@ -247,6 +271,7 @@ if (req.method === 'POST' && url.pathname === '/api/demos') {
   return json(res, 200, { grant: publicGrant(grant), link });
 }
 ```
+
 Adopt the central `catch` shown under EH-10 so unexpected errors become a logged 500 with a generic message.
 
 ---
@@ -254,17 +279,21 @@ Adopt the central `catch` shown under EH-10 so unexpected errors become a logged
 ### EH-07: Login with JSON `null` returns 500 · Importance 5/10
 
 **Where:** `console.mjs:97` then `:101`/`:106`
+
 ```js
 let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { … }
 const pwOk = !!hash && verifyPassword(String(b.password ?? ''), hash);   // b === null → TypeError
 ```
+
 `JSON.parse('null')` (also `'0'`, `'"x"'`, `'[]'` for some fields) passes the try/catch, then `b.password` throws outside any handler. The outer catch logs `console error` and answers a bare `500 Error`. This also burns one of the rate-limit slots first. (By code reading; any POST to `/login` with body `null` while in password mode exercises it.)
 
 **Fix:**
+
 ```js
 let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.code === 413 ? 413 : 400, { error: 'bad request' }); }
 if (!b || typeof b !== 'object' || Array.isArray(b)) return json(res, 400, { error: 'bad request' });
 ```
+
 Add a test in `tests/unit/console.test.mjs` posting `null`.
 
 ---
@@ -276,6 +305,7 @@ Add a test in `tests/unit/console.test.mjs` posting `null`.
 `stream.pipe()` does not end or destroy the destination when the source closes early or errors. If the demo instance dies or resets mid-response after headers were sent, `res` is never ended and the customer's request hangs until the browser or Caddy times out. `up.on('error')` (line 199-204) only covers the request side before/while the response is being read, and then only destroys `res` if headers were already sent, which does cover some, but not all, abort paths (a response `aborted` event does not always raise an `error` on `up`).
 
 **Fix:** use `pipeline`, which destroys both ends and reports the error:
+
 ```js
 import { pipeline } from 'node:stream';
 // replace `ur.pipe(res);`
@@ -283,6 +313,7 @@ pipeline(ur, res, (err) => {
   if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') logger.debug('proxy stream ended early', { err });
 });
 ```
+
 Whether the hang occurs in your Node version is **unable to verify** without a test. The proof is a test that has the fake upstream write headers plus a partial body, then `socket.destroy()`, and asserts the client sees the connection close promptly. `tests/unit/gateway.test.mjs` already has the fake-upstream scaffolding.
 
 ---
@@ -290,12 +321,14 @@ Whether the hang occurs in your Node version is **unable to verify** without a t
 ### EH-09: Admin UI ignores some failures · Importance 5/10
 
 **Where:** `admin-console/index.html`
+
 - `:180` Revoke: `await fetch('/api/demos/' + g.id + '/revoke', { method: 'POST' }); loadDemos();`. The response status is never checked. A failed revoke (EH-06, an expired session, a bad origin) looks the same as a success, which matters because revoke is a security control.
 - `:89` `showLog`: `r.json()` with no `try/catch`. A 401/404 produces an unhandled promise rejection in the browser and the dialog never opens.
 - `:141` `loadDemos`: `catch { return; }` silently blanks the demo panel on error.
 - `:80-83`, `:133-136`, `:165-167`: after a session expires (12 h), API calls return `401 {"error":"sign in required"}` and the user sees that text but is not sent to `/login`.
 
 **Fix** (one helper, used everywhere):
+
 ```js
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -312,6 +345,7 @@ onclick: async () => {
   loadDemos();
 }
 ```
+
 In token mode (no `/login` page) the 401 redirect should instead say "Session ended. Re-open the URL from the terminal".
 
 ---
@@ -319,11 +353,13 @@ In token mode (no `/login` page) the 401 redirect should instead say "Session en
 ### EH-10: No central error handler or error classes · Importance 5/10
 
 **Current state** (answers to the checklist):
+
 - **Central handler:** there are two last-resort catches (`console.mjs:233-235`, `gateway.mjs:286-289`), but all expected-error handling is hand-written per route. The error response helper `json()` (`lib/http-util.mjs:34`) is used by the console only. The gateway re-implements it as `jsonRes` (`gateway.mjs:80`) and uses `page()` for HTML.
 - **Custom errors:** none. The one ad hoc convention is `Object.assign(new Error('too large'), { code: 413 })` (`console.mjs:80`), later tested as `e.code === 413` at `:97`. The gateway uses `{ code: 'ETIMEOUT' }` (`gateway.mjs:198`). Validation and "not found" use plain `Error`, so callers cannot tell them from bugs (EH-06).
 - **Response shape:** console API errors are `{error: string}`; the console's non-API errors are plain text ("Forbidden", "Not found", "Unauthorized…") or a bare `500 Error`; the gateway answers HTML pages. Not uniform, but consistent within each surface.
 
 **Fix:** one small module plus one wrapper (no new dependencies).
+
 ```js
 // lib/errors.mjs
 export class HttpError extends Error {
@@ -340,6 +376,7 @@ export function toResponse(e) {
   return { status: 500, body: { error: 'internal error' } };
 }
 ```
+
 ```js
 // console.mjs: replace the outer catch at :233-235
 const server = http.createServer((req, res) => {
@@ -351,6 +388,7 @@ const server = http.createServer((req, res) => {
   });
 });
 ```
+
 Then `readBody` throws `tooLarge()` and the `e.code === 413` checks go away. The gateway keeps its own HTML `page()` for customer-facing errors but should use the same `HttpError` for its internals.
 
 ---
@@ -358,12 +396,15 @@ Then `readBody` throws `tooLarge()` and the `e.code === 413` checks go away. The
 ### EH-11: Postgres has no connection or statement timeouts · Importance 5/10
 
 **Where:** `lib/store/postgres.mjs:53`
+
 ```js
 const pool = new pg.Pool({ connectionString: url, max: Number(process.env.DATABASE_POOL_MAX || 10), … });
 ```
+
 `pg` defaults to `connectionTimeoutMillis: 0` (wait forever for a free connection) and no statement timeout. If the database is down or slow, every gateway request (each does two lookups, `grantFor`, plus rate-limit writes) waits with no upper bound, and the health check (`gateway.mjs:81`) hangs rather than returning 503, so the orchestrator never sees the failure. `openPostgres` also gives up immediately on first connect failure (`await pool.query(SCHEMA_SQL)`, line 59) with no retry, which is a problem when the DB and the app start together in `deploy/docker-compose.yml`.
 
 **Fix:**
+
 ```js
 const pool = new pg.Pool({
   connectionString: url,
@@ -374,13 +415,16 @@ const pool = new pg.Pool({
   ...(schema ? { options: `-c search_path=${schema}` } : {}),
 });
 ```
+
 Startup retry (in `openWithPool`, replacing the bare `await pool.query(SCHEMA_SQL)`):
+
 ```js
 for (let i = 1; ; i++) {
   try { await pool.query(SCHEMA_SQL); break; }
   catch (e) { if (i >= 10) throw e; console.error(`postgres not ready (attempt ${i}/10): ${e.message}`); await new Promise((r) => setTimeout(r, Math.min(500 * 2 ** i, 8000))); }
 }
 ```
+
 Both stores are fail-closed on rate-limit write failure (login and redeem return 500 when the DB is down). That is the right choice for login. For the customer link redeem it is a judgment call: decide on purpose rather than by accident.
 
 ---
@@ -392,22 +436,28 @@ Both stores are fail-closed on rate-limit write failure (login and redeem return
 `spawn()` reports failures (for example a non-existent `cwd`) asynchronously as an `'error'` event on the child. Nothing listens, so the supervisor dies with an uncaught exception, possibly after saving a state record with `child.pid === undefined`. Only `app.path` is existence-checked (`index.mjs:69`); `p.cwd` is not, and neither is `fill()` (`index.mjs:36`) which throws `TypeError` if `{port:name}` refers to a process that does not exist.
 
 **Fix:**
+
 ```js
 // process-driver.mjs, both spawnApp implementations, before child.unref()
 child.on('error', (e) => { child.spawnError = e; });
 ```
+
 ```js
 // supervisor/index.mjs, after the 800 ms wait
 if (child.spawnError || !child.pid) { console.error(`Could not start ${app.id}/${p.name}: ${child.spawnError?.message ?? 'no pid'}`); failed = true; continue; }
 ```
+
 ```js
 // supervisor/index.mjs, before spawning
 if (!existsSync(cwd)) { console.error(`Working directory not found: ${cwd}`); process.exit(1); }
 ```
+
 Add `{port:name}` validation to `lib/registry.mjs` `validate()` so the typo is caught at load time:
+
 ```js
 for (const m of String(p.cmd ?? '').matchAll(/\{port:(\w+)\}/g)) if (!a.processes.some((q) => q.name === m[1])) errs.push(`${pw}: {port:${m[1]}} refers to an unknown process`);
 ```
+
 Early-exit detection is also missing: if the app dies within the first second, the supervisor still waits the full 60 s. A `child.on('exit')` flag that breaks the poll loop would report the failure immediately.
 
 ---
@@ -415,12 +465,15 @@ Early-exit detection is also missing: if the app dies within the first second, t
 ### EH-13: Gateway will not start if audit pruning fails · Importance 4/10
 
 **Where:** `demo-gateway/server.mjs:280`
+
 ```js
 const pruned = await gw.store.audit.prune(RETENTION_DAYS);
 ```
+
 Housekeeping is on the critical path of startup. A transient DB error, or `AUDIT_RETENTION_DAYS=abc` (gives `NaN`, producing an invalid date and a thrown `RangeError` in `toISOString()`), stops the gateway from coming up at all.
 
 **Fix:**
+
 ```js
 let pruned = 0;
 try { pruned = await gw.store.audit.prune(Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90); }
@@ -436,6 +489,7 @@ catch (e) { logger.warn('audit prune failed; continuing', { err: e }); }
 A stuck `powershell` or `netstat` blocks the supervisor's event loop indefinitely. `supervisor status` calls `startTime()` once or twice per process. The console kills the supervisor on its 30 s timeout, but on Windows that does not kill the `powershell` grandchild.
 
 **Fix:**
+
 ```js
 const quiet = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 10000, windowsHide: true };
 // taskkill (line 26): { stdio: 'ignore', timeout: 15000, windowsHide: true }
@@ -449,6 +503,7 @@ const quiet = { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 
 - The console answers 404 for a wrong method on a known path (`console.mjs:230`), for example `GET /api/demos/…/revoke`. Harmless, but 405 with `Allow` is the convention.
 
 **Fix:**
+
 ```js
 // lib/http-util.mjs
 export function json(res, code, obj, headers = {}) {
@@ -458,6 +513,7 @@ export function json(res, code, obj, headers = {}) {
 // usage
 return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' }, { 'retry-after': '900' });
 ```
+
 For the gateway `page()`, add an optional headers argument the same way.
 
 ---
@@ -469,15 +525,18 @@ For the gateway `page()`, add an optional headers argument the same way.
 - `gateway.mjs:246` is covered by EH-03.
 
 **Fix:**
+
 ```js
 .catch((err) => logger.warn('session prune failed', { err }))
 ```
+
 ```js
 const { ok, output } = await o.supervisor(['status', '--json'], 30000);
 let rows = [], statusError = null;
 try { rows = JSON.parse(output); } catch { statusError = ok ? 'unreadable status' : 'status check failed'; logger.warn('supervisor status failed', { output: output.slice(0, 300) }); }
 // include `statusError` in the JSON and show a banner in the UI
 ```
+
 This changes the `/api/apps` payload from an array to an object, or use a response header such as `x-status-error: 1` to keep the array.
 
 ---
@@ -485,18 +544,21 @@ This changes the `/api/apps` payload from an array to an object, or use a respon
 ### EH-17: Logging completeness · Importance 3/10
 
 `lib/log.mjs` is clean and JSON-capable, and errors are reduced safely. Gaps:
+
 - Error logs carry no request context: `logger.error('console error', { err: e })` and `'gateway error'` do not say which method/path/host/grant failed. Add a short request id to the logs and the 5xx pages.
 - `plain()` (`log.mjs:13`) drops `error.cause` and non-enumerable fields such as `code`, so a Postgres error loses its SQLSTATE and Node system errors lose `errno`/`code`.
 - The Postgres pool error handler uses `console.error` (`postgres.mjs:58`) instead of the logger. The same goes for the supervisor, which is a CLI, so it is fine there.
 - Metrics count responses by class and upstream errors by kind, but there is no counter for store/DB errors or handler exceptions.
 
 **Fix:**
+
 ```js
 // lib/log.mjs
 const plain = (v) => (v instanceof Error
   ? { message: v.message, code: v.code, stack: v.stack?.split('\n').slice(0, 6).join('\n'), ...(v.cause ? { cause: plain(v.cause) } : {}) }
   : v);
 ```
+
 ```js
 // gateway.mjs catch at :286
 const id = randomBytes(4).toString('hex');
@@ -504,6 +566,7 @@ logger.error('gateway error', { err: e, id, method: req.method, host: req.header
 metrics.inc('pd_gateway_handler_errors_total');
 if (!res.headersSent) page(res, 500, 'Something went wrong', `Please try again shortly. Reference: ${id}`);
 ```
+
 Do not log `req.url` with its query string: link tokens appear only in the path `/d/<token>`, so log a truncated form such as `path.replace(/\/d\/[a-f0-9]{48}/, '/d/…')` to keep link tokens out of logs.
 
 ---
@@ -513,6 +576,7 @@ Do not log `req.url` with its query string: link tokens appear only in the path 
 **Where:** `lib/store/index.mjs:114-125`. `opened ??= (async () => …)()`: if opening fails, the rejected promise stays cached, so later callers get the same error, and `closeStore()` (`:128`) then throws on `await opened`. Today the callers are all start-up paths that exit, so the impact is small, but it makes a retry loop (EH-11) impossible.
 
 **Fix:**
+
 ```js
 export function getStore() {
   opened ??= (async () => { /* existing body */ })().catch((e) => { opened = undefined; throw e; });
@@ -528,12 +592,14 @@ export async function closeStore() { if (opened) { const p = opened; opened = un
 **Where:** `console.mjs:241`, `gateway.mjs:297` (`server.listen(port, host, cb)` wrapped in a promise that can never reject). An `EADDRINUSE` or `EACCES` is emitted as an `'error'` event on the server with no listener, which crashes with a stack trace instead of a clear message.
 
 **Fix:**
+
 ```js
 listen: (host) => new Promise((resolve, reject) => {
   server.once('error', reject);
   server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
 }),
 ```
+
 and in `server.mjs` catch it for a one-line message (`Port 4300 is already in use`).
 
 ---
@@ -541,9 +607,11 @@ and in `server.mjs` catch it for a one-line message (`Port 4300 is already in us
 ### EH-20: Client abort during an upload · Importance 3/10 · **Unable to verify**
 
 `gateway.mjs:207-216` attaches a `'data'` listener to `req` and pipes it to `up`, but never `req.on('error', …)`. If a customer's browser drops mid-upload, Node can emit `'error'` (`ECONNRESET`, "aborted") on the request. Recent Node versions only emit it when a listener exists, so this may be harmless. **What would prove it:** a test in `tests/unit/gateway.test.mjs` that opens a POST with `content-length: 1000000`, writes a few bytes, then `socket.destroy()`, and asserts the gateway process neither throws nor leaks `up` sockets. If it fails, add:
+
 ```js
 req.on('error', () => up.destroy());
 ```
+
 Adding the line is harmless either way.
 
 ---
@@ -556,7 +624,7 @@ No central handler and no custom error classes (EH-10). Handling is uniform with
 ### 2. Categories
 
 | Class | Status today |
-|---|---|
+| --- | --- |
 | Validation 400 | Present: bad JSON (`console.mjs:97`), unknown filter (`:170`), unknown process (`:201`). Mixed with server errors in `/api/demos` (EH-06); `null` JSON gives 500 (EH-07). |
 | Auth 401 | Present and correct: console API 401 (`:146`), token mode 401 (`:155`), gateway 401 (`:171`). |
 | Authorization 403 | Present: host allow-list (`:125`), origin check, gateway grant ended (`:174`), wrong product. |
@@ -566,6 +634,7 @@ No central handler and no custom error classes (EH-10). Handling is uniform with
 | Others | 413, 409 (`busy`), 502 absent for failed supervisor commands (EH-02), 503/504 correct on the gateway. |
 
 ### 3. Async
+
 - No unhandled-rejection safety net (EH-04).
 - Express-style async wrapper: not needed; both servers use one `handle().catch()`, which is equivalent and fine.
 - Callback errors: `execFile` callbacks handle `err` (`console.mjs:34`, `docker.mjs:12`). `spawn` child `'error'` is not handled (EH-12).
@@ -573,10 +642,12 @@ No central handler and no custom error classes (EH-10). Handling is uniform with
 - Fire-and-forget promises are mostly caught; `auditDenied` is awaited inside the request path (a rate-limit write failure there turns a 403 into a 500).
 
 ### 4. Recovery
+
 - **Graceful degradation:** audit is best-effort (good). Supervisor failure shows every app as "stopped" instead of an error (EH-16). DB outage is a hard outage for all demos and all open WebSockets silently stay up (EH-03, EH-11).
 - **Retries:** none anywhere (DB connect at startup, upstream GET, `docker` calls). For a single-owner tool, only the DB startup retry (EH-11) is worth adding.
 - **Circuit breakers:** none. A dead demo instance gets a fresh connect attempt per request (fast `ECONNREFUSED` on loopback), so this is acceptable. Not recommended at this scale.
 - **Fallbacks:** the registry loader caches by mtime and throws on an invalid file (`registry.mjs:83`). If someone saves a bad `apps.json` while the console runs, `loadRegistry()` is called once at start, so a bad edit is only caught at the next restart, and the gateway's `demoApps()` re-reads on every call and would throw a 500 for every request until the file is fixed. Wrap `demoApps()` in a try/catch that keeps serving the last valid registry:
+
 ```js
 // grants.mjs
 let lastGood = {};
@@ -588,9 +659,11 @@ export function demoApps() {
   return lastGood;
 }
 ```
+
 (import `logger` from `../lib/log.mjs`). This one is worth doing: it is a quick edit and it turns a total outage into a log line. Importance 4/10.
 
 ### 5. Error information
+
 - **Dev vs prod:** there is no `NODE_ENV` switch, and none is needed. Clients never receive stacks. The exceptions are the raw `e.message` returns in `console.mjs:223` and `:227` (EH-06) and `login` text, which is deliberately generic.
 - **Logs:** stacks are written (trimmed to 6 lines), which is appropriate for server logs. They lose `code`/`cause` (EH-17). Query strings are not logged; keep it that way.
 - **Friendly messages:** the gateway pages are customer-appropriate. The console's non-API errors are terse plain text ("Error", "Forbidden"), acceptable for an owner-only tool.
