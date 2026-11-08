@@ -9,7 +9,7 @@
 //   sign-out-all   end every signed-in browser session
 //   gen-key        print a new random ADMIN_DATA_KEY; with it set, the 2-step secret is stored encrypted
 // Passwords are never taken from command-line arguments (they would end up in shell history).
-import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { readFileSync, writeFileSync, unlinkSync, lstatSync } from 'node:fs';
 import readline from 'node:readline';
 import { resolve } from 'node:path';
 import { Writable } from 'node:stream';
@@ -81,7 +81,7 @@ try {
       const pending = newTotpSecret();
       await store.meta.set('admin_totp_pending', seal(pending));
       await store.meta.set('admin_totp_pending_file', resolve(file));
-      writeFileSync(file, describe(pending) + '\n');
+      writeFileSync(file, describe(pending) + '\n', { mode: 0o600 });
       console.log(`The secret was written to ${file}. Add it to your authenticator app, then run: enable-totp --code <6 digits> (that deletes the file).`);
       started = true;
     } else if (process.argv.includes('--code')) {
@@ -101,7 +101,11 @@ try {
       await store.meta.set('admin_totp_pending', '');
       const leftover = await store.meta.get('admin_totp_pending_file');
       if (leftover) { // the setup file holds the secret in the clear: remove it now that setup is done
-        try { writeFileSync(leftover, ''); } catch { /* best effort */ } try { unlinkSync(leftover); } catch { /* best effort */ }
+        // ...but only if it is still the file --start wrote (a plain file that starts with our text), never some other file the stored path might point to
+        try {
+          if (lstatSync(leftover).isFile() && readFileSync(leftover, 'utf8').startsWith('Add this to your authenticator app')) { writeFileSync(leftover, ''); unlinkSync(leftover); }
+          else console.error(`Left ${leftover} alone: it is not the setup file this command wrote.`);
+        } catch { /* already gone */ }
         await store.meta.set('admin_totp_pending_file', '');
       }
       await store.sessions.clear();

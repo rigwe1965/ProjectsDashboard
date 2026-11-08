@@ -33,6 +33,17 @@ const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? 
 
 const defaultSupervisor = runSupervisor;
 
+// Private demo copies of one product, for the console: how many are running, which are stuck (could not be stopped or never came up), and each copy's state.
+function copySummary(table) {
+  const now = Date.now();
+  const copyList = Object.entries(table).map(([slot, e]) => ({ slot: Number(slot), state: e.state, minutes: Math.max(0, Math.round((now - (Number(e.seen) || Number(e.at) || now)) / 60000)) }));
+  return {
+    copies: copyList.filter((c) => c.state === 'ready' || c.state === 'starting').length,
+    stuck: copyList.filter((c) => c.state === 'stopping' || c.state === 'failed').length,
+    copyList,
+  };
+}
+
 function tail(file, maxBytes = 12000) {
   if (!existsSync(file)) return '(no log yet)';
   const size = statSync(file).size, start = Math.max(0, size - maxBytes), len = size - start;
@@ -240,7 +251,8 @@ export async function createConsole(opts = {}) {
       const products = await Promise.all(Object.entries(demoApps()).map(async ([product, a]) => ({
         product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed),
         canReset: !!a.reset && !a.perLink, resetting: !!a.reset && !a.perLink && await isResetting(store, product), lastReset: a.reset && !a.perLink ? await lastResetAt(store, product) : null,
-        perLink: !!a.perLink, copies: a.perLink ? Object.values(await listInstances(store, product)).filter((e) => e.state === 'ready' || e.state === 'starting').length : 0, seats: a.perLink?.max ?? 0,
+        perLink: !!a.perLink, seats: a.perLink?.max ?? 0,
+        ...(a.perLink ? copySummary(await listInstances(store, product)) : { copies: 0, stuck: 0, copyList: [] }),
         inUse: a.reset && !a.perLink ? productState(grantList, product).busy : 0, // opened links that have not ended
         accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
       })));

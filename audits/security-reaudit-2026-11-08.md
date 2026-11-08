@@ -84,3 +84,16 @@ If stopping a copy fails, its seat stays occupied and is retried every 30 second
 
 ## Not verified here
 End-to-end browser use of a ClaudeOS or ImageApp copy through the gateway (their copies were started and probed directly; the gateway path was exercised live with Airfinder and in unit tests). Behaviour with all 11 seats busy on a small machine.
+
+---
+
+# Follow-up: open items closed
+
+| ID | What changed | Status |
+|---|---|---|
+| RA-02 | `checkPath` (reset and snapshot) now resolves the real location of the closest existing part of the path and refuses it if a link or junction leads outside `data/`. Test added. | **Fixed** |
+| RA-03 | `enable-totp --code` only deletes the setup file if it is a plain file that still starts with the text `--start` wrote; otherwise it leaves it and says so. The file is now created readable by the owner only. | **Fixed** |
+| RA-05 | Prepare, build and reset logs are created owner-only, and the values of secret-looking settings (keys, tokens, passwords, URLs) are replaced with `***` if a script prints them. | **Fixed** |
+| RB-03, RB-04 | The console now lists each private copy with its state and idle time, and says how many could not be stopped yet. | **Fixed** (visible, retry unchanged) |
+| RA-04 | Hosted CRM stand-ins are how the demo is meant to run. | Unchanged, by design |
+| RB-02 | Needs separate OS users or containers; not a code fix. | Unchanged, documented |

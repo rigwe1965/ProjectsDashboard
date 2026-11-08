@@ -177,7 +177,7 @@ async function instanceStart(base, slotArg) {
     if (!existsSync(cwd)) { console.error(`Prepare step ${i + 1}: working directory not found: ${cwd}`); failed = true; return; }
     let env; try { env = childEnv(app, { ...st, env: { ...(base.perLink.env ?? {}), ...(st.env ?? {}) } }, fillStep); } catch (e) { console.error(`Prepare step ${i + 1}: ${e.message}`); failed = true; return; }
     const r = await runStep(fillStep(st.cmd), cwd, env, (st.timeoutSec ?? 300) * 1000);
-    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} prepare ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`); } catch { /* best effort */ }
+    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} prepare ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* best effort */ }
     if (r.error || r.timedOut || r.status !== 0) { console.log(`Prepare step ${i + 1}/${base.perLink.prepare.length} FAILED (${r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status}); see data/logs/${app.id}-prepare.log`); failed = true; return; }
   }
   await start(app);
@@ -193,10 +193,15 @@ async function instanceStop(base, slotArg) {
 // instance is still started so the demo stays available (possibly with old data); the exit code says it failed.
 // Runs one reset command through the shell. On a timeout the whole process tree is stopped (a shell's children would otherwise
 // be left running), so a hung step cannot leave stray processes behind.
+// Step output goes to a log file: hide the values of secret-looking settings (keys, tokens, passwords, connection strings) if a script prints them.
+function redact(text, env) {
+  for (const [k, v] of Object.entries(env ?? {})) if (/KEY|SECRET|TOKEN|PASS|URL|DSN/i.test(k) && typeof v === 'string' && v.length >= 8) text = text.split(v).join('***');
+  return text;
+}
 function runStep(cmd, cwd, env, timeoutMs) {
   return new Promise((resolve) => {
     let output = '', timedOut = false, settled = false, timer;
-    const done = (r) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ output, timedOut, ...r }); } };
+    const done = (r) => { if (!settled) { settled = true; clearTimeout(timer); resolve({ output: redact(output, env), timedOut, ...r }); } };
     const child = spawn(cmd, { cwd, env, shell: true, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const keep = (d) => { if (output.length < 4 * 1048576) output += d; };
     child.stdout.on('data', keep); child.stderr.on('data', keep);
@@ -216,7 +221,7 @@ async function build(app) {
   process.stdout.write(`Building ${app.id} (this can take a few minutes)...`);
   const r = await runStep(b.cmd, cwd, env, (b.timeoutSec ?? 1800) * 1000);
   const logPath = join(logDir, `${app.id}-build.log`);
-  try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} build: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`); } catch { /* best effort */ }
+  try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} build: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* best effort */ }
   if (r.error || r.timedOut || r.status !== 0) { console.log(` FAILED (${r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status}); see data/logs/${app.id}-build.log`); failed = true; return; }
   console.log(' done');
 }
@@ -234,7 +239,7 @@ async function reset(app) {
     let env; try { env = childEnv(app, st, fillStep); } catch (e) { console.error(`Reset step ${i + 1}: ${e.message}`); ok = false; break; }
     process.stdout.write(`Reset ${app.id} step ${i + 1}/${app.reset.steps.length}...`);
     const r = await runStep(fillStep(st.cmd), cwd, env, (st.timeoutSec ?? 600) * 1000);
-    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} step ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`); } catch { /* log is best effort */ }
+    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} step ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* log is best effort */ }
     if (r.error || r.timedOut || r.status !== 0) { console.log(` FAILED (${r.timedOut ? 'timed out' : r.error ? r.error : 'exit ' + r.status}); see data/logs/${app.id}-reset.log`); ok = false; break; }
     console.log(' ok');
   }

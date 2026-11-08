@@ -190,7 +190,7 @@ async function loadDemos(){
   const accounts = d.products.filter(p => p.accounts.length || p.perLink).map(p =>
     el('div', { class: 'sub' }, p.product + (p.accounts.length ? ': give customers ' + (p.accounts.filter(a => !a.admin).map(a => a.user + ' (' + a.label + ')').join(', ') || 'no limited account is available') : '') +
       (p.accounts.some(a => a.admin) ? '. Owner only: ' + p.accounts.filter(a => a.admin).map(a => a.user).join(', ') : '') +
-      (p.perLink ? '. Each link gets its own private copy, started when it is opened and deleted when the link ends (' + p.copies + ' of ' + p.seats + ' in use)' : '') +
+      (p.perLink ? '. Each link gets its own private copy, started when it is opened and deleted when the link ends (' + p.copies + ' of ' + p.seats + ' in use' + (p.copyList.length ? '; ' + p.copyList.map(c => 'copy ' + (c.slot + 1) + ' ' + c.state + (c.state === 'ready' ? ', idle ' + c.minutes + ' min' : '')).join(', ') : '') + ')' + (p.stuck ? '. ' + p.stuck + ' copy(ies) not stopped yet: the gateway retries every 30 seconds, see its log if this stays' : '') : '') +
       (p.canReset ? '. ' + (p.lastReset ? 'Last reset ' + new Date(p.lastReset).toLocaleString() : 'Not reset yet') + (p.inUse ? ', ' + p.inUse + ' link(s) in use' : '') : '')));
   const form = keepForm || (() => {
     const f = el('form', { class: 'row' },

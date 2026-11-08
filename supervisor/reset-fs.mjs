@@ -2,8 +2,8 @@
 //   node supervisor/reset-fs.mjs clear-dir <dir>    empty a folder (the folder itself is kept)
 //   node supervisor/reset-fs.mjs delete <file>      delete one file (a missing file is fine)
 // Safety: it only touches paths inside the dashboard's own data/ folder, below the first level, and never the demo clones' root.
-import { existsSync, mkdirSync, readdirSync, rmSync, lstatSync } from 'node:fs';
-import { join, resolve, relative, sep, isAbsolute } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, rmSync, lstatSync, realpathSync } from 'node:fs';
+import { join, resolve, relative, sep, isAbsolute, dirname } from 'node:path';
 import { root } from '../lib/config.mjs';
 
 const dataRoot = join(root, 'data');
@@ -16,6 +16,12 @@ export function checkPath(p) {
   if (!rel || isAbsolute(rel) || rel.startsWith('..') || resolve(dataRoot, rel) !== abs) throw new Error(`Refusing to touch ${abs}: it is not inside ${dataRoot}`);
   if (parts.length < 2) throw new Error(`Refusing to touch ${abs}: too close to the top of ${dataRoot}`);
   if (parts[0] === 'demo-src' && parts.length < 3) throw new Error(`Refusing to touch ${abs}: that is a whole demo clone`);
+  // Symlinks and junctions: the real location of the closest existing part of the path must still be inside data/
+  mkdirSync(dataRoot, { recursive: true });
+  let probe = abs;
+  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe);
+  const realRel = relative(realpathSync(dataRoot), realpathSync(probe));
+  if (isAbsolute(realRel) || realRel === '..' || realRel.startsWith('..' + sep)) throw new Error(`Refusing to touch ${abs}: it leads outside ${dataRoot} through a link`);
   return abs;
 }
 

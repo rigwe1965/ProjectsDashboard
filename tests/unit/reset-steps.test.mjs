@@ -28,6 +28,18 @@ test('reset-fs: empties and deletes inside data/, refuses everything else', () =
   assert.doesNotThrow(() => checkPath(join(root, 'data', 'demo-src', 'crm', 'x.db')));
 });
 
+test('reset-fs: a link inside data/ that points outside is refused, and nothing outside is touched', async () => {
+  const { symlinkSync } = await import('node:fs');
+  const outside = join(dir, 'outside'); mkdirSync(outside, { recursive: true }); writeFileSync(join(outside, 'keep.txt'), 'x');
+  mkdirSync(scratch, { recursive: true });
+  const link = join(scratch, 'link');
+  try { symlinkSync(outside, link, 'junction'); } catch { return; } // no permission to make links here: nothing to test
+  assert.throws(() => clearDir(link), /through a link/);
+  assert.throws(() => deleteFile(join(link, 'keep.txt')), /through a link/);
+  assert.ok(existsSync(join(outside, 'keep.txt')));
+  rmSync(link, { force: true, recursive: false });
+});
+
 function supervisor(args, registry) {
   const reg = join(dir, 'registry.json'); writeFileSync(reg, JSON.stringify(registry));
   return spawnSync(process.execPath, [fileURLToPath(new URL('../../supervisor/index.mjs', import.meta.url)), ...args],
