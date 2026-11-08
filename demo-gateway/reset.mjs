@@ -31,19 +31,44 @@ export function productState(grants, product, lastResetMs = 0) {
   };
 }
 
-// Runs `supervisor reset <instance>` and records the outcome. `supervisor(args, timeoutMs)` resolves { ok, output }.
-export async function runReset({ store, product, app, supervisor, by = 'auto' }) {
-  if (await isResetting(store, product)) return { ok: false, busy: true, output: 'A reset of this demo is already running.' };
+// The two halves of a reset, shared by runReset (the supervisor runs the steps) and by the host-side script for container
+// deployments (deploy/reset-demos.sh does the steps with docker and calls these through supervisor/demo-reset-state.mjs).
+export async function beginReset(store, product) {
+  if (await isResetting(store, product)) return null;
   const startedAt = new Date().toISOString();
   await store.meta.set(resettingKey(product), startedAt);
+  return startedAt;
+}
+export async function endReset(store, product, { ok, startedAt, by = 'auto' }) {
+  await store.meta.set(resettingKey(product), '');
+  if (ok) { await store.meta.set(lastKey(product), startedAt || new Date().toISOString()); await store.meta.set(failKey(product), ''); }
+  else await store.meta.set(failKey(product), new Date().toISOString());
+  await store.audit.add({ ev: 'demo-reset', app: product, ok: !!ok, by });
+}
+
+// Runs `supervisor reset <instance>` and records the outcome. `supervisor(args, timeoutMs)` resolves { ok, output }.
+export async function runReset({ store, product, app, supervisor, by = 'auto' }) {
+  const startedAt = await beginReset(store, product);
+  if (!startedAt) return { ok: false, busy: true, output: 'A reset of this demo is already running.' };
   let r;
   try { r = await supervisor(['reset', app.id], 20 * 60 * 1000); }
   catch (err) { r = { ok: false, output: String(err?.message || err) }; }
-  finally { await store.meta.set(resettingKey(product), ''); }
-  if (r.ok) { await store.meta.set(lastKey(product), startedAt); await store.meta.set(failKey(product), ''); }
-  else await store.meta.set(failKey(product), new Date().toISOString());
-  await store.audit.add({ ev: 'demo-reset', app: product, ok: !!r.ok, by });
+  finally { /* the flag is cleared by endReset below, whatever happened */ }
+  await endReset(store, product, { ok: !!r.ok, startedAt, by });
   return r;
+}
+
+// Why a product is, or is not, due for a reset right now: 'due' | 'clean' (nothing opened since the last reset) |
+// 'busy' (a customer link is still active) | 'resetting' | 'backoff' (a reset failed a moment ago).
+export async function resetDue(store, product) {
+  if (await isResetting(store, product)) return 'resetting';
+  const last = Date.parse((await lastResetAt(store, product)) || '') || 0;
+  const { busy, dirty } = productState(await store.grants.list(), product, last);
+  if (!dirty) return 'clean';
+  if (busy) return 'busy';
+  const failedAt = Date.parse((await store.meta.get(failKey(product))) || '') || 0;
+  if (Date.now() - failedAt < RETRY_AFTER_FAIL_MS) return 'backoff';
+  return 'due';
 }
 
 // One pass over every product that has a reset block: reset those that hold customer data and have no customer left in them.
@@ -52,12 +77,7 @@ export async function resetSweep({ store, apps, supervisor }) {
   for (const [product, app] of Object.entries(apps)) {
     if (!app.reset) continue;
     try {
-      if (await isResetting(store, product)) continue;
-      const last = Date.parse((await lastResetAt(store, product)) || '') || 0;
-      const { busy, dirty } = productState(await store.grants.list(), product, last);
-      if (!dirty || busy) continue;
-      const failedAt = Date.parse((await store.meta.get(failKey(product))) || '') || 0;
-      if (Date.now() - failedAt < RETRY_AFTER_FAIL_MS) continue;
+      if ((await resetDue(store, product)) !== 'due') continue;
       logger.info('resetting demo to its seeded state', { product });
       const r = await runReset({ store, product, app, supervisor, by: 'auto' });
       if (!r.ok) logger.error('automatic demo reset failed', { product, output: String(r.output || '').slice(0, 500) });

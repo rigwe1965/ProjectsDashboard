@@ -1,7 +1,7 @@
 // A tiny in-memory stand-in for the Upstash Redis REST API, for a DEMO instance that runs in production mode.
 // The CRM insists on a shared rate-limit store in production (UPSTASH_REDIS_REST_URL / _TOKEN). A demo has one server, so
 // counters in memory are exactly right, and nothing leaves the machine.
-//   node supervisor/redis-rest-stub.mjs <port>      listens on 127.0.0.1 only; REDIS_STUB_TOKEN (optional) is the bearer token
+//   node supervisor/redis-rest-stub.mjs <port>      listens on 127.0.0.1 (REDIS_STUB_BIND changes that); REDIS_STUB_TOKEN (optional) is the bearer token
 // Supports what the CRM uses: INCR, EXPIRE [NX], GET, SET [EX seconds], DEL, TTL. Anything else answers an error.
 import http from 'node:http';
 
@@ -53,5 +53,6 @@ export function createStub(token = '') {
 if (process.argv[1]?.endsWith('redis-rest-stub.mjs')) {
   const port = Number(process.argv[2]);
   if (!Number.isInteger(port) || port < 1) { console.error('Usage: redis-rest-stub.mjs <port>'); process.exit(2); }
-  createStub(process.env.REDIS_STUB_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '').server.listen(port, '127.0.0.1', () => console.log(`rate-limit store listening on 127.0.0.1:${port}`));
+  const bind = process.env.REDIS_STUB_BIND || '127.0.0.1'; // 0.0.0.0 only inside a container network, together with REDIS_STUB_TOKEN
+  createStub(process.env.REDIS_STUB_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '').server.listen(port, bind, () => console.log(`rate-limit store listening on ${bind}:${port}`));
 }

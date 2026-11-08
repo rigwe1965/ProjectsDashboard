@@ -109,3 +109,42 @@ test('while a reset runs the gateway will not open links for that demo (and does
     assert.equal((await get(path, 'POST')).status, 302, 'and links open again afterwards');
   } finally { await gw.close(); }
 });
+
+test('host-side reset bookkeeping (container deployments): due / begin / end', async () => {
+  const { beginReset, endReset, resetDue } = await import('../../demo-gateway/reset.mjs');
+  for (const x of await store.grants.list()) if (x.app === 'rst' && !x.revoked) await grants.revokeGrant(x.id); // links left open by earlier tests
+  await endReset(store, 'rst', { ok: true, startedAt: new Date().toISOString(), by: 'host' }); // a clean baseline
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(await resetDue(store, 'rst'), 'clean', 'nothing opened since the last reset');
+  const g = await open();
+  assert.equal(await resetDue(store, 'rst'), 'busy', 'an opened link is still active');
+  await grants.revokeGrant(g.id);
+  assert.equal(await resetDue(store, 'rst'), 'due');
+  const t = await beginReset(store, 'rst');
+  assert.ok(t);
+  assert.equal(await beginReset(store, 'rst'), null, 'a second reset cannot start while one runs');
+  assert.equal(await resetDue(store, 'rst'), 'resetting');
+  await endReset(store, 'rst', { ok: false, startedAt: t, by: 'host' });
+  assert.equal(await resetDue(store, 'rst'), 'backoff', 'a failed reset is not retried at once');
+  await store.meta.set('demo_reset_failed:rst', '');
+  const t2 = await beginReset(store, 'rst');
+  await endReset(store, 'rst', { ok: true, startedAt: t2, by: 'host' });
+  assert.equal(await resetDue(store, 'rst'), 'clean');
+  assert.ok((await store.audit.list(50)).some((e) => e.ev === 'demo-reset' && e.by === 'host' && e.ok === true));
+});
+
+test('supervisor/demo-reset-state.mjs: exit codes the host script relies on', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const cli = fileURLToPath(new URL('../../supervisor/demo-reset-state.mjs', import.meta.url));
+  const run = (...a) => spawnSync(process.execPath, [cli, ...a], { env: { ...process.env, DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json') }, encoding: 'utf8' });
+  await store.meta.set('demo_resetting:cli', ''); // (the CLI shares this test's database)
+  const due = run('due', 'cli');
+  assert.equal(due.status, 1); assert.equal(due.stdout.trim(), 'clean');
+  const begun = run('begin', 'cli');
+  assert.equal(begun.status, 0); assert.match(begun.stdout.trim(), /^\d{4}-\d\d-\d\dT/);
+  assert.equal(run('begin', 'cli').status, 3, 'already running');
+  assert.equal(run('end', 'cli', 'ok', begun.stdout.trim()).status, 0);
+  assert.equal(run('end', 'cli', 'maybe').status, 2);
+  assert.equal(run('due', '../etc').status, 2, 'a product name is validated');
+});

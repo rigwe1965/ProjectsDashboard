@@ -2,6 +2,8 @@
 // the vehicles, categories and prices).
 //   node supervisor/reset-supabase-demo.mjs <envfile>          dry run: counts what would be removed, changes nothing
 //   node supervisor/reset-supabase-demo.mjs <envfile> --yes    do it
+//   node supervisor/reset-supabase-demo.mjs --env [--yes]      the same, with the settings taken from environment variables
+//                                                              (for a container deployment, where there is no env file)
 // What it removes: bookings and everything attached to them, payments, e-mail log, AI conversations, licence checks,
 // loyalty accounts, maintenance alerts, the admin audit log and every sign-in account EXCEPT the two demo accounts
 // (ADMIN_EMAIL, CUSTOMER_EMAIL). It sets those two accounts' passwords back to ADMIN_PASSWORD / CUSTOMER_PASSWORD.
@@ -9,11 +11,14 @@
 // Keys are never printed.
 import { readFileSync } from 'node:fs';
 
-const [envFile, flag] = process.argv.slice(2);
-if (!envFile) { console.error('Usage: reset-supabase-demo.mjs <envfile> [--yes]'); process.exit(2); }
-const apply = flag === '--yes';
+const args = process.argv.slice(2);
+const fromEnv = args[0] === '--env';
+const envFile = fromEnv ? null : args[0];
+if (!fromEnv && !envFile) { console.error('Usage: reset-supabase-demo.mjs <envfile> [--yes]  |  --env [--yes]'); process.exit(2); }
+const apply = args.includes('--yes');
 const env = {};
-for (const l of readFileSync(envFile, 'utf8').split(/\r?\n/)) { const t = l.trim(), i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
+if (fromEnv) for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD']) env[k] = (process.env[k] || '').trim();
+else for (const l of readFileSync(envFile, 'utf8').split(/\r?\n/)) { const t = l.trim(), i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
 for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD'])
   if (!env[k] || env[k] === 'REPLACE_ME') { console.error('STOP: missing ' + k); process.exit(1); }
 

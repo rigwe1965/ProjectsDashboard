@@ -59,9 +59,27 @@ can never contain production secrets or data. Demos start empty; none of them ha
 | CRM | `CRM_*` (its own Postgres container) | `docker compose --profile apps run --rm crm-demo seed` (wipes and fills the demo database only) |
 | ClaudeWorkspace | `CW_SUPABASE_*` of a **separate** demo Supabase project | apply its 14 migrations and seed to that project (as for the local demo) |
 
-CRM and ClaudeWorkspace run `next dev`, like the verified local demos. Production mode (`next start`) refuses to boot
-without a real email provider, Redis, and other services a demo should not have. First page loads are slower while Next
-compiles them. These two recipes are for demos only, never for real customer data.
+CRM and ClaudeWorkspace run **production builds** (`next build` when the image is built, `next start` when it runs), not dev
+servers, so no error overlay with source code and no development-only routes are reachable. Production mode insists on
+settings a demo does not really have, so compose supplies harmless stand-ins: CRM mail goes to a closed port inside its
+container (nothing is ever sent), its rate limits live in the small `crm-demo-ratelimit` service, and its MFA and cron keys
+are derived from `CRM_AUTH_SECRET`. ClaudeWorkspace fixes its public addresses and the public Supabase values into the build,
+so **changing `DEMO_DOMAIN` or the Supabase project means rebuilding** (`docker compose --profile apps build`). These two
+recipes are for demos only, never for real customer data.
+
+**Resetting the demos between customers.** Every product has one demo instance that all of its customers share, so each is
+put back to its seeded state once the links opened for it have all been revoked or have expired. The containers have no Docker
+access, so this is driven from the host:
+```bash
+./reset-demos.sh --dry-run          # what would be reset, and why not
+./reset-demos.sh                    # reset every demo that is due
+./reset-demos.sh --force crm        # reset one now, even if a customer link is still active
+```
+Run it from cron or a systemd timer every ten minutes (`*/10 * * * * cd /srv/projects-dashboard/deploy && ./reset-demos.sh`).
+While one runs, the gateway tells customers the demo is being prepared, and each reset is listed in the console's Activity
+view. CRM re-runs its seed, ImageApp's container is recreated (its uploads are inside it), Airfinder's database is deleted and
+re-seeded, and ClaudeWorkspace's Supabase project is emptied of customer data and extra accounts and its vehicles re-seeded
+(set `CW_DEMO_ADMIN_*` and `CW_DEMO_CUSTOMER_*` in `.env`; the two demo accounts are kept and their passwords restored).
 
 In `registry/apps.hosted.json` a process is either a host process (`cmd`) or an existing container
 (`container` = its name, `host` = its service name on the compose network, `port` = the port inside the container).
@@ -107,6 +125,6 @@ Stop and remove it with `docker compose -f docker-compose.yml -f docker-compose.
 - Demo apps must not share data with production: give every demo instance its own database, as for the local setup.
 
 ## Not done yet
-- Recipes for RMM and ClaudeOS (not demo-ready yet).
+- Recipes for RMM and ClaudeOS (not demo-ready yet; locally they reset through the supervisor).
 - Moving existing demo links from a local SQLite database into Postgres (new links are simply created on the server).
 - ClaudeOS and RMM UI demos still need their own demo data before they can be marked demo-ready.

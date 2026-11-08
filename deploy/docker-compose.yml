@@ -137,7 +137,7 @@ services:
       retries: 3
     networks: [internal]
 
-  # CRM demo: its own Postgres (never shared with production) plus the app in dev mode (see deploy/apps/crm/Dockerfile).
+  # CRM demo: its own Postgres (never shared with production) plus the app as a production build (see deploy/apps/crm/Dockerfile).
   crm-demo-db:
     profiles: ["apps"]
     image: postgres:17-alpine
@@ -157,6 +157,24 @@ services:
       retries: 20
     networks: [internal]
 
+  # In-memory stand-in for the Upstash rate-limit store the CRM requires in production mode (a demo has one server).
+  crm-demo-ratelimit:
+    <<: *hardened
+    profiles: ["apps"]
+    image: projects-dashboard
+    restart: unless-stopped
+    command: ["node", "supervisor/redis-rest-stub.mjs", "8079"]
+    environment:
+      REDIS_STUB_BIND: 0.0.0.0
+      REDIS_STUB_TOKEN: ${CRM_AUTH_SECRET:-}
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8079/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 4s
+      retries: 3
+    networks: [internal]
+
   crm-demo:
     profiles: ["apps"]
     build:
@@ -165,7 +183,7 @@ services:
     image: pd-crm
     container_name: pd-crm-demo
     restart: unless-stopped
-    depends_on: { crm-demo-db: { condition: service_healthy } }
+    depends_on: { crm-demo-db: { condition: service_healthy }, crm-demo-ratelimit: { condition: service_started } }
     environment:     # no email, Stripe, WhatsApp or AI keys: the demo never contacts an outside service
       DATABASE_URL: postgresql://crm_app:${CRM_APP_PASSWORD:-}@crm-demo-db:5432/crm
       DIRECT_URL: postgresql://crm:${CRM_DB_PASSWORD:-}@crm-demo-db:5432/crm
@@ -175,7 +193,17 @@ services:
       AUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
       AUTH_TRUST_HOST: "true"
       SEED_USER_PASSWORD: ${CRM_DEMO_PASSWORD:-}
-    volumes: [crm_demo_next:/app/.next]
+      # Stand-ins for what production mode insists on. Nothing real is behind them: mail goes to a closed port inside the
+      # container (so nothing is ever sent), rate limits live in the crm-demo-ratelimit service, and admins sign in without
+      # two-step codes like the local demo. The MFA and cron keys are derived from CRM_AUTH_SECRET by the entrypoint.
+      EMAIL_SERVER: smtp://127.0.0.1:2525
+      EMAIL_FROM: "CRM Demo <noreply@crm-demo.invalid>"
+      REQUIRE_ADMIN_MFA: "0"
+      UPSTASH_REDIS_REST_URL: http://crm-demo-ratelimit:8079
+      UPSTASH_REDIS_REST_TOKEN: ${CRM_AUTH_SECRET:-}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 512
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/sign-in').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 20s
@@ -191,6 +219,11 @@ services:
     build:
       context: ${APPS_ROOT:-../..}/ClaudeWorkspace/reci-transport
       dockerfile: ../../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/claudeworkspace/Dockerfile
+      args:     # fixed into the production build: change DEMO_DOMAIN or the Supabase project and the image must be rebuilt
+        NEXT_PUBLIC_SUPABASE_URL: ${CW_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${CW_SUPABASE_ANON_KEY:-}
+        NEXT_PUBLIC_APP_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}
+        NEXT_PUBLIC_ADMIN_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}/admin
     image: pd-claudeworkspace
     container_name: pd-claudeworkspace-web
     restart: unless-stopped
@@ -200,7 +233,9 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${CW_SUPABASE_SERVICE_ROLE_KEY:-}
       NEXT_PUBLIC_APP_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}
       NEXT_PUBLIC_ADMIN_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}/admin
-    volumes: [cw_web_next:/app/apps/web/.next]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 512
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3102/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
       interval: 20s
@@ -216,15 +251,32 @@ services:
     restart: unless-stopped
     depends_on: [claudeworkspace-web]       # same image, built once by the web service
     working_dir: /app/apps/admin
-    command: ["pnpm", "exec", "next", "dev", "-H", "0.0.0.0", "-p", "3103", "--turbo"]
+    command: ["pnpm", "exec", "next", "start", "-H", "0.0.0.0", "-p", "3103"]
     environment: *cw-env
-    volumes: [cw_admin_next:/app/apps/admin/.next]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 512
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3103/admin').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
       interval: 20s
       timeout: 8s
       retries: 5
       start_period: 120s
+    networks: [internal]
+
+  # One-off: empties the ClaudeWorkspace demo's customer data (deploy/reset-demos.sh runs it; it is not part of `up`).
+  cw-reset:
+    <<: *hardened
+    profiles: ["reset"]
+    image: projects-dashboard
+    command: ["node", "supervisor/reset-supabase-demo.mjs", "--env", "--yes"]
+    environment:
+      NEXT_PUBLIC_SUPABASE_URL: ${CW_SUPABASE_URL:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${CW_SUPABASE_SERVICE_ROLE_KEY:-}
+      ADMIN_EMAIL: ${CW_DEMO_ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${CW_DEMO_ADMIN_PASSWORD:-}
+      CUSTOMER_EMAIL: ${CW_DEMO_CUSTOMER_EMAIL:-}
+      CUSTOMER_PASSWORD: ${CW_DEMO_CUSTOMER_PASSWORD:-}
     networks: [internal]
 
 networks:
@@ -240,6 +292,3 @@ volumes:
   caddy_config:
   airfinder_demo_data:
   crm_demo_pgdata:
-  crm_demo_next:
-  cw_web_next:
-  cw_admin_next:
