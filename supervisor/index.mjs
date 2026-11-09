@@ -33,12 +33,14 @@ let failed = false; // any start that did not come up or stop that did not stop 
 const startTime = (pid) => driver.startTime(pid);
 const listenerPid = (port) => driver.listenerPid(port);
 
+// {port:name} -> the port of that process of the app. Every kind of command (start, prepare, reset) goes through this.
+const portRefs = (app) => (str) => str.replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
+
 function fill(str, proc, app) {
-  return str
+  return portRefs(app)(str
     .replaceAll('{url}', `http://localhost:${proc.port}`)
     .replaceAll('{port}', String(proc.port))
-    .replaceAll('{inst}', app.inst ?? '')
-    .replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((p) => p.name === n).port));
+    .replaceAll('{inst}', app.inst ?? ''));
 }
 
 // The environment for a child: a minimal base, the dashboard's own env file (under data/, never the app's .env), then the
@@ -188,15 +190,16 @@ const perLinkApp = (base, slotArg) => {
 async function instanceStart(base, slotArg) {
   const app = perLinkApp(base, slotArg);
   freshInstanceDir(base.id, app.slot);
-  const fillStep = (v) => fill(v, { port: '' }, app).replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((q) => q.name === n).port));
-  const logPath = join(logDir, `${app.id}-prepare.log`);
-  for (const [i, st] of (base.perLink.prepare ?? []).entries()) {
-    const cwd = resolve(app.path, st.cwd ?? '.');
-    if (!existsSync(cwd)) { console.error(`Prepare step ${i + 1}: working directory not found: ${cwd}`); failed = true; return; }
-    let env; try { env = childEnv(app, { ...st, env: { ...(base.perLink.env ?? {}), ...(st.env ?? {}) } }, fillStep); } catch (e) { console.error(`Prepare step ${i + 1}: ${e.message}`); failed = true; return; }
-    const r = await runStep(fillStep(st.cmd), cwd, env, (st.timeoutSec ?? 300) * 1000);
-    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} prepare ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* best effort */ }
-    if (r.error || r.timedOut || r.status !== 0) { console.log(`Prepare step ${i + 1}/${base.perLink.prepare.length} FAILED (${r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status}); see data/logs/${app.id}-prepare.log`); failed = true; return; }
+  const fillStep = (v) => fill(v, { port: '' }, app);
+  const steps = base.perLink.prepare ?? [];
+  for (const [i, st] of steps.entries()) {
+    const r = await runLoggedStep({ app, step: st, envSource: { ...st, env: { ...(base.perLink.env ?? {}), ...(st.env ?? {}) } }, fillStep,
+      logName: `${app.id}-prepare.log`, label: `prepare ${i + 1}`, defaultTimeoutSec: 300 });
+    if (!r.ok) {
+      if (r.problem) console.error(`Prepare step ${i + 1}: ${r.problem}`);
+      else console.log(`Prepare step ${i + 1}/${steps.length} FAILED (${r.how}); see data/logs/${app.id}-prepare.log`);
+      failed = true; return;
+    }
   }
   await start(app);
 }
@@ -229,19 +232,28 @@ function runStep(cmd, cwd, env, timeoutMs) {
     child.on('close', (code) => done({ status: code }));
   });
 }
+// One step of a build, reset or per-copy prepare: working folder and env are checked first, then the command runs with a timeout and its
+// output is appended to data/logs/<logName>. Returns { ok: true }, or { ok: false, problem } when it could not even start (the caller
+// words that), or { ok: false, how } when it ran and failed ('timed out', an error, or 'exit N').
+async function runLoggedStep({ app, step, envSource, fillStep, logName, label, defaultTimeoutSec, onStart = () => {} }) {
+  const cwd = resolve(app.path, step.cwd ?? '.');
+  if (!existsSync(cwd)) return { ok: false, problem: `working directory not found: ${cwd}` };
+  let env; try { env = childEnv(app, envSource, fillStep); } catch (e) { return { ok: false, problem: e.message }; }
+  onStart();
+  const r = await runStep(fillStep(step.cmd), cwd, env, (step.timeoutSec ?? defaultTimeoutSec) * 1000);
+  try { appendFileSync(join(logDir, logName), `\n--- ${new Date().toISOString()} ${label}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* best effort */ }
+  if (r.error || r.timedOut || r.status !== 0) return { ok: false, how: r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status };
+  return { ok: true };
+}
 // Build a demo for production (e.g. `next build`) using the registry's "build" block. Run it once, and again after the app's code
 // changes. The build runs with the demo's own env file; the dashboard never reads the app's .env.
 async function build(app) {
   const b = app.build;
   if (!b?.cmd) { console.error(`${app.id} has no "build" in the registry.`); failed = true; return; }
-  const cwd = resolve(app.path, b.cwd ?? '.');
-  if (!existsSync(cwd)) { console.error(`Working directory not found: ${cwd}`); failed = true; return; }
-  let env; try { env = childEnv(app, b, (v) => v); } catch (e) { console.error(e.message); failed = true; return; }
-  process.stdout.write(`Building ${app.id} (this can take a few minutes)...`);
-  const r = await runStep(b.cmd, cwd, env, (b.timeoutSec ?? 1800) * 1000);
-  const logPath = join(logDir, `${app.id}-build.log`);
-  try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} build: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* best effort */ }
-  if (r.error || r.timedOut || r.status !== 0) { console.log(` FAILED (${r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status}); see data/logs/${app.id}-build.log`); failed = true; return; }
+  const r = await runLoggedStep({ app, step: b, envSource: b, fillStep: (v) => v, logName: `${app.id}-build.log`, label: 'build', defaultTimeoutSec: 1800,
+    onStart: () => process.stdout.write(`Building ${app.id} (this can take a few minutes)...`) });
+  if (r.problem) { console.error(r.problem[0].toUpperCase() + r.problem.slice(1)); failed = true; return; }
+  if (!r.ok) { console.log(` FAILED (${r.how}); see data/logs/${app.id}-build.log`); failed = true; return; }
   console.log(' done');
 }
 async function reset(app) {
@@ -249,17 +261,13 @@ async function reset(app) {
   let wasRunning = false; // answering on its port counts; a stale record of a process that is gone does not
   for (const p of app.processes) if (!p.optional && await httpUp(p.port, p.health, p.host)) wasRunning = true;
   await stop(app);
-  const logPath = join(logDir, `${app.id}-reset.log`);
-  const fillStep = (v) => v.replace(/\{port:(\w+)\}/g, (_, n) => String(app.processes.find((q) => q.name === n).port));
+  const fillStep = portRefs(app);
   let ok = true;
   for (const [i, st] of app.reset.steps.entries()) {
-    const cwd = resolve(app.path, st.cwd ?? '.');
-    if (!existsSync(cwd)) { console.error(`Reset step ${i + 1}: working directory not found: ${cwd}`); ok = false; break; }
-    let env; try { env = childEnv(app, st, fillStep); } catch (e) { console.error(`Reset step ${i + 1}: ${e.message}`); ok = false; break; }
-    process.stdout.write(`Reset ${app.id} step ${i + 1}/${app.reset.steps.length}...`);
-    const r = await runStep(fillStep(st.cmd), cwd, env, (st.timeoutSec ?? 600) * 1000);
-    try { appendFileSync(logPath, `\n--- ${new Date().toISOString()} step ${i + 1}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* log is best effort */ }
-    if (r.error || r.timedOut || r.status !== 0) { console.log(` FAILED (${r.timedOut ? 'timed out' : r.error ? r.error : 'exit ' + r.status}); see data/logs/${app.id}-reset.log`); ok = false; break; }
+    const r = await runLoggedStep({ app, step: st, envSource: st, fillStep, logName: `${app.id}-reset.log`, label: `step ${i + 1}`, defaultTimeoutSec: 600,
+      onStart: () => process.stdout.write(`Reset ${app.id} step ${i + 1}/${app.reset.steps.length}...`) });
+    if (r.problem) { console.error(`Reset step ${i + 1}: ${r.problem}`); ok = false; break; }
+    if (!r.ok) { console.log(` FAILED (${r.how}); see data/logs/${app.id}-reset.log`); ok = false; break; }
     console.log(' ok');
   }
   if (wasRunning) await start(app);
