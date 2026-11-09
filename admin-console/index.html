@@ -179,7 +179,7 @@ footer{max-width:1140px;margin:56px auto 36px;padding:0 20px;color:var(--mute);f
 <script>
 const grid = document.getElementById('grid'), copygrid = document.getElementById('copygrid'), toast = document.getElementById('toast');
 document.getElementById('logclose').addEventListener('click', () => document.getElementById('logdlg').close());
-let working = new Set(), apps = [];
+let working = new Set(), apps = [], appsText = '';
 // Each product keeps its colour from the public site, so the console and the website match.
 const ACCENT = { crm: '#2b4acb', rmm: '#0f766e', claudeworkspace: '#c2410c', airfinder: '#0369a1', imageapp: '#7c3aed', claudeos: '#407E3C' };
 const accentOf = (id) => ACCENT[String(id).replace(/-demo$/, '')] || null;
@@ -187,7 +187,8 @@ const softName = (n) => String(n).replace(/([a-z])([A-Z])/g, '$1\u200b$2');
 const colorStyle = (id) => { const c = accentOf(id); return c ? '--c:' + c : null; };
 
 // A failure stays on screen longer than a confirmation, so the reason can be read.
-function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), /FAILED|Request failed|Could not|Port d+/.test(msg) ? 10000 : 4500); }
+// `sticky` keeps the message up until the next one replaces it (used while an action is running).
+function say(msg, sticky){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); if (!sticky) say.t = setTimeout(()=>toast.classList.remove('on'), /FAILED|Request failed|Could not|Port d+/.test(msg) ? 10000 : 4500); }
 function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (v == null) continue; if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null) e.append(c); return e; }
 const DOTWORD = { run: 'running', ext: 'running elsewhere', bad: 'problem' };
 const dot = (kind) => el('i', { class: 'dot ' + (kind || ''), role: 'img', 'aria-label': DOTWORD[kind] || 'stopped' });
@@ -215,9 +216,11 @@ async function act(app, action, proc){
   const key = app.id + (proc || '');
   if (action !== 'start' && !confirm(`${action[0].toUpperCase()+action.slice(1)} ${app.name}${proc ? ' / ' + proc : ''}?`)) return;
   working.add(key); render();
+  // The click is acknowledged at once: starting an app can take a minute, and a silent page looks like a dead button.
+  say(({ start: 'Starting ', stop: 'Stopping ', restart: 'Restarting ' }[action] || action + ' ') + app.name + (proc ? ' / ' + proc : '') + '…', true);
   try {
     say(outcome(await api(`/api/apps/${app.id}/${action}${proc ? '?proc=' + proc : ''}`, { method: 'POST' })));
-  } catch (e) { if (e.message !== 'signed out') say('Request failed'); }
+  } catch (e) { if (e.message !== 'signed out') say('Request failed: ' + e.message); }
   working.delete(key); await load();
 }
 
@@ -283,9 +286,12 @@ async function load(){
   try {
     const r = await fetch('/api/apps');
     if (r.status === 401) throw await lost(r);
-    apps = await r.json();
+    const text = JSON.stringify(await r.json());
     const err = r.headers.get('x-status-error');
-    setUpdated(err ? 'Status check failed (' + err + '), states may be wrong' : 'Updated ' + new Date().toLocaleTimeString(), !!err); render();
+    setUpdated(err ? 'Status check failed (' + err + '), states may be wrong' : 'Updated ' + new Date().toLocaleTimeString(), !!err);
+    // Rebuild the cards only when something changed or an action is running: a page that is replaced every few seconds can swallow a
+    // click that was pressed just before the rebuild.
+    if (text !== appsText || working.size) { appsText = text; apps = JSON.parse(text); render(); }
   }
   catch (e) { if (e.message === 'signed out') return; setUpdated('Console unreachable. Check that it is still running.', true); }
 }
@@ -377,9 +383,9 @@ const EVENT_LABELS = {
   'admin-login': 'Console sign-in', 'admin-login-failed': 'Console sign-in failed', 'admin-password-set': 'Password changed',
   'admin-totp-enabled': '2-step codes turned on', 'admin-totp-disabled': '2-step codes turned off', 'admin-password-removed': 'Password removed',
   'admin-sessions-cleared': 'All sessions ended', 'admin-logout': 'Console sign-out', 'admin-app-start': 'App started', 'admin-app-stop': 'App stopped', 'admin-app-restart': 'App restarted', 'grant-created': 'Demo link created', 'grant-revoked': 'Demo link revoked',
-  'enter': 'Customer opened a demo', 'denied': 'Demo access refused', 'ws-open': 'Live connection opened', 'ws-closed': 'Live connection cut',
+  'admin-action-refused': 'Console action refused', 'enter': 'Customer opened a demo', 'denied': 'Demo access refused', 'ws-open': 'Live connection opened', 'ws-closed': 'Live connection cut',
 };
-const BAD_EVENTS = new Set(['admin-login-failed', 'denied', 'ws-closed']);
+const BAD_EVENTS = new Set(['admin-login-failed', 'denied', 'ws-closed', 'admin-action-refused']);
 async function loadActivity(){
   const box = document.getElementById('acttable');
   try {
