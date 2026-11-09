@@ -17,7 +17,7 @@ import { dirname, join } from 'node:path';
 import { loadGrants, createGrant, revokeGrant, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
-import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
 import { num, createSerialLock, fireAndForget } from '../lib/util.mjs';
@@ -91,7 +91,7 @@ export async function createConsole(opts = {}) {
   // Scripts run only if they carry this response's random nonce, so injected markup cannot execute. (Styles stay inline: far lower risk.)
   const csp = (script) => `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src ${script}; frame-ancestors 'none'; form-action 'self'; base-uri 'none'`;
   const securityHeaders = {
-    'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
+    ...BASE_SECURITY_HEADERS,
     'content-security-policy': csp("'none'"), // JSON and redirects never need a script
   };
   const html = (res, code, body) => {

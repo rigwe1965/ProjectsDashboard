@@ -317,6 +317,7 @@ test('security headers: on the gateway pages, and added to proxied responses', a
   assert.equal(page.status, 401);
   assert.equal(page.headers['x-frame-options'], 'DENY');
   assert.equal(page.headers['referrer-policy'], 'no-referrer');
+  assert.equal(page.headers['cache-control'], 'no-store');
   assert.match(page.headers['content-security-policy'], /default-src 'none'/);
   const g = await newGrant();
   const proxied = await request({ headers: { cookie: g.cookie } });

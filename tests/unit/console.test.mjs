@@ -58,6 +58,7 @@ test('token mode: launch URL logs in, everything else is refused, headers are se
   assert.equal(home.headers['x-frame-options'], 'DENY');
   assert.equal(home.headers['x-content-type-options'], 'nosniff');
   assert.equal(home.headers['referrer-policy'], 'no-referrer');
+  assert.equal(home.headers['cache-control'], 'no-store');
   assert.match(home.headers['content-security-policy'], /frame-ancestors 'none'/);
   assert.equal((await req(port, { path: '/api/apps', headers: { cookie } })).status, 200);
 });

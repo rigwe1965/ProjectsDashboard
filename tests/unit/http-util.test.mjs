@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { cookieOf, safeEq, portInUse } from '../../lib/http-util.mjs';
+import { cookieOf, safeEq, portInUse, BASE_SECURITY_HEADERS } from '../../lib/http-util.mjs';
 import { cleanEnv } from '../../lib/clean-env.mjs';
 
 const req = (cookie) => ({ headers: { cookie } });
@@ -51,4 +51,9 @@ test('minimalEnv keeps toolchain variables and drops everything else (secrets, d
   assert.deepEqual(Object.keys(out).sort(), ['LANG', 'PATH', 'Path', 'SystemRoot', 'TEMP']);
   assert.equal(minimalEnv({ MY_NEEDED: '1', DATABASE_URL: 'x' }, 'my_needed').MY_NEEDED, '1', 'opt-in passthrough by name');
   assert.equal(minimalEnv({ MY_NEEDED: '1', DATABASE_URL: 'x' }, 'my_needed').DATABASE_URL, undefined);
+});
+
+test('BASE_SECURITY_HEADERS is the fixed baseline and cannot be changed by a caller', () => {
+  assert.deepEqual(BASE_SECURITY_HEADERS, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' });
+  assert.ok(Object.isFrozen(BASE_SECURITY_HEADERS));
 });

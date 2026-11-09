@@ -13,7 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { ports } from '../lib/config.mjs';
-import { cookieOf as readCookie, clientIp, safeEq, json } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, clientIp, safeEq, json, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { num, fireAndForget, unmapV4 } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
@@ -45,7 +45,7 @@ const SESSION_RE = /^[a-f0-9]{64}$/;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 
 const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https';
-const OWN_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
+const OWN_HEADERS = { ...BASE_SECURITY_HEADERS,
   'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(HTTPS ? { 'strict-transport-security': 'max-age=31536000' } : {}) };
 // `head` is extra markup for <head> (for example a meta refresh).
 const page = (res, code, title, msg, headers = {}, head = '') => {
