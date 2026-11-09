@@ -15,7 +15,7 @@ No high or medium security issue found. The gateway, console and auth code is ca
 | N-01 | `npm run lint` fails on `tests/journeys.mjs:30`; CI runs lint | 4/10 | **Fixed** |
 | N-02 | Nothing tests the console page's inline script; a syntax error shipped and blanked the console | 4/10 | **Fixed** (script in `33fc7c1`, test added) |
 | N-03 | Hosted compose defaults app secrets and passwords to empty (`:-`) | 3/10 | **Fixed** (with a check script; see note) |
-| N-04 | RMM demo needs Docker, which nothing started or checked | 3/10 | **Fixed** (launcher); console path still open |
+| N-04 | RMM demo needs Docker, which nothing started or checked | 3/10 | **Fixed** (launcher and supervisor) |
 | N-05 | Sign-in error text reveals whether two-step codes are on | 2/10 | **Fixed** |
 | N-06 | Gateway tunnels any `Upgrade` request as a raw socket, not only WebSocket | 2/10 | **Fixed** |
 | N-07 | Unknown session cookies cost one database read per request, with no rate limit | 2/10 | **Fixed** |
@@ -25,7 +25,7 @@ No high or medium security issue found. The gateway, console and auth code is ca
 
 ## Remediation status (2026-11-09)
 
-All findings except the console path of N-04 were fixed after this report was first written. Two corrections to the report itself came out of the work:
+All findings were fixed after this report was first written (N-04: the launcher first, then the supervisor itself through a registry `requiresDocker` flag, so the admin console starts Docker too). Two corrections to the report itself came out of the work:
 
 - **N-03:** the `${VAR:?message}` form suggested below cannot be used on its own. Compose reads it for every service in the file, even those outside the profile, so it would also stop the plain `docker compose up -d`. The fix is `deploy/check-apps-env.sh`, which refuses empty values for the demos you name, plus a README and compose-header note.
 - **N-08:** `data/tools/rmm_demo_api.py` is also untracked (`.gitignore` ignores `/data/*`; an earlier `git ls-files` reading suggested otherwise). Both RMM scripts now live in `supervisor/demo-fixes/` and the registry points there.

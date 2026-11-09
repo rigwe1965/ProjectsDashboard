@@ -388,6 +388,7 @@
       "path": "${DASHBOARD_ROOT}\\data\\demo-src\\rmm",
       "stack": "Flask + Streamlit + Postgres + Redis (Docker containers pd-rmm-demo-pg, pd-rmm-demo-redis)",
       "demoOf": "rmm",
+      "requiresDocker": true,
       "demoReady": true,
       "reset": { "steps": [
         { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\rmm_reset.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 },

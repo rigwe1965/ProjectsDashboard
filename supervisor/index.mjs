@@ -14,7 +14,7 @@ import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
 import { getDriver } from '../lib/process-driver.mjs';
-import { containerRunning, startContainer, stopContainer } from '../lib/docker.mjs';
+import { containerRunning, startContainer, stopContainer, ensureEngine } from '../lib/docker.mjs';
 import { instanceApp, validSlot, freshInstanceDir, removeInstanceDir } from '../lib/instance-app.mjs';
 
 const logDir = join(dataDir, 'logs');
@@ -90,6 +90,12 @@ async function start(app, only) {
   // An app that runs a production build (not a dev server) must have been built first: say so instead of failing to boot.
   if (app.build?.produces && !existsSync(resolve(app.path, app.build.cwd ?? '.', app.build.produces))) {
     console.error(`${app.id} has not been built yet. Run: node supervisor/index.mjs build ${app.id}`); process.exit(1);
+  }
+  // a demo whose database lives in Docker needs the engine up first (this waits longer than an app's own 60 s)
+  if (app.requiresDocker) {
+    const d = await ensureEngine({ log: (m) => console.log(m) });
+    if (!d.ok) { console.error(d.message); process.exit(1); }
+    if (d.started) console.log('Docker is running.');
   }
   // pre-flight all ports first so we never half-start an app
   for (const p of todo) {
