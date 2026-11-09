@@ -21,3 +21,7 @@ node_modules/
 /deploy/.env
 /registry/apps.hosted.json
 !.env.example
+
+# Python bytecode (the tests run the demo-fix scripts)
+__pycache__/
+*.pyc

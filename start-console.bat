@@ -6,6 +6,7 @@ if not defined CONSOLE_PORT set "CONSOLE_PORT=4100"
 set "PORT=%CONSOLE_PORT%"
 set "BASE=http://127.0.0.1:%PORT%/"
 set "LOG=data\logs\console-launcher.out"
+set "URLFILE=data\logs\console-url.tmp"
 
 echo [console] Checking prerequisites...
 where node >nul 2>&1 || ( echo [console] ERROR: Node.js is not installed or not on PATH. & goto :fail )
@@ -22,6 +23,9 @@ curl.exe -s -o NUL -m 2 "%BASE%" && (
 )
 
 echo [console] Starting the admin console on port %PORT%...
+if exist "%URLFILE%" del /q "%URLFILE%"
+rem The one-time URL goes to a file that is deleted as soon as it is read, not into the log.
+set "ADMIN_URL_FILE=%URLFILE%"
 start "ProjectsDashboard Console (close this window to stop it)" /min cmd /c "node admin-console\server.mjs > %LOG% 2>&1"
 
 echo [console] Waiting for it to respond...
@@ -36,8 +40,11 @@ goto :fail
 :ready
 echo [console] Server is up.
 set "URL=%BASE%"
-rem Token mode prints a one-time URL with ?t=...; password mode needs just the base URL.
-if exist %LOG% for /f "tokens=*" %%L in ('findstr /c:"?t=" %LOG%') do set "URL=%%L"
+rem Token mode leaves a one-time URL with ?t=... in %URLFILE%; password mode needs just the base URL.
+if exist "%URLFILE%" (
+  set /p URL=<"%URLFILE%"
+  del /q "%URLFILE%"
+)
 
 :open
 echo [console] Opening %URL%

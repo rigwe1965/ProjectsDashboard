@@ -8,7 +8,7 @@ import { dirname } from 'node:path';
 
 const folder = dirname(fileURLToPath(new URL('../../supervisor/demo-fixes/rmm_demo_services.py', import.meta.url)));
 const python = ['python', 'python3'].find((p) => spawnSync(p, ['--version'], { stdio: 'ignore' }).status === 0);
-const py = (code) => spawnSync(python, ['-I', '-c', `import sys; sys.path.insert(0, ${JSON.stringify(folder)})\n${code}`], { encoding: 'utf8' });
+const py = (code) => spawnSync(python, ['-I', '-B', '-c', `import sys; sys.path.insert(0, ${JSON.stringify(folder)})\n${code}`], { encoding: 'utf8' });
 const skip = python ? false : 'no python on this machine';
 
 test('require_demo_database: only the demo database passes', { skip }, () => {

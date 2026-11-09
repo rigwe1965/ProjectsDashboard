@@ -234,6 +234,7 @@ Add `grant-created`/`grant-revoked` to the "admin" filter list in `/api/audit` (
 ---
 
 ### S-08: The one-time console URL is left in a log file · 3/10
+**Status: fixed 2026-11-09.** With `ADMIN_URL_FILE` set, `admin-console/server.mjs` writes the token URL to that file (owner-only) and prints no token; `start-console.bat` sets it, reads the file and deletes it at once. Run without the variable, the program prints the URL as before. Tested for the program; the `.bat` itself was edited but not run (it opens a browser), so try it once.
 **Category:** Secrets & Sensitive Data
 **Location:** `start-console.bat` (starts `node admin-console\server.mjs > %LOG% 2>&1`, then reads the `?t=` line back from `data\logs\console-launcher.out`); `admin-console/server.mjs` (prints `…/?t=<token>`); `admin-console/console.mjs:188-193` (in token mode the cookie value *is* the launch token).
 
@@ -251,6 +252,7 @@ Better, `set-password` once (the README already recommends it): password mode do
 ---
 
 ### S-09: A compiled Python file is tracked in git · 2/10
+**Status: fixed 2026-11-09** (file removed from git, `__pycache__/` and `*.pyc` ignored, and the Python test now runs with `-B` so it stops writing bytecode into the repository).
 **Category:** Supply chain
 **Location:** `supervisor/demo-fixes/__pycache__/rmm_demo_services.cpython-311.pyc` (tracked: `git ls-files | grep pyc`); `.gitignore` has no `__pycache__` rule.
 

@@ -4,6 +4,7 @@ import { ports } from '../lib/config.mjs';
 import { getStore, closeStore } from '../lib/store/index.mjs';
 import { ADMIN_KEYS, dataKey, isSealed, seal } from '../lib/auth.mjs';
 import { logger, installProcessHandlers } from '../lib/log.mjs';
+import { writeFileSync } from 'node:fs';
 
 // 2-step secret at rest: encrypt it when ADMIN_DATA_KEY is set; say so when it is not.
 if (process.env.ADMIN_DATA_KEY && !dataKey()) { logger.error('ADMIN_DATA_KEY must be 64 hex characters (npm run console:auth -- gen-key)'); process.exit(1); }
@@ -25,6 +26,11 @@ const port = await c.listen().catch((err) => {
 const where = process.env.ADMIN_PUBLIC_URL || `http://127.0.0.1:${port}`;
 if (await c.passwordMode()) {
   console.log(`Admin console running. Sign in with your password (and authenticator code, if enabled):\n  ${where}/`);
+} else if (process.env.ADMIN_URL_FILE) {
+  // A launcher that redirects this program's output to a log file must not leave the token in it: the URL goes to a file the
+  // launcher reads and deletes at once (owner-only where the system supports it), and the output says so instead.
+  writeFileSync(process.env.ADMIN_URL_FILE, `${where}/?t=${c.launchToken}`, { mode: 0o600 });
+  console.log(`Admin console running in token mode. The one-time URL was written to ${process.env.ADMIN_URL_FILE} for the launcher.\nTip: run "npm run console:auth set-password" to sign in with a password (and a 2-step code) instead.`);
 } else {
   console.log(`Admin console running. Open this URL (token changes on every launch):\n  ${where}/?t=${c.launchToken}\nTip: run "npm run console:auth set-password" to sign in with a password (and a 2-step code) instead.`);
 }
