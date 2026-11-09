@@ -42,7 +42,7 @@ Group by category:
 ## 2. Findings
 
 ### S-01: One flat network for the database, the control plane and every customer-facing demo · 5/10
-**Status: fixed 2026-11-09** (four networks: `edge`, `db`, `apps`, `crm`; `docker compose config` validates, runtime isolation not exercised).
+**Status: fixed 2026-11-09** (four networks: `edge`, `db`, `apps`, `crm`; `docker compose config` validates). **Verified at runtime 2026-11-09** (local HTTP override, Docker 29.9.2): from inside ImageApp and Airfinder, `postgres`, `crm-demo-db` and `crm-demo-ratelimit` do not resolve; the CRM database container cannot reach the dashboard database, the gateway, another demo or the internet (`crm` is internal); the `db` network is internal and only gateway and console are on it. **Remaining by design:** demo containers can still reach the gateway, the console's port (password and Host allow-list apply), each other and the internet on the `apps` network (ClaudeWorkspace needs the internet).
 **Category:** Configuration & Hardening / cross-tenant
 **Location:** `deploy/docker-compose.yml`: every service ends with `networks: [internal]` (postgres line 44, gateway 63, console 85, then the app containers at lines 118, 140, 163, 181, 218, 250, 270, 285); the only network defined is `internal` (172.30.0.0/24).
 
@@ -187,7 +187,7 @@ wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 ---
 
 ### S-06: Two demo containers lack the hardening the others have · 3/10
-**Status: fixed 2026-11-09** (`x-demo-limits` on `imageapp-demo` and `airfinder-demo`: no-new-privileges, all capabilities dropped, 256 processes, 768 MB; 1 GB on `crm-demo` and both `claudeworkspace-*`; all base images pinned by digest. `docker compose config` validates; the containers themselves were not started, so confirm each app still runs without capabilities when you next bring the stack up).
+**Status: fixed 2026-11-09** (`x-demo-limits` on `imageapp-demo` and `airfinder-demo`: no-new-privileges, all capabilities dropped, 256 processes, 768 MB; 1 GB on `crm-demo` and both `claudeworkspace-*`; all base images pinned by digest. `docker compose config` validates; **Verified at runtime 2026-11-09:** ImageApp, Airfinder and CRM start and report healthy with all capabilities dropped (`CapEff` is zero inside each); applied settings match (no-new-privileges, 256 or 512 processes, 768 MB or 1 GB); every `FROM` is pinned by digest. ClaudeWorkspace was not started: it needs a real Supabase demo project).
 **Category:** Configuration & Hardening
 **Location:** `deploy/docker-compose.yml`: `imageapp-demo` (line 105) and `airfinder-demo` (line 120) have no `security_opt`, `cap_drop`, `pids_limit` or `mem_limit`. `crm-demo` and the two `claudeworkspace-*` services have `no-new-privileges`, `cap_drop: [ALL]` and `pids_limit` but no `mem_limit`. Base images in `deploy/Dockerfile`, `deploy/Caddy.Dockerfile` and `deploy/apps/*/Dockerfile` are floating tags (`node:24-slim`, `postgres:17-alpine`, `caddy:2-alpine`, `python:3.12-slim`), not digests (carried from SEC-16).
 
@@ -288,7 +288,7 @@ and remove the `createRequire` lines and the `data/tools` dependency on `pg`.
 ---
 
 ### S-11: The hosted CRM demo container holds the database owner's credentials · 2/10
-**Status: fixed 2026-11-09, privileges tested against a real Postgres 17 with the CRM's own migrations; the app itself was not run.** The CRM requires a platform connection by design (sign-in, daily jobs, billing: `src/lib/platform-db.ts`), so it cannot simply be removed. Instead the running `crm-demo` now holds no owner credentials: `DATABASE_URL` is the RLS-bound `crm_app`, `PLATFORM_DATABASE_URL` is a new `crm_platform` login (RLS bypassed, table read/write only; tested: it cannot create tables, drop or alter tables, or create roles). Migrations, the role set-up and the seed moved to a one-off `crm-migrate` service (the only one with the owner password), which `crm-demo` waits for. New required value: `CRM_PLATFORM_PASSWORD` (letters and digits; `check-apps-env.sh` checks it). `reset-demos.sh` and the README now call `crm-migrate seed`.
+**Status: fixed 2026-11-09, privileges tested against a real Postgres 17 with the CRM's own migrations; **the app itself was then run 2026-11-09:** `crm-migrate` applies the migrations and the seed, `crm-demo` becomes healthy, the seeded admin signs in with the right password and is refused with a wrong one, and the log shows no permission errors. The running container holds `crm_app` and `crm_platform` only; against the real database, neither can create or drop tables or create roles.** The CRM requires a platform connection by design (sign-in, daily jobs, billing: `src/lib/platform-db.ts`), so it cannot simply be removed. Instead the running `crm-demo` now holds no owner credentials: `DATABASE_URL` is the RLS-bound `crm_app`, `PLATFORM_DATABASE_URL` is a new `crm_platform` login (RLS bypassed, table read/write only; tested: it cannot create tables, drop or alter tables, or create roles). Migrations, the role set-up and the seed moved to a one-off `crm-migrate` service (the only one with the owner password), which `crm-demo` waits for. New required value: `CRM_PLATFORM_PASSWORD` (letters and digits; `check-apps-env.sh` checks it). `reset-demos.sh` and the README now call `crm-migrate seed`.
 **Category:** Configuration
 **Location:** `deploy/docker-compose.yml`, `crm-demo` environment: `DIRECT_URL` and `PLATFORM_DATABASE_URL` use the owner role `crm`; `DATABASE_URL` uses the restricted `crm_app` role (`deploy/apps/crm/init-roles.sh` makes it `NOBYPASSRLS`).
 
@@ -389,10 +389,9 @@ return json(res, 200, { log: tail(...).replace(/((?:password|secret|token|key)\w
 
 ## 5. Not verifiable here
 
-- The hosted stack under Docker (S-01, S-06, S-11): `docker compose` was not run.
+- ~~The hosted stack under Docker (S-01, S-06, S-11)~~ run on 2026-11-09 with the local override: see those items. Not covered: real HTTPS certificates and DNS, and the ClaudeWorkspace containers.
 - Pinned GitHub Action SHAs and base image versions against their upstream registries (S-12, S-06).
 - Whether `supervisor/demo-fixes/__pycache__/…pyc` matches its source (S-09).
-- Whether the running CRM demo uses `PLATFORM_DATABASE_URL` (S-11).
 - The demo apps' own code and their installed dependencies (`npm audit` inside `data/demo-src/*`, `pip` requirements of the original Flask apps).
 - Browser-level behaviour of the pages (no end-to-end run was done for this report).
 - The WebSocket counter leak (S-05) is established by reading the code; a failing test first would turn it into a confirmed defect.
