@@ -464,3 +464,29 @@ test('security: a WebSocket from another origin is refused, even with a valid se
   const ok = await wsOpen({ cookie: g.cookie, origin: 'http://toy.localhost:' + gwPort });
   assert.ok(ok.ws, 'same-origin still works'); ok.ws.close();
 });
+
+test('an Upgrade request that is not a WebSocket is refused, even with a valid session', async () => {
+  const g = await newGrant();
+  const status = await new Promise((resolve) => {
+    const r = http.request({ host: '127.0.0.1', port: gwPort, path: '/', headers: { host: `toy.localhost:${gwPort}`, cookie: g.cookie, connection: 'Upgrade', upgrade: 'h2c' } });
+    r.on('response', (res) => { resolve(res.statusCode); res.resume(); });
+    r.on('upgrade', (res, socket) => { socket.destroy(); resolve(res.statusCode); });
+    r.on('error', () => resolve(0));
+    r.end();
+  });
+  assert.equal(status, 400);
+});
+
+test('requests with no valid session are limited per address; a valid session is never counted', async () => {
+  const lim = await createGateway({ port: 0, baseHost: 'localhost', noSessionPerMinute: 3, redeemPerMinute: 1000 });
+  const port = await lim.listen();
+  try {
+    const codes = [];
+    for (let i = 0; i < 6; i++) codes.push((await request({ port, path: '/' })).status);
+    assert.deepEqual(codes, [401, 401, 401, 429, 429, 429]);
+    // the same address with a real session still gets through (the grant is created through the shared store)
+    const g = await newGrant();
+    const opened = await request({ port, host: 'toy.localhost', path: '/d/' + g.token, method: 'POST' });
+    assert.notEqual(opened.status, 429, 'link redemption has its own limits and is not counted here');
+  } finally { await lim.close(); }
+});

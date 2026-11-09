@@ -64,6 +64,7 @@ export async function createGateway(opts = {}) {
     metricsToken: process.env.METRICS_TOKEN || '', // /_pd/metrics needs this bearer token (without one: loopback only)
     redeemPerMinute: num(process.env.GATEWAY_REDEEM_PER_MINUTE, 20), // link opens per IP per minute
     redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
+    noSessionPerMinute: num(process.env.GATEWAY_NO_SESSION_PER_MINUTE, 120), // requests per IP per minute without a valid session before a 429
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
     ...opts,
@@ -89,6 +90,16 @@ export async function createGateway(opts = {}) {
   const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, 3600000);
   pruneTimer.unref();
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
+  // A request with no valid session still costs a database read. Count those per address in memory (no database writes) and
+  // answer 429 past a limit, so a flood of cookie-less or bogus-cookie requests cannot be used to hammer the database.
+  const misses = new Map(); // ip -> { n, t }
+  const tooManyMisses = (ip) => {
+    const now = Date.now(), b = misses.get(ip);
+    if (!b || now - b.t > 60000) { misses.set(ip, { n: 1, t: now }); return false; }
+    return ++b.n > o.noSessionPerMinute;
+  };
+  const missTimer = setInterval(() => { const cut = Date.now() - 60000; for (const [k, v] of misses) if (v.t < cut) misses.delete(k); }, 60000);
+  missTimer.unref();
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();
 
@@ -213,7 +224,7 @@ export async function createGateway(opts = {}) {
 
     // 2. Every other request needs a live grant for THIS product
     const g = await grantFor(req);
-    if (!g) return page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
+    if (!g) return tooManyMisses(ip) ? page(res, 429, 'Too many attempts', 'Please wait a minute and try again.', { 'retry-after': '60' }) : page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
     if (!isActive(g) || g.app !== slug) {
       await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req) });
       return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.');
@@ -293,9 +304,11 @@ export async function createGateway(opts = {}) {
     socket.on('error', () => {});
     const { hostHdr, slug, target } = resolveRequest(req);
     if (!target) return rejectUpgrade(socket, 404, 'Not Found');
+    // Only WebSocket is proxied. Any other Upgrade (h2c, ...) would become an unfiltered raw byte pipe to the demo app.
+    if (String(req.headers.upgrade || '').toLowerCase() !== 'websocket') return rejectUpgrade(socket, 400, 'Bad Request');
     const ip = clientIp(req, trusted);
     const g = await grantFor(req);
-    if (!g) return rejectUpgrade(socket, 401, 'Unauthorized');
+    if (!g) return tooManyMisses(ip) ? rejectUpgrade(socket, 429, 'Too Many Requests') : rejectUpgrade(socket, 401, 'Unauthorized');
     if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
     // The upstream is told a different Origin below, so its own cross-site check cannot work: do the check here. A browser
     // always sends the page's own origin; a page on another (even sibling) host must not ride this session.
@@ -400,7 +413,7 @@ export async function createGateway(opts = {}) {
       server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
     }),
     close: async () => {
-      clearInterval(pruneTimer);
+      clearInterval(pruneTimer); clearInterval(missTimer);
       for (const c of [...wsClosers]) c();
       agent.destroy();
       await new Promise((r) => { server.close(r); server.closeAllConnections?.(); });
