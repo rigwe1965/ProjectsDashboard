@@ -62,6 +62,12 @@ const getApp = (id) => {
   return app;
 };
 
+// Is this process running AND one we started (a recorded PID is still the same process)? The shell wrapper may be gone while the app listens.
+async function isManaged(p, rec, up) {
+  if (p.container) return !!(rec?.container && up && await containerRunning(rec.container));
+  return !!(rec && up && ((rec.startTime && startTime(rec.pid) === rec.startTime) || (rec.listenPid && startTime(rec.listenPid) === rec.listenStartTime)));
+}
+
 async function status(json) {
   const state = await store.processState.all();
   const rows = [];
@@ -70,9 +76,7 @@ async function status(json) {
       const rec = state[app.id]?.[p.name];
       const up = await httpUp(p.port, p.health, p.host);
       // managed = one of the PIDs we recorded is still alive (the shell wrapper may be gone while the app listens)
-      const managed = p.container
-        ? !!(rec?.container && up && await containerRunning(rec.container))
-        : !!(rec && up && ((rec.startTime && startTime(rec.pid) === rec.startTime) || (rec.listenPid && startTime(rec.listenPid) === rec.listenStartTime)));
+      const managed = await isManaged(p, rec, up);
       rows.push({ app: app.id, proc: p.name, port: p.port, optional: !!p.optional, up, managed, url: `http://127.0.0.1:${p.port}${p.health}` });
     }
   }
@@ -97,12 +101,20 @@ async function start(app, only) {
     if (!d.ok) { console.error(d.message); process.exit(1); }
     if (d.started) console.log('Docker is running.');
   }
-  // pre-flight all ports first so we never half-start an app
+  // Start is safe to press again: a process we already started and that is answering is left alone, so a partly running app
+  // (one process up, one down) gets only its missing process started. Anything else holding the port is still refused below.
+  const state = await store.processState.all();
+  const pending = [];
   for (const p of todo) {
+    if (await isManaged(p, state[app.id]?.[p.name], await httpUp(p.port, p.health, p.host))) console.log(`${app.id}/${p.name} is already running on :${p.port}`);
+    else pending.push(p);
+  }
+  // pre-flight all ports first so we never half-start an app
+  for (const p of pending) {
     if (reserved.has(p.port)) { console.error(`Port ${p.port} is reserved. Aborting.`); process.exit(1); }
     if (await portInUse(p.port)) { console.error(`Port ${p.port} (${app.id}/${p.name}) is already in use. Not starting anything.`); process.exit(1); }
   }
-  for (const p of todo) {
+  for (const p of pending) {
     if (p.container) { // an existing container: the supervisor only starts it (see lib/docker.mjs)
       try { await startContainer(p.container); } catch (e) { console.error(`Could not start container "${p.container}": ${e.message}`); process.exit(1); }
       await store.processState.set(app.id, p.name, { container: p.container, port: p.port, startedAt: new Date().toISOString() });

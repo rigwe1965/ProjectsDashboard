@@ -186,7 +186,8 @@ const accentOf = (id) => ACCENT[String(id).replace(/-demo$/, '')] || null;
 const softName = (n) => String(n).replace(/([a-z])([A-Z])/g, '$1\u200b$2');
 const colorStyle = (id) => { const c = accentOf(id); return c ? '--c:' + c : null; };
 
-function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), 4500); }
+// A failure stays on screen longer than a confirmation, so the reason can be read.
+function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTimeout(say.t); say.t = setTimeout(()=>toast.classList.remove('on'), /FAILED|Request failed|Could not|Port d+/.test(msg) ? 10000 : 4500); }
 function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (v == null) continue; if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null) e.append(c); return e; }
 const DOTWORD = { run: 'running', ext: 'running elsewhere', bad: 'problem' };
 const dot = (kind) => el('i', { class: 'dot ' + (kind || ''), role: 'img', 'aria-label': DOTWORD[kind] || 'stopped' });
