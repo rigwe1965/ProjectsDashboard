@@ -260,6 +260,16 @@ test('WebSocket: refusals while a private copy is not ready do not use up the so
   } finally { Object.assign(gw.instances, real); }
 });
 
+test('HSTS on the gateway pages follows the scheme option, like the cookies do', async () => {
+  const secure = await createGateway({ port: 0, baseHost: 'localhost', scheme: 'https' });
+  const securePort = await secure.listen();
+  try {
+    const asked = (port) => request({ port, host: 'nosuch.localhost', path: '/' });
+    assert.match((await asked(securePort)).headers['strict-transport-security'] ?? '', /max-age=/);
+    assert.equal((await asked(gwPort)).headers['strict-transport-security'], undefined, 'plain http gateway sends none');
+  } finally { await secure.close(); }
+});
+
 // ---- link limits and abuse protection
 const ua = (name) => ({ 'user-agent': name });
 // A browser: keeps cookies between requests. Opens a link the way a customer does.

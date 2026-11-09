@@ -44,9 +44,11 @@ const DEV_RE = /^[a-f0-9]{32}$/;
 const SESSION_RE = /^[a-f0-9]{64}$/;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 
-const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https';
+const HSTS = 'max-age=31536000';
+// The gateway's own pages. Whether they carry HSTS follows the gateway's scheme option (the same one the cookies use), not a second reading of the environment.
+const makePages = (https) => {
 const OWN_HEADERS = { ...BASE_SECURITY_HEADERS,
-  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(HTTPS ? { 'strict-transport-security': 'max-age=31536000' } : {}) };
+  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(https ? { 'strict-transport-security': HSTS } : {}) };
 // `head` is extra markup for <head> (for example a meta refresh).
 const page = (res, code, title, msg, headers = {}, head = '') => {
   res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS, ...headers });
@@ -54,6 +56,8 @@ const page = (res, code, title, msg, headers = {}, head = '') => {
 };
 // A 429 page. `seconds` is both the wait shown to the customer and the Retry-After header.
 const tooMany = (res, seconds) => page(res, 429, 'Too many attempts', `Please wait ${seconds === 60 ? 'a minute' : 'a few minutes'} and try again.`, { 'retry-after': String(seconds) });
+return { page, tooMany };
+};
 // The audit record of a refused request. `grant` is the grant's id when the request got as far as one; extra fields (why, via) follow.
 const deniedRecord = (grant, app, ip, ua, extra = {}) => ({ ev: 'denied', ...(grant ? { grant } : {}), app, ip, ua, ...extra });
 
@@ -77,10 +81,12 @@ export async function createGateway(opts = {}) {
   };
   // Over HTTPS the __Host- prefix makes browsers refuse these cookies unless they are Secure, host-only and Path=/, so no
   // other site or sibling host can plant them. (Over plain HTTP the prefix is not allowed, so the plain names are used.)
-  const cookiePrefix = o.scheme === 'https' ? '__Host-' : '';
+  const https = o.scheme === 'https';
+  const cookiePrefix = https ? '__Host-' : '';
   const COOKIE = cookiePrefix + COOKIE_BASE, DEV_COOKIE = cookiePrefix + DEV_BASE;
   const baseHost = o.baseHost || `localhost:${o.port}`;
   const baseName = baseHost.split(':')[0];
+  const { page, tooMany } = makePages(https);
   const trusted = new Set(o.trustedProxies);
   const store = await getStore();
   const instances = createInstances({ store, supervisor: o.supervisor }); // private copies, one per link (registry perLink)
@@ -223,7 +229,7 @@ export async function createGateway(opts = {}) {
       const sid = newSessionId(); // only its hash is stored
       await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);
       if (target.perLink) await instances.ensure(slug, target, g.id); // allocates the seat and starts the copy in the background
-      const flags = `; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${o.scheme === 'https' ? '; Secure' : ''}`;
+      const flags = `; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${https ? '; Secure' : ''}`;
       res.writeHead(302, { 'set-cookie': [`${COOKIE}=${sid}${flags}`, ...(g.deviceLock && !hadDev ? [`${DEV_COOKIE}=${devId}${flags}`] : [])], location: '/', 'cache-control': 'no-store' });
       return res.end();
     }
@@ -270,7 +276,7 @@ export async function createGateway(opts = {}) {
         const kept = [].concat(out['set-cookie']).filter((c) => !OURS.test(c)).map((c) => c.replace(/;\s*domain=[^;]*/gi, ''));
         if (kept.length) out['set-cookie'] = kept; else delete out['set-cookie'];
       }
-      if (HTTPS) out['strict-transport-security'] ??= 'max-age=31536000';
+      if (https) out['strict-transport-security'] ??= HSTS;
       if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${o.scheme}://${hostHdr}`);
       res.writeHead(ur.statusCode, out);
       // pipeline() keeps pipe()'s backpressure (a slow browser slows the upstream) and also ends the browser's response
