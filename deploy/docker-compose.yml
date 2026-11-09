@@ -41,7 +41,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    networks: [internal]
+    networks: [db]
 
   gateway:
     <<: *hardened
@@ -60,7 +60,7 @@ services:
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [internal]
+    networks: [edge, db, apps]
 
   console:
     <<: *hardened
@@ -74,7 +74,8 @@ services:
       ADMIN_BIND: 0.0.0.0              # allowed only because a password must be set first (see README)
       ADMIN_ALLOWED_HOSTS: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in deploy/.env},127.0.0.1
       ADMIN_SCHEME: https
-      ADMIN_DATA_KEY: ${ADMIN_DATA_KEY:-}   # encrypts the 2-step secret in the database (generate: npm run console:auth -- gen-key)
+      ADMIN_DATA_KEY: ${ADMIN_DATA_KEY:?set ADMIN_DATA_KEY in deploy/.env (npm run console:auth -- gen-key)}   # encrypts the 2-step secret in the database
+      ADMIN_REQUIRE_TOTP: "1"          # the console refuses to listen beyond this machine until 2-step codes are enabled (see README)
       ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
     volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "console_data:/data"]
     healthcheck:
@@ -82,7 +83,7 @@ services:
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [internal]
+    networks: [edge, db, apps]
 
   caddy:
     build: { context: .., dockerfile: deploy/Caddy.Dockerfile }
@@ -99,7 +100,7 @@ services:
       DEMO_DOMAIN: ${DEMO_DOMAIN}
     volumes: [caddy_data:/data, caddy_config:/config]
     networks:
-      internal: { ipv4_address: 172.30.0.2 }
+      edge: { ipv4_address: 172.30.0.2 }
 
   # --- app containers (profile "apps"). Built from the app's own folder, which is only read, never modified.
   imageapp-demo:
@@ -115,7 +116,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
-    networks: [internal]
+    networks: [apps]
 
   airfinder-demo:
     profiles: ["apps"]
@@ -137,7 +138,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
-    networks: [internal]
+    networks: [apps]
 
   # CRM demo: its own Postgres (never shared with production) plus the app as a production build (see deploy/apps/crm/Dockerfile).
   crm-demo-db:
@@ -160,7 +161,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
-    networks: [internal]
+    networks: [crm]
 
   # In-memory stand-in for the Upstash rate-limit store the CRM requires in production mode (a demo has one server).
   crm-demo-ratelimit:
@@ -178,7 +179,7 @@ services:
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [internal]
+    networks: [crm]
 
   crm-demo:
     profiles: ["apps"]
@@ -215,7 +216,7 @@ services:
       timeout: 8s
       retries: 5
       start_period: 90s
-    networks: [internal]
+    networks: [apps, crm]
 
   # ClaudeWorkspace (CarRental) demo: customer site + admin portal from one image. The backend is a SEPARATE hosted
   # Supabase demo project (never the production one); payments, email, AI and monitoring keys are deliberately not set.
@@ -247,7 +248,7 @@ services:
       timeout: 8s
       retries: 5
       start_period: 120s
-    networks: [internal]
+    networks: [apps]
 
   claudeworkspace-admin:
     profiles: ["apps"]
@@ -267,7 +268,7 @@ services:
       timeout: 8s
       retries: 5
       start_period: 120s
-    networks: [internal]
+    networks: [apps]
 
   # One-off: empties the ClaudeWorkspace demo's customer data (deploy/reset-demos.sh runs it; it is not part of `up`).
   cw-reset:
@@ -282,12 +283,20 @@ services:
       ADMIN_PASSWORD: ${CW_DEMO_ADMIN_PASSWORD:-}
       CUSTOMER_EMAIL: ${CW_DEMO_CUSTOMER_EMAIL:-}
       CUSTOMER_PASSWORD: ${CW_DEMO_CUSTOMER_PASSWORD:-}
-    networks: [internal]
+    networks: [apps]
 
+# Four networks, so a compromised customer-facing demo cannot reach the dashboard's own database or the other demos' databases:
+#   edge  Caddy <-> gateway, console
+#   db    the dashboard's Postgres <-> gateway, console. No outside access (internal); no demo container is on it.
+#   apps  gateway, console <-> the demo containers (the console probes their health). Not internal: ClaudeWorkspace reaches Supabase.
+#   crm   the CRM demo's own Postgres and rate-limit stand-in <-> crm-demo only. No outside access.
 networks:
-  internal:
+  edge:
     # Automatic addresses come from the upper half, so Caddy's pinned 172.30.0.2 can never be taken by another container.
     ipam: { config: [{ subnet: 172.30.0.0/24, ip_range: 172.30.0.128/25 }] }
+  db: { internal: true }
+  apps: {}
+  crm: { internal: true }
 
 volumes:
   pgdata:

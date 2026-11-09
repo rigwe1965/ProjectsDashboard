@@ -35,11 +35,11 @@ docker compose --profile apps up -d --build   # ...and the app containers (needs
 The app services default missing values to empty (compose reads every `${VAR:?...}` even for services outside the profile, so
 making them required would also break the plain `docker compose up -d`). `check-apps-env.sh` is what refuses an empty secret:
 name the demos you run (`./check-apps-env.sh crm`) or leave it empty to check all three.
-The **console refuses to start until you set a password** (it is reachable from the internet, so a launch token is not
+The **console refuses to start until you set a password and turn on 2-step codes** (it is reachable from the internet, so a launch token, or a password alone, is not
 enough). Set it once:
 ```bash
 docker compose run --rm console node admin-console/auth-cli.mjs set-password
-docker compose run --rm console node admin-console/auth-cli.mjs enable-totp     # 2-step codes: strongly recommended
+docker compose run --rm console node admin-console/auth-cli.mjs enable-totp     # 2-step codes: required by the hosted setup (ADMIN_REQUIRE_TOTP=1)
 docker compose up -d console
 ```
 Then sign in at `https://admin.example.com`, create a demo link under *Customer demos* and send it.

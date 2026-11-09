@@ -83,6 +83,10 @@ export async function createConsole(opts = {}) {
   if (!LOOPBACK.has(o.bindHost) && !(await passwordMode())) {
     throw new Error(`Refusing to listen on ${o.bindHost} without a password. Run "npm run console:auth set-password" first.`);
   }
+  // The hosted setup sets ADMIN_REQUIRE_TOTP=1: a password alone is not enough for a console on the internet.
+  if (!LOOPBACK.has(o.bindHost) && process.env.ADMIN_REQUIRE_TOTP === '1' && !(await store.meta.get(ADMIN_KEYS.totpSecret))) {
+    throw new Error(`Refusing to listen on ${o.bindHost} without 2-step codes. Run "npm run console:auth enable-totp" first (or unset ADMIN_REQUIRE_TOTP for a test).`);
+  }
   // Beyond this machine the password and session cookie would cross the network: require HTTPS (a proxy in front terminates
   // it), unless the operator explicitly accepts plain HTTP for a test on one machine.
   if (!LOOPBACK.has(o.bindHost) && o.scheme !== 'https' && !o.allowHttp) {

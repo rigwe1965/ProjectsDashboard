@@ -17,6 +17,7 @@ services:
       DEMO_BASE_HOST: demo.localhost:8080
       ADMIN_SCHEME: http
       ADMIN_ALLOW_HTTP: "1"   # plain HTTP is refused on a non-loopback address unless this is set; fine for a test on one machine, never for a real host
+      ADMIN_REQUIRE_TOTP: "0"   # local test only: skip the 2-step requirement
       ADMIN_ALLOWED_HOSTS: admin.localhost,127.0.0.1
       ADMIN_PUBLIC_URL: http://admin.localhost:8080
   # App containers must also know the local public address (they build absolute URLs from it).

@@ -70,6 +70,26 @@ test('refuses to listen beyond localhost without a password', async () => {
   await assert.rejects(createConsole({ port: 0, bindHost: '0.0.0.0', supervisor: fakeSupervisor }), /without a password/);
 });
 
+test('ADMIN_REQUIRE_TOTP: beyond localhost the console needs 2-step codes as well as a password', async () => {
+  const keep = { pw: await store.meta.get('admin_password_hash'), totp: await store.meta.get('admin_totp_secret') };
+  process.env.ADMIN_REQUIRE_TOTP = '1';
+  try {
+    await store.meta.set('admin_password_hash', await hashPassword('a-long-test-password'));
+    await store.meta.set('admin_totp_secret', '');
+    const opts = { port: 0, bindHost: '0.0.0.0', scheme: 'https', supervisor: fakeSupervisor };
+    await assert.rejects(createConsole(opts), /without 2-step codes/);
+    await store.meta.set('admin_totp_secret', newTotpSecret());
+    const c = await createConsole(opts); // allowed now (not listening: only the start-up checks run)
+    await c.close();
+    // loopback is never held to it
+    await store.meta.set('admin_totp_secret', '');
+    await (await createConsole({ port: 0, supervisor: fakeSupervisor })).close();
+  } finally {
+    delete process.env.ADMIN_REQUIRE_TOTP;
+    await store.meta.set('admin_password_hash', keep.pw ?? ''); await store.meta.set('admin_totp_secret', keep.totp ?? '');
+  }
+});
+
 test('demo links: created with limits through the API, listed with use counts', async () => {
   const { c, port } = await start();
   const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
