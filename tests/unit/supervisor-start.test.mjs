@@ -9,10 +9,10 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { freePort } from '../helpers.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const dir = mkdtempSync(join(tmpdir(), 'pd-start-'));
-const freePort = () => new Promise((res) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => res(p)); }); });
 const [pa, pb, pc] = [await freePort(), await freePort(), await freePort()];
 
 writeFileSync(join(dir, 'server.mjs'), "import http from 'node:http'; http.createServer((q, r) => r.end('ok')).listen(Number(process.argv[2]), '127.0.0.1');\n");

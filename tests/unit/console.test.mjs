@@ -2,15 +2,15 @@
 // Everything is temporary: own database and registry. DASHBOARD_DATA must be set BEFORE the modules are imported.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import http from 'node:http';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { httpRequest, testProc } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-con-'));
-const proc = (name, port) => ({ name, cmd: 'x', port });
+const proc = testProc;
 writeFileSync(join(dir, 'registry.json'), JSON.stringify({ apps: [
   { id: 'toy', name: 'Toy', path: '.', processes: [proc('app', 19001)] },
   { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [proc('app', 19002)], reset: { steps: [{ cmd: 'x' }] },
@@ -34,14 +34,7 @@ async function start(opts = {}) {
 }
 after(async () => { for (const c of started) await c.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
 
-function req(port, { method = 'GET', path = '/', headers = {}, body, host } = {}) {
-  return new Promise((resolve, reject) => {
-    const r = http.request({ host: '127.0.0.1', port, path, method, headers: { host: host ?? `127.0.0.1:${port}`, ...headers } }, (res) => {
-      let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
-    });
-    r.on('error', reject); if (body) r.write(body); r.end();
-  });
-}
+const req = (port, o = {}) => httpRequest({ port, ...o });
 const post = (port, path, obj, headers = {}) => req(port, { method: 'POST', path, body: JSON.stringify(obj), headers: { 'content-type': 'application/json', origin: `http://127.0.0.1:${port}`, ...headers } });
 const cookieFrom = (r) => (r.headers['set-cookie']?.[0] || '').split(';')[0];
 

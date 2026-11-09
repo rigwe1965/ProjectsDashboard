@@ -7,6 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WebSocketServer, WebSocket } from 'ws';
+import { httpRequest, testProc } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-gw-'));
 const listen = (srv) => new Promise((r) => srv.listen(0, '127.0.0.1', () => r(srv.address().port)));
@@ -28,7 +29,7 @@ const third = http.createServer((req, res) => res.end('third:' + req.headers.hos
 const mainPort = await listen(main), secondPort = await listen(second), thirdPort = await listen(third);
 const deadPort = await new Promise((r) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
 
-const proc = (name, port) => ({ name, cmd: 'x', port });
+const proc = testProc;
 const reg = { apps: [
   { id: 'toy', name: 'Toy', path: '.', processes: [proc('app', 19001)] },
   { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [proc('app', mainPort), proc('other', secondPort)], demoRoutes: [{ prefix: '/other', process: 'other' }] },
@@ -55,15 +56,8 @@ const trustedPort = await gwTrusted.listen();
 after(async () => { await gw.close(); await gwTrusted.close(); await new Promise((r) => main.close(r)); main.closeAllConnections?.(); second.close(); third.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
 
 // ---- helpers
-function request({ port = gwPort, host = 'toy.localhost', path = '/', method = 'GET', headers = {}, body }) {
-  return new Promise((resolve, reject) => {
-    const r = http.request({ host: '127.0.0.1', port, path, method, headers: { host: `${host}:${port}`, ...headers } }, (res) => {
-      let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
-    });
-    r.on('error', reject);
-    if (body) r.write(body);
-    r.end();
-  });
+function request({ port = gwPort, host = 'toy.localhost', ...rest }) {
+  return httpRequest({ port, host: `${host}:${port}`, ...rest });
 }
 // Creates a link and opens it like a customer would, so `cookie` is the real session cookie the gateway issues.
 // (`token` is the secret from the link itself; it is NOT a valid cookie.)

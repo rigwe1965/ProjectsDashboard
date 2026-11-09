@@ -5,11 +5,12 @@ import http from 'node:http';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { testProc } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-reset-'));
 const up = http.createServer((req, res) => res.end('ok'));
 const upPort = await new Promise((r) => up.listen(0, '127.0.0.1', () => r(up.address().port)));
-const proc = (name, port) => ({ name, cmd: 'x', port });
+const proc = testProc;
 writeFileSync(join(dir, 'registry.json'), JSON.stringify({ apps: [
   { id: 'rst', name: 'Rst', path: '.', processes: [proc('app', 19101)] },
   { id: 'rst-demo', name: 'Rst demo', path: '.', demoOf: 'rst', demoReady: true, processes: [proc('app', upPort)], reset: { steps: [{ cmd: 'x' }] } },

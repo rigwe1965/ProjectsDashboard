@@ -6,9 +6,9 @@ import http from 'node:http';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { httpRequest, freePort } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-inst-'));
-const freePort = () => new Promise((r) => { const s = http.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
 const portBase = 30000 + Math.floor(Math.random() * 20000);
 
 const reg = { apps: [
@@ -53,13 +53,8 @@ const gw = await createGateway({ port: 0, baseHost: 'localhost', redeemPerMinute
 const gwPort = await gw.listen();
 after(async () => { await gw.close(); for (const s of running.values()) { s.close(); s.closeAllConnections?.(); } await closeStore(); rmSync(dir, { recursive: true, force: true }); });
 
-function request({ path = '/', method = 'GET', headers = {} }) {
-  return new Promise((resolve, reject) => {
-    const r = http.request({ host: '127.0.0.1', port: gwPort, path, method, headers: { host: `pl.localhost:${gwPort}`, ...headers } }, (res) => {
-      let b = ''; res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b }));
-    });
-    r.on('error', reject); r.end();
-  });
+function request(o) {
+  return httpRequest({ port: gwPort, host: `pl.localhost:${gwPort}`, ...o });
 }
 async function open(customer) {
   const { grant, link } = await grants.createGrant({ customer, app: 'pl', hours: 1 });
