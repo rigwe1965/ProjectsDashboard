@@ -88,6 +88,7 @@ re-seeded, and ClaudeWorkspace's Supabase project is emptied of customer data an
 
 In `registry/apps.hosted.json` a process is either a host process (`cmd`) or an existing container
 (`container` = its name, `host` = its service name on the compose network, `port` = the port inside the container).
+Each demo runs on its **own** network so a demo cannot reach the others (see the `networks:` comment in `docker-compose.yml`). When you add a demo, give it an `app_<name>` network and add that network to the `gateway` and `console` services.
 The gateway reaches demo instances by `host:port`.
 
 The console runs *inside* a container and has no access to Docker, so its Start/Stop buttons do not control app

@@ -84,7 +84,7 @@ services:
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [edge, db, apps]
+    networks: [edge, db, app_imageapp, app_airfinder, app_crm, app_cw]
 
   console:
     <<: *hardened
@@ -107,7 +107,7 @@ services:
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [edge, db, apps]
+    networks: [edge, db, app_imageapp, app_airfinder, app_crm, app_cw]
 
   caddy:
     build: { context: .., dockerfile: deploy/Caddy.Dockerfile }
@@ -141,7 +141,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
-    networks: [apps]
+    networks: [app_imageapp]
 
   airfinder-demo:
     profiles: ["apps"]
@@ -164,7 +164,7 @@ services:
       interval: 20s
       timeout: 5s
       retries: 3
-    networks: [apps]
+    networks: [app_airfinder]
 
   # CRM demo: its own Postgres (never shared with production) plus the app as a production build (see deploy/apps/crm/Dockerfile).
   crm-demo-db:
@@ -259,7 +259,7 @@ services:
       timeout: 8s
       retries: 5
       start_period: 90s
-    networks: [apps, crm]
+    networks: [app_crm, crm]
 
   # ClaudeWorkspace (CarRental) demo: customer site + admin portal from one image. The backend is a SEPARATE hosted
   # Supabase demo project (never the production one); payments, email, AI and monitoring keys are deliberately not set.
@@ -292,7 +292,7 @@ services:
       timeout: 8s
       retries: 5
       start_period: 120s
-    networks: [apps]
+    networks: [app_cw]
 
   claudeworkspace-admin:
     profiles: ["apps"]
@@ -313,7 +313,7 @@ services:
       timeout: 8s
       retries: 5
       start_period: 120s
-    networks: [apps]
+    networks: [app_cw]
 
   # One-off: empties the ClaudeWorkspace demo's customer data (deploy/reset-demos.sh runs it; it is not part of `up`).
   cw-reset:
@@ -328,19 +328,25 @@ services:
       ADMIN_PASSWORD: ${CW_DEMO_ADMIN_PASSWORD:-}
       CUSTOMER_EMAIL: ${CW_DEMO_CUSTOMER_EMAIL:-}
       CUSTOMER_PASSWORD: ${CW_DEMO_CUSTOMER_PASSWORD:-}
-    networks: [apps]
+    networks: [app_cw]
 
-# Four networks, so a compromised customer-facing demo cannot reach the dashboard's own database or the other demos' databases:
-#   edge  Caddy <-> gateway, console
-#   db    the dashboard's Postgres <-> gateway, console. No outside access (internal); no demo container is on it.
-#   apps  gateway, console <-> the demo containers (the console probes their health). Not internal: ClaudeWorkspace reaches Supabase.
-#   crm   the CRM demo's own Postgres and rate-limit stand-in <-> crm-demo only. No outside access.
+# Separate networks, so a compromised customer-facing demo can reach neither the dashboard's database, nor another demo, nor another demo's database:
+#   edge          Caddy <-> gateway, console
+#   db            the dashboard's Postgres <-> gateway, console. No outside access (internal); no demo container is on it.
+#   app_<demo>    ONE network per demo: the gateway and the console (which probes health) plus that demo's own containers, nothing else.
+#                 A demo cannot see the other demos. ImageApp, Airfinder and the CRM make no outbound calls, so their networks are
+#                 internal (no route to the internet either). ClaudeWorkspace must reach Supabase, so app_cw is not internal.
+#   crm           the CRM demo's own Postgres and rate-limit stand-in <-> crm-demo only. No outside access.
+# Adding a demo: give it its own app_<name> network here and add that network to the gateway and the console.
 networks:
   edge:
     # Automatic addresses come from the upper half, so Caddy's pinned 172.30.0.2 can never be taken by another container.
     ipam: { config: [{ subnet: 172.30.0.0/24, ip_range: 172.30.0.128/25 }] }
   db: { internal: true }
-  apps: {}
+  app_imageapp: { internal: true }
+  app_airfinder: { internal: true }
+  app_crm: { internal: true }
+  app_cw: {}
   crm: { internal: true }
 
 volumes:
