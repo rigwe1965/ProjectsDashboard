@@ -84,7 +84,7 @@
         {
           "name": "ui",
           "optional": true,
-          "cmd": "python -m streamlit run dashboard/app.py --server.port {port} --server.headless true",
+          "cmd": "dashboard\\venv\\Scripts\\python.exe -m streamlit run dashboard/app.py --server.port {port} --server.headless true",
           "cwd": ".",
           "port": 8701,
           "health": "/",

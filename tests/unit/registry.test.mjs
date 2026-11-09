@@ -42,3 +42,9 @@ test('rejects bad demo wiring', () => {
   assert.match(validate({ apps: [app({ demoReady: true })] }).join(), /demoReady needs demoOf/);
   assert.match(validate({ apps: [app({ demoOf: 'nope' })] }).join(), /does not exist/);
 });
+
+test('the real registry never runs `python -m <module>` with the machine\'s bare python (it has none of the app\'s packages)', async () => {
+  const { loadRegistry } = await import('../../lib/registry.mjs');
+  const bare = loadRegistry().apps.flatMap((a) => a.processes.map((p) => ({ id: `${a.id}/${p.name}`, cmd: String(p.cmd || '') }))).filter((x) => /^python(\.exe)?\s+-m\s/.test(x.cmd));
+  assert.deepEqual(bare.map((x) => x.id), [], 'use the app\'s own venv interpreter, e.g. the dashboard folder venv python.exe -m streamlit ...');
+});
