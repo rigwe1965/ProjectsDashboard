@@ -35,12 +35,33 @@ done
 # asking for more values (the same secret always gives the same keys, so a restart keeps working).
 [ -n "${MFA_ENCRYPTION_KEY:-}" ] || export MFA_ENCRYPTION_KEY="$(printf 'mfa:%s' "$NEXTAUTH_SECRET" | openssl dgst -sha256 -binary | openssl base64)"
 [ -n "${CRON_SECRET:-}" ] || export CRON_SECRET="$(printf 'cron:%s' "$NEXTAUTH_SECRET" | openssl dgst -sha256 -hex | sed 's/^.* //')"
-# Migrations run as the database owner (DIRECT_URL); the app itself connects as the restricted role.
-npx prisma migrate deploy
-if [ "$1" = "seed" ]; then
-  # One-off, on purpose: the app's seed WIPES the demo database and refuses unless told. The name is the demo database.
-  WIPE_FORCE=1 CONFIRM_WIPE="${CRM_DB_NAME:-crm}" exec npx tsx prisma/seed.ts
-fi
+# Three modes. "migrate" and "seed" are the one-off crm-migrate service, which holds the database owner's password; the running app
+# (no argument) holds none and changes nothing in the database.
+setup_platform_login() {
+  # The app's platform connection is its own login, not the table owner: row-level security bypassed, table read/write rights, no schema changes.
+  [ -n "${CRM_PLATFORM_PASSWORD:-}" ] || { echo "CRM_PLATFORM_PASSWORD is empty: set the CRM_* values in deploy/.env" >&2; exit 1; }
+  case "$CRM_PLATFORM_PASSWORD" in *[!A-Za-z0-9]*) echo "CRM_PLATFORM_PASSWORD may only contain letters and digits" >&2; exit 1 ;; esac
+  npx prisma db execute --stdin --url "$DIRECT_URL" <<SQL
+DO \$\$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'crm_platform') THEN
+    CREATE ROLE crm_platform LOGIN NOSUPERUSER BYPASSRLS NOCREATEDB NOCREATEROLE;
+  END IF;
+END \$\$;
+ALTER ROLE crm_platform PASSWORD '$CRM_PLATFORM_PASSWORD';
+GRANT USAGE ON SCHEMA public TO crm_platform;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO crm_platform;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO crm_platform;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO crm_platform;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO crm_platform;
+SQL
+}
+case "${1:-}" in
+  migrate) npx prisma migrate deploy && setup_platform_login; exit $? ;;
+  seed)
+    # One-off, on purpose: the app's seed WIPES the demo database and refuses unless told. The name is the demo database.
+    npx prisma migrate deploy && setup_platform_login || exit 1
+    WIPE_FORCE=1 CONFIRM_WIPE="${CRM_DB_NAME:-crm}" exec npx tsx prisma/seed.ts ;;
+esac
 exec npx next start -H 0.0.0.0 -p 3101
 SH
 

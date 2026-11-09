@@ -269,6 +269,7 @@ printf '__pycache__/\n*.pyc\n' >> .gitignore
 ---
 
 ### S-10: `apply-sql.mjs` uses a database driver outside the lockfile · 2/10
+**Status: fixed 2026-11-09** (`import pg from 'pg'`, the locked and audited copy; the `createRequire` into `data/tools` is gone).
 **Category:** Dependencies & Supply chain
 **Location:** `supervisor/apply-sql.mjs:12` (`createRequire(join(root, 'data', 'tools', 'package.json'))('pg')`); `data/tools/package.json` (untracked; `pg ^8.23.1`, `pnpm ^9.15.0`).
 
@@ -287,6 +288,7 @@ and remove the `createRequire` lines and the `data/tools` dependency on `pg`.
 ---
 
 ### S-11: The hosted CRM demo container holds the database owner's credentials · 2/10
+**Status: fixed 2026-11-09, privileges tested against a real Postgres 17 with the CRM's own migrations; the app itself was not run.** The CRM requires a platform connection by design (sign-in, daily jobs, billing: `src/lib/platform-db.ts`), so it cannot simply be removed. Instead the running `crm-demo` now holds no owner credentials: `DATABASE_URL` is the RLS-bound `crm_app`, `PLATFORM_DATABASE_URL` is a new `crm_platform` login (RLS bypassed, table read/write only; tested: it cannot create tables, drop or alter tables, or create roles). Migrations, the role set-up and the seed moved to a one-off `crm-migrate` service (the only one with the owner password), which `crm-demo` waits for. New required value: `CRM_PLATFORM_PASSWORD` (letters and digits; `check-apps-env.sh` checks it). `reset-demos.sh` and the README now call `crm-migrate seed`.
 **Category:** Configuration
 **Location:** `deploy/docker-compose.yml`, `crm-demo` environment: `DIRECT_URL` and `PLATFORM_DATABASE_URL` use the owner role `crm`; `DATABASE_URL` uses the restricted `crm_app` role (`deploy/apps/crm/init-roles.sh` makes it `NOBYPASSRLS`).
 

@@ -4,13 +4,11 @@
 // Guards: the DB user must contain the same project ref as NEXT_PUBLIC_SUPABASE_URL; the target must be empty
 // (no tables in "public") or already managed by this tool; each file runs in its own transaction and is recorded.
 import { readFileSync, readdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import pg from 'pg'; // the version pinned by package-lock.json and checked by npm audit
 import { parseEnvText } from '../lib/util.mjs';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const { Client } = createRequire(join(root, 'data', 'tools', 'package.json'))('pg');
+const { Client } = pg;
 const [envFile, sqlDir, flag] = process.argv.slice(2);
 if (!envFile || !sqlDir) { console.error('Usage: apply-sql.mjs <envfile> <sqlDir> [--yes]'); process.exit(2); }
 const apply = flag === '--yes';

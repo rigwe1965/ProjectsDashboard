@@ -42,7 +42,7 @@ state() { "${DC[@]}" exec -T gateway node supervisor/demo-reset-state.mjs "$@"; 
 recipe() {
   case "$1" in
     crm)
-      "${DC[@]}" run --rm --no-deps crm-demo seed ;;
+      "${DC[@]}" run --rm --no-deps crm-migrate seed ;;
     imageapp)
       "${DC[@]}" up -d --no-deps --force-recreate imageapp-demo ;;
     airfinder)   # && on purpose: this runs inside `if`, where `set -e` is switched off, so each step must gate the next

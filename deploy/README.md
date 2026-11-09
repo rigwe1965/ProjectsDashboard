@@ -61,7 +61,7 @@ can never contain production secrets or data. Demos start empty; none of them ha
 | --- | --- | --- |
 | ImageApp | nothing | none |
 | Airfinder | `AIRFINDER_*` (own SQLite file in a volume) | none; staff login is the `AIRFINDER_ADMIN_*` pair |
-| CRM | `CRM_*` (its own Postgres container) | `docker compose --profile apps run --rm crm-demo seed` (wipes and fills the demo database only) |
+| CRM | `CRM_*` (its own Postgres container) | `docker compose --profile apps run --rm crm-migrate seed` (wipes and fills the demo database only) |
 | ClaudeWorkspace | `CW_SUPABASE_*` of a **separate** demo Supabase project | apply its 14 migrations and seed to that project (as for the local demo) |
 
 CRM and ClaudeWorkspace run **production builds** (`next build` when the image is built, `next start` when it runs), not dev

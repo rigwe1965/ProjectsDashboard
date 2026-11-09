@@ -15,7 +15,7 @@ ENV_FILE="${ENV_FILE:-.env}"
 vars_for() {
   case "$1" in
     airfinder)       echo "AIRFINDER_SECRET_KEY AIRFINDER_JWT_SECRET AIRFINDER_ADMIN_PASSWORD" ;;
-    crm)             echo "CRM_DB_PASSWORD CRM_APP_PASSWORD CRM_AUTH_SECRET CRM_DEMO_PASSWORD" ;;
+    crm)             echo "CRM_DB_PASSWORD CRM_APP_PASSWORD CRM_PLATFORM_PASSWORD CRM_AUTH_SECRET CRM_DEMO_PASSWORD" ;;
     claudeworkspace) echo "CW_SUPABASE_URL CW_SUPABASE_ANON_KEY CW_SUPABASE_SERVICE_ROLE_KEY" ;;
     *) echo "check-apps-env: unknown demo '$1' (use airfinder, crm or claudeworkspace)" >&2; exit 2 ;;
   esac

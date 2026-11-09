@@ -26,6 +26,22 @@ x-hardened: &hardened
 
 # The customer-facing demo containers: no privilege gain, no Linux capabilities, and limits so one runaway request (a huge upload, a
 # decompression bomb) cannot take the host's memory or process table. (They keep a writable root: their images write to several folders.)
+# Settings the CRM demo's containers share (the database logins differ and are set on each service).
+x-crm-env: &crm-env
+  NEXTAUTH_SECRET: ${CRM_AUTH_SECRET:-}
+  NEXTAUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
+  AUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
+  AUTH_TRUST_HOST: "true"
+  SEED_USER_PASSWORD: ${CRM_DEMO_PASSWORD:-}
+  # Stand-ins for what production mode insists on. Nothing real is behind them: mail goes to a closed port inside the
+  # container (so nothing is ever sent), rate limits live in the crm-demo-ratelimit service, and admins sign in without
+  # two-step codes like the local demo. The MFA and cron keys are derived from CRM_AUTH_SECRET by the entrypoint.
+  EMAIL_SERVER: smtp://127.0.0.1:2525
+  EMAIL_FROM: "CRM Demo <noreply@crm-demo.invalid>"
+  REQUIRE_ADMIN_MFA: "0"
+  UPSTASH_REDIS_REST_URL: http://crm-demo-ratelimit:8079
+  UPSTASH_REDIS_REST_TOKEN: ${CRM_AUTH_SECRET:-}
+
 x-demo-limits: &demo-limits
   security_opt: ["no-new-privileges:true"]
   cap_drop: [ALL]
@@ -191,32 +207,48 @@ services:
       retries: 3
     networks: [crm]
 
-  crm-demo:
+  # One-off: applies the CRM's database migrations, creates the app's restricted logins, and (with "seed") wipes and refills the demo data.
+  # It is the only place that holds the database OWNER's password; it runs, finishes, and crm-demo starts after it. deploy/reset-demos.sh
+  # runs it with "seed". The image is built here and reused by crm-demo.
+  crm-migrate:
     profiles: ["apps"]
     build:
       context: ${APPS_ROOT:-../..}/CRM
       dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/crm/Dockerfile
     image: pd-crm
-    container_name: pd-crm-demo
-    restart: unless-stopped
-    depends_on: { crm-demo-db: { condition: service_healthy }, crm-demo-ratelimit: { condition: service_started } }
-    environment:     # no email, Stripe, WhatsApp or AI keys: the demo never contacts an outside service
+    restart: "no"
+    command: ["migrate"]
+    depends_on: { crm-demo-db: { condition: service_healthy } }
+    environment:
+      <<: *crm-env
       DATABASE_URL: postgresql://crm_app:${CRM_APP_PASSWORD:-}@crm-demo-db:5432/crm
       DIRECT_URL: postgresql://crm:${CRM_DB_PASSWORD:-}@crm-demo-db:5432/crm
-      PLATFORM_DATABASE_URL: postgresql://crm:${CRM_DB_PASSWORD:-}@crm-demo-db:5432/crm
-      NEXTAUTH_SECRET: ${CRM_AUTH_SECRET:-}
-      NEXTAUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
-      AUTH_URL: ${DEMO_SCHEME:-https}://crm.${DEMO_DOMAIN}
-      AUTH_TRUST_HOST: "true"
-      SEED_USER_PASSWORD: ${CRM_DEMO_PASSWORD:-}
-      # Stand-ins for what production mode insists on. Nothing real is behind them: mail goes to a closed port inside the
-      # container (so nothing is ever sent), rate limits live in the crm-demo-ratelimit service, and admins sign in without
-      # two-step codes like the local demo. The MFA and cron keys are derived from CRM_AUTH_SECRET by the entrypoint.
-      EMAIL_SERVER: smtp://127.0.0.1:2525
-      EMAIL_FROM: "CRM Demo <noreply@crm-demo.invalid>"
-      REQUIRE_ADMIN_MFA: "0"
-      UPSTASH_REDIS_REST_URL: http://crm-demo-ratelimit:8079
-      UPSTASH_REDIS_REST_TOKEN: ${CRM_AUTH_SECRET:-}
+      PLATFORM_DATABASE_URL: postgresql://crm:${CRM_DB_PASSWORD:-}@crm-demo-db:5432/crm   # the seed wipes tables: it needs the owner
+      CRM_PLATFORM_PASSWORD: ${CRM_PLATFORM_PASSWORD:-}
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    pids_limit: 512
+    mem_limit: 1g
+    networks: [crm]
+
+  crm-demo:
+    profiles: ["apps"]
+    image: pd-crm
+    container_name: pd-crm-demo
+    restart: unless-stopped
+    depends_on:
+      crm-demo-db: { condition: service_healthy }
+      crm-demo-ratelimit: { condition: service_started }
+      crm-migrate: { condition: service_completed_successfully }
+    environment:     # no email, Stripe, WhatsApp or AI keys: the demo never contacts an outside service
+      <<: *crm-env
+      # The running app holds NO owner credentials. DATABASE_URL is the login that row-level security binds. PLATFORM_DATABASE_URL (which
+      # the app requires: sign-in, daily jobs and billing work that belong to no single business) is a separate login with row-level
+      # security bypassed and table read/write rights only: it cannot change the schema or create roles. DIRECT_URL is only read by
+      # "prisma migrate", which never runs here, so it points at the restricted login.
+      DATABASE_URL: postgresql://crm_app:${CRM_APP_PASSWORD:-}@crm-demo-db:5432/crm
+      DIRECT_URL: postgresql://crm_app:${CRM_APP_PASSWORD:-}@crm-demo-db:5432/crm
+      PLATFORM_DATABASE_URL: postgresql://crm_platform:${CRM_PLATFORM_PASSWORD:-}@crm-demo-db:5432/crm
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     pids_limit: 512
