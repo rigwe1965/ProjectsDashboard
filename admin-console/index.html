@@ -74,13 +74,17 @@ function say(msg){ toast.textContent = msg; toast.classList.add('on'); clearTime
 function el(tag, props = {}, ...kids){ const e = document.createElement(tag); for (const [k,v] of Object.entries(props)) { if (k === 'class') e.className = v; else if (k.startsWith('on')) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v); } for (const c of kids.flat(Infinity)) if (c != null) e.append(c); return e; }
 
 // One place for API calls: a lost session sends you to sign in, failures become readable messages.
+// A 401 in password mode means "sign in again" (go to /login); otherwise the launch link is needed.
+// This must not depend on the sign-out button, which stays hidden when /api/session itself is refused.
+async function lost(r){
+  let j = {}; try { j = await r.clone().json(); } catch { /* plain-text 401 from the launch-link check */ }
+  if (j.error === 'sign in required') location.href = '/login';
+  else { say('Session ended. Re-open the URL printed in the terminal.'); document.getElementById('updated').textContent = 'Signed out'; }
+  return new Error('signed out');
+}
 async function api(path, opts){
   const r = await fetch(path, opts);
-  if (r.status === 401) {
-    if (document.getElementById('signout').hidden) say('Session ended. Re-open the URL printed in the terminal.');
-    else location.href = '/login';
-    throw new Error('signed out');
-  }
+  if (r.status === 401) throw await lost(r);
   let j = {}; try { j = await r.json(); } catch { /* non-JSON body */ }
   if (!r.ok && !j.error && j.ok !== false) j.error = 'HTTP ' + r.status;
   return j;
@@ -137,11 +141,11 @@ function render(){
 async function load(){
   try {
     const r = await fetch('/api/apps');
-    if (r.status === 401) { if (!document.getElementById('signout').hidden) location.href = '/login'; throw new Error('signed out'); }
+    if (r.status === 401) throw await lost(r);
     apps = await r.json();
     document.getElementById('updated').textContent = (r.headers.get('x-status-error') ? 'Status check failed (' + r.headers.get('x-status-error') + '), states may be wrong. ' : 'Updated ') + new Date().toLocaleTimeString(); render();
   }
-  catch { document.getElementById('updated').textContent = 'Console unreachable'; }
+  catch (e) { if (e.message === 'signed out') return; document.getElementById('updated').textContent = 'Console unreachable'; }
 }
 
 const demoBusy = new Set();
@@ -161,9 +165,7 @@ async function demoReset(p){
   try {
     let j = await api('/api/demos/' + p.product + '/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
     if (j.inUse && !j.ok) {
-      if (confirm(j.error + '
-
-Reset anyway?')) j = await api('/api/demos/' + p.product + '/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ force: true }) });
+      if (confirm(j.error + '\n\nReset anyway?')) j = await api('/api/demos/' + p.product + '/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ force: true }) });
       else { demoBusy.delete(p.instance); loadDemos(); return; }
     }
     say(j.ok ? label + ' was reset.' : 'Reset FAILED: ' + String(j.error || j.output || '').slice(0, 300));
@@ -172,7 +174,7 @@ Reset anyway?')) j = await api('/api/demos/' + p.product + '/reset', { method: '
 }
 async function loadDemos(){
   const panel = document.getElementById('demopanel');
-  let d; try { d = await api('/api/demos'); if (d.error) throw new Error(d.error); } catch (e) { if (!demoPanelLoaded) panel.textContent = 'Could not load demos.'; return; }
+  let d; try { d = await api('/api/demos'); if (d.error) throw new Error(d.error); } catch (e) { if (!demoPanelLoaded) panel.textContent = e.message === 'signed out' ? 'Signed out.' : 'Could not load demos.'; return; }
   demoPanelLoaded = true;
   const keepForm = panel.querySelector('form'); const keepLink = panel.querySelector('.linkbox');
   const ctl = (id, label, up, managed) => {
@@ -236,6 +238,7 @@ async function loadActivity(){
   const box = document.getElementById('acttable');
   try {
     const r = await fetch('/api/audit?limit=100&kind=' + encodeURIComponent(document.getElementById('actkind').value));
+    if (r.status === 401) throw await lost(r);
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const { events } = await r.json();
     const detail = (e) => [e.customer, e.app, e.grant && 'link ' + e.grant, e.why, e.via, e.by && 'by ' + e.by, e.ip, e.ua].filter(Boolean).join(' · ');
@@ -245,7 +248,7 @@ async function loadActivity(){
         el('td', {}, el('span', { class: 'pill ' + (BAD_EVENTS.has(e.ev) ? 'bad' : 'ok') }, EVENT_LABELS[e.ev] || e.ev)),
         el('td', { class: 'sub' }, detail(e))))
         : [el('tr', {}, el('td', { colspan: '3', class: 'sub' }, 'Nothing recorded yet.'))])));
-  } catch (e) { box.textContent = 'Could not load activity.'; }
+  } catch (e) { if (e.message === 'signed out') { box.textContent = 'Signed out.'; return; } box.textContent = 'Could not load activity.'; }
 }
 document.getElementById('actkind').onchange = loadActivity;
 document.getElementById('actrefresh').onclick = loadActivity;
