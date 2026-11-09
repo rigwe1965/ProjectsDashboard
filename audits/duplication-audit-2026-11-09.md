@@ -46,9 +46,10 @@ Sorting by value for effort: D-02, D-06, D-05 and D-07 first (small, mechanical,
 - **Done:** D-06 (one `sha256`; `hashSessionId` and `hashToken` are aliases), D-16 (constants renamed `INSTANCE_RETRY_AFTER_FAIL_MS` and `RESET_RETRY_AFTER_FAIL_MS`), and D-05 except two items: the `sleep` replacements and the shared health check are still to do.
 - **Done (second batch):** D-02 (the six scripts use `parseEnvText`; `missingKeys` added to `lib/util.mjs`; `run-with-env.mjs` no longer has its own parser, and `tests/journeys.mjs` keeps its own because it filters differently) and D-07 (`lib/config.mjs` is the one reader of the three port variables; `start-console.bat` and `start-showcase.bat` honour `CONSOLE_PORT` / `SHOWCASE_PORT`). The Caddyfile, compose file and `start-customer-demo.bat` still hold 4300 and 4100 literally.
 - **Done (third batch):** D-01 (`lib/store/shared.mjs` holds the grant mapper, audit packing, expiry check and the list of upgrade columns; both stores use it; Postgres now adds the five `grants` columns with `ADD COLUMN IF NOT EXISTS`, so an old Postgres database is upgraded like an SQLite one). The SQL text and the per-dialect schema stay in each store on purpose. **Postgres side not run**: Docker was down and `TEST_DATABASE_URL` was not set, so the contract tests ran against SQLite only; the Postgres file was syntax-checked and its shared pieces are unit-tested in `tests/unit/store-shared.test.mjs`.
-- **Next:** D-03.
+- **D-03 started:** `tests/unit/supervisor-steps.test.mjs` (11 tests) pins the failure paths of `build`, `reset` and `instance-start` as they behave today: exit codes, messages, log lines, timeouts, missing working folder or env file, env and placeholder substitution, and `instance-stop` removing the folder. They pass on the unchanged code. The runner itself is not merged yet.
+- **Next:** merge the three step loops in `supervisor/index.mjs` into `runLoggedStep`, with those tests as the guard.
 
-- After these changes: lint clean, 172 of 173 tests pass (one skipped, as before).
+- After these changes: lint clean, 183 of 184 tests pass (one skipped, as before).
 
 ## The utilities module
 
