@@ -30,10 +30,12 @@ const { closeStore } = await import('../../lib/store/index.mjs');
 const running = new Map(); // slot -> server
 const calls = [];
 let failNextStart = false;
+let startGate = null; // a promise the next instance-start waits for, to hold a copy in the "starting" state
 async function supervisor(args) {
   calls.push(args.join(' '));
   const [cmd, , slotArg] = args, slot = Number(slotArg);
   if (cmd === 'instance-start') {
+    if (startGate) await startGate;
     if (failNextStart) { failNextStart = false; return { ok: false, output: 'boom' }; }
     const srv = http.createServer((req, res) => { if (req.url === '/hang') return; res.end(`copy ${slot}: ${req.url}`); });
     await new Promise((r) => srv.listen(portBase + slot * 10, '127.0.0.1', r));
@@ -195,4 +197,23 @@ test('a copy whose process has really died (connection refused) is started again
   try { await request({ headers: { cookie: j.cookie } }); } finally { Date.now = realNow; }
   await ready(j);
   assert.equal(starts(), before + 1, 'exactly one new start');
+});
+
+test('while a copy is starting, the customer gets a self-refreshing 503 page with the usual security headers', async () => {
+  for (const g of await grants.loadGrants()) await grants.revokeGrant(g.id).catch(() => {});
+  await gw.instanceSweep();
+  let release; startGate = new Promise((r) => { release = r; });
+  try {
+    const e = await open('E');
+    const r = await request({ headers: { cookie: e.cookie } });
+    assert.equal(r.status, 503);
+    assert.equal(r.headers['retry-after'], '3');
+    assert.match(r.headers['content-type'], /^text\/html/);
+    assert.equal(r.headers['x-frame-options'], 'DENY');
+    assert.match(r.headers['content-security-policy'], /default-src 'none'/);
+    assert.match(r.body, /<meta http-equiv=refresh content=3><title>Preparing your demo<\/title>/);
+    assert.match(r.body, /Your private copy is being set up/);
+    release(); startGate = null;
+    await ready(e);
+  } finally { release?.(); startGate = null; }
 });

@@ -454,7 +454,9 @@ test('errors: 429 answers say when to retry', async () => {
   let last;
   for (let i = 0; i < 15; i++) last = await request({ host: 'toy.localhost', path: '/d/' + bad, headers: { 'x-forwarded-for': '9.9.9.9' }, port: trustedPort });
   assert.equal(last.status, 429);
-  assert.ok(last.headers['retry-after']);
+  assert.match(last.headers['retry-after'], /^(60|600)$/);
+  assert.match(last.body, /<title>Too many attempts<\/title>/);
+  assert.match(last.body, last.headers['retry-after'] === '60' ? /Please wait a minute and try again\./ : /Please wait a few minutes and try again\./, 'the wording matches the wait');
 });
 
 test('security: a WebSocket from another origin is refused, even with a valid session', async () => {

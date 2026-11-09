@@ -47,10 +47,15 @@ const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-au
 const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https';
 const OWN_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
   'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(HTTPS ? { 'strict-transport-security': 'max-age=31536000' } : {}) };
-const page = (res, code, title, msg, headers = {}) => {
+// `head` is extra markup for <head> (for example a meta refresh).
+const page = (res, code, title, msg, headers = {}, head = '') => {
   res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS, ...headers });
-  res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><title>${title}</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">${title}</h1><p>${msg}</p>`);
+  res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">${head}<title>${title}</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">${title}</h1><p>${msg}</p>`);
 };
+// A 429 page. `seconds` is both the wait shown to the customer and the Retry-After header.
+const tooMany = (res, seconds) => page(res, 429, 'Too many attempts', `Please wait ${seconds === 60 ? 'a minute' : 'a few minutes'} and try again.`, { 'retry-after': String(seconds) });
+// The audit record of a refused request. `grant` is the grant's id when the request got as far as one; extra fields (why, via) follow.
+const deniedRecord = (grant, app, ip, ua, extra = {}) => ({ ev: 'denied', ...(grant ? { grant } : {}), app, ip, ua, ...extra });
 
 // Options (all have environment-variable defaults, see demo-gateway/README.md)
 export async function createGateway(opts = {}) {
@@ -179,13 +184,13 @@ export async function createGateway(opts = {}) {
     const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
     if (m) {
       const ua = uaOf(req);
-      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return page(res, 429, 'Too many attempts', 'Please wait a minute and try again.', { 'retry-after': '60' }); }
+      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return tooMany(res, 60); }
       const g = await findGrant(m[1]);
       if (!isActive(g) || g.app !== slug) {
-        audit({ ev: 'denied', app: slug, ip, ua, why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' });
+        audit(deniedRecord(null, slug, ip, ua, { why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' }));
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
-        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return page(res, 429, 'Too many attempts', 'Please wait a few minutes and try again.', { 'retry-after': '600' });
+        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return tooMany(res, 600);
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
       if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });
@@ -206,7 +211,7 @@ export async function createGateway(opts = {}) {
       const use = await store.grants.redeem(g.id, sha256(devId));
       if (!use.ok) {
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
-        audit({ ev: 'denied', grant: g.id, app: slug, ip, ua, why: use.why });
+        audit(deniedRecord(g.id, slug, ip, ua, { why: use.why }));
         return page(res, 403, 'Link not available', use.why === 'device-locked'
           ? 'This link is tied to the browser it was first opened in. Please contact us if you need a new one.'
           : 'This link has already been used the maximum number of times. Please contact us for a new one.');
@@ -224,9 +229,9 @@ export async function createGateway(opts = {}) {
 
     // 2. Every other request needs a live grant for THIS product
     const g = await grantFor(req);
-    if (!g) return tooManyMisses(ip) ? page(res, 429, 'Too many attempts', 'Please wait a minute and try again.', { 'retry-after': '60' }) : page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
+    if (!g) return tooManyMisses(ip) ? tooMany(res, 60) : page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
     if (!isActive(g) || g.app !== slug) {
-      await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req) });
+      await auditDenied(g.id + ':' + ip, deniedRecord(g.id, slug, ip, uaOf(req)));
       return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.');
     }
 
@@ -241,8 +246,7 @@ export async function createGateway(opts = {}) {
         if (inst.state === 'full') return page(res, 503, 'All demo seats are taken', 'Every private demo seat is in use right now. Please try again in a few minutes.', { 'retry-after': '60' });
         if (inst.state === 'failed') return page(res, 503, 'Demo could not start', 'Your private demo did not start. Please wait a moment and refresh this page to try again.', { 'retry-after': '20' });
         // starting: a page that checks again by itself
-        res.writeHead(503, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS, 'retry-after': '3' });
-        return res.end('<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta http-equiv=refresh content=3><title>Preparing your demo</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">Preparing your demo</h1><p>Your private copy is being set up. This page refreshes by itself and takes up to a minute.</p>');
+        return page(res, 503, 'Preparing your demo', 'Your private copy is being set up. This page refreshes by itself and takes up to a minute.', { 'retry-after': '3' }, '<meta http-equiv=refresh content=3>');
       }
       slot = inst.slot; instances.touch(slug, slot);
     }
@@ -309,13 +313,13 @@ export async function createGateway(opts = {}) {
     const ip = clientIp(req, trusted);
     const g = await grantFor(req);
     if (!g) return tooManyMisses(ip) ? rejectUpgrade(socket, 429, 'Too Many Requests') : rejectUpgrade(socket, 401, 'Unauthorized');
-    if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
+    if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, deniedRecord(g.id, slug, ip, uaOf(req), { via: 'websocket' })); return rejectUpgrade(socket, 403, 'Forbidden'); }
     // The upstream is told a different Origin below, so its own cross-site check cannot work: do the check here. A browser
     // always sends the page's own origin; a page on another (even sibling) host must not ride this session.
     if (req.headers.origin) {
       let sameHost = false;
       try { sameHost = new URL(req.headers.origin).host.toLowerCase() === hostHdr; } catch { /* malformed Origin */ }
-      if (!sameHost) { await auditDenied(g.id + ':' + ip, { ev: 'denied', grant: g.id, app: slug, ip, ua: uaOf(req), why: 'bad-origin', via: 'websocket' }); return rejectUpgrade(socket, 403, 'Forbidden'); }
+      if (!sameHost) { await auditDenied(g.id + ':' + ip, deniedRecord(g.id, slug, ip, uaOf(req), { why: 'bad-origin', via: 'websocket' })); return rejectUpgrade(socket, 403, 'Forbidden'); }
     }
     if ((wsCounts.get(g.id) || 0) >= o.maxWsPerGrant) return rejectUpgrade(socket, 429, 'Too Many Requests');
     wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
