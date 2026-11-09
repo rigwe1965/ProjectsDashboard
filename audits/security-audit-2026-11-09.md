@@ -301,6 +301,7 @@ and remove the `createRequire` lines and the `data/tools` dependency on `pg`.
 ---
 
 ### S-12: CI does not scan for secrets, images or code issues · 2/10
+**Status: fixed except code scanning, 2026-11-09.** Added a `secrets` job (gitleaks over the full history) and an `images` job (Trivy on both images: HIGH listed, a fixable CRITICAL fails the build); both actions pinned to commit SHAs read from GitHub. The existing `checkout` and `setup-node` pins were checked against GitHub and match their v4.4.0 tags. **Not added: CodeQL**, because code scanning on a private repository needs GitHub Advanced Security; it can be enabled if the repository becomes public. The new jobs have not run yet (they run on the next push), and the first gitleaks run may flag test fixtures: check it once.
 **Category:** Dependencies & Supply chain
 **Location:** `.github/workflows/ci.yml`.
 
@@ -326,6 +327,7 @@ and `aquasecurity/trivy-action` against `projects-dashboard` after the image bui
 ---
 
 ### S-13: App process logs: default permissions, shown unredacted · 2/10
+**Status: fixed 2026-11-09.** The supervisor creates each app log owner-only before the app starts (no effect on Windows file permissions), and the console's log view masks URL passwords and values after names like password, secret, token, key and authorization (`maskSecrets` in `lib/util.mjs`; pattern-based, so a safety net only). Tests added.
 **Category:** Secrets / Privacy
 **Location:** `lib/process-driver.mjs:66` and `:101` (output redirected by the shell into `data/logs/<app>-<proc>.log`); `admin-console/console.mjs:226-231` (`/api/apps/:id/logs` returns the last 12 KB as it is); compare `supervisor/index.mjs` `runLoggedStep` / `redact`, which does create step logs owner-only and masks secret-looking values (RA-05).
 

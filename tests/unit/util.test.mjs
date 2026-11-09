@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { num, sleep, errMessage, unmapV4, parseEnvText, missingKeys, createSerialLock, skipIfRunning, fireAndForget } from '../../lib/util.mjs';
+import { num, sleep, errMessage, unmapV4, parseEnvText, missingKeys, createSerialLock, skipIfRunning, fireAndForget, maskSecrets } from '../../lib/util.mjs';
 
 test('num: a number, or the default for unset / empty / not-a-number', () => {
   assert.equal(num('42', 1), 42);
@@ -60,4 +60,14 @@ test('fireAndForget never throws into the caller', async () => {
   fireAndForget(async () => { throw new Error('audit down'); }, (e) => seen.push(e.message));
   await sleep(5);
   assert.deepEqual(seen, ['audit down']);
+});
+
+test('maskSecrets hides passwords in URLs and values after secret-looking names, and leaves ordinary log text alone', () => {
+  assert.equal(maskSecrets('DATABASE_URL=postgres://crm:Sup3rSecret@db:5432/crm'), 'DATABASE_URL=postgres://crm:***@db:5432/crm');
+  assert.equal(maskSecrets('GET /api?token=abcdef123456 200'), 'GET /api?token=*** 200');
+  assert.equal(maskSecrets('{"password": "hunter2hunter2", "user":"bob"}'), '{"password": "***", "user":"bob"}');
+  assert.equal(maskSecrets('Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.abc.def'), 'Authorization: Bearer ***');
+  assert.equal(maskSecrets('NEXTAUTH_SECRET=abc12345xyz'), 'NEXTAUTH_SECRET=***');
+  assert.equal(maskSecrets('api_key: sk-abcdefgh'), 'api_key: ***');
+  for (const plain of ['http://localhost:3101/sign-in ready', 'Started app (pid 123) on :5200 UP', 'SUPABASE_SERVICE_ROLE_KEY missing', '']) assert.equal(maskSecrets(plain), plain);
 });

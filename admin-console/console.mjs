@@ -21,7 +21,7 @@ import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, limitKey, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
-import { num, createSerialLock, fireAndForget } from '../lib/util.mjs';
+import { num, createSerialLock, fireAndForget, maskSecrets } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
@@ -241,7 +241,7 @@ export async function createConsole(opts = {}) {
       const app = registry.apps.find((a) => a.id === m[1]);
       const proc = app?.processes.find((p) => p.name === url.searchParams.get('proc'));
       if (!proc) return json(res, 404, { error: 'unknown app/process' });
-      return json(res, 200, { log: tail(join(dataDir, 'logs', `${app.id}-${proc.name}.log`)) });
+      return json(res, 200, { log: maskSecrets(tail(join(dataDir, 'logs', `${app.id}-${proc.name}.log`))) });
     }
 
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/apps\/([\w-]+)\/(start|stop|restart)$/))) {

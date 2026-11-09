@@ -134,6 +134,18 @@ test('creating and revoking a customer link is audited with where it came from, 
   assert.ok(!demos.some((e) => e.ev === 'grant-created' && e.grant === made.grant.id), 'not under the customer filter');
 });
 
+test('the log view hides secret-looking values in what an app printed', async () => {
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  mkdirSync(join(dir, 'logs'), { recursive: true });
+  writeFileSync(join(dir, 'logs', 'toy-app.log'), 'listening\nDATABASE_URL=postgres://u:LeakyPass99@db/x\nsession token=abcdef123456 ok\n');
+  const { c, port } = await start();
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const { log } = JSON.parse((await req(port, { path: '/api/apps/toy/logs?proc=app', headers: { cookie } })).body);
+  assert.match(log, /listening/);
+  assert.ok(!log.includes('LeakyPass99') && !log.includes('abcdef123456'), 'secrets are masked: ' + log);
+  assert.match(log, /postgres:\/\/u:\*\*\*@db\/x/);
+});
+
 test('/_pd/healthz needs no login but still obeys the Host allow-list', async () => {
   const { port } = await start();
   const ok = await req(port, { path: '/_pd/healthz' });

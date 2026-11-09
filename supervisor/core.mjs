@@ -8,7 +8,7 @@
 //  - never kills by port or by name: only PIDs it recorded itself, and only if the process start time still matches (guards against PID reuse)
 //  - refuses to start a process whose port is already in use or reserved
 //  - app env vars are set on the child process only
-import { existsSync } from 'node:fs';
+import { existsSync, appendFileSync, chmodSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
 import { instanceApp, validSlot, freshInstanceDir, removeInstanceDir } from '../lib/instance-app.mjs';
@@ -103,6 +103,9 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
       let env;
       try { env = childEnv(app, p, (v) => fill(v, p, app)); } catch (e) { die(`${e.message} (${app.id}/${p.name})`); }
       const logPath = join(logDir, `${app.id}-${p.name}.log`);
+      // The app's output is appended to this file by the shell. Make the file owner-only first (where the system supports it), so other
+      // users of the machine cannot read what the app prints.
+      try { appendFileSync(logPath, '', { mode: 0o600 }); chmodSync(logPath, 0o600); } catch { /* best effort */ }
       const child = driver.spawnApp({ cmd: fill(p.cmd, p, app), cwd, env, logPath });
       await new Promise((r) => setTimeout(r, 800));
       if (child.spawnError || !child.pid) { console.error(`Could not start ${app.id}/${p.name}: ${child.spawnError?.message ?? 'no process id'}`); failed = true; continue; }

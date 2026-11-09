@@ -47,3 +47,44 @@ jobs:
       - run: node tests/linux/driver-check.mjs     # real processes: start, status, stop on Linux
       - run: docker build -f deploy/Dockerfile -t projects-dashboard .
       - run: docker build -f deploy/Caddy.Dockerfile -t pd-caddy .
+
+  # Looks for committed secrets in the whole history. Free for repositories owned by a personal account.
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0   # the full history, not just the latest commit
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  # Scans the two images this repository builds for known vulnerabilities. Fails on a CRITICAL one that has a fix available;
+  # HIGH ones are listed in the log (fixing them is a base-image update, which Dependabot proposes).
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - run: docker build -f deploy/Dockerfile -t projects-dashboard .
+      - run: docker build -f deploy/Caddy.Dockerfile -t pd-caddy .
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: projects-dashboard
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: projects-dashboard
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: pd-caddy
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          hide-progress: true
