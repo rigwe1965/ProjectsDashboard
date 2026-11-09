@@ -25,10 +25,11 @@ import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
 import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
-import { verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessionId, hashSessionId } from '../lib/auth.mjs';
+import { ADMIN_KEYS, verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessionId, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const COOKIE_BASE = 'pd_session';
+const isPlainObject = (b) => !!b && typeof b === 'object' && !Array.isArray(b);
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
 const defaultSupervisor = runSupervisor;
@@ -78,7 +79,7 @@ export async function createConsole(opts = {}) {
   const COOKIE = (o.scheme === 'https' ? '__Host-' : '') + COOKIE_BASE; // __Host-: browsers only accept it if Secure, host-only and Path=/
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
 
-  const passwordMode = async () => !!(await store.meta.get('admin_password_hash'));
+  const passwordMode = async () => !!(await store.meta.get(ADMIN_KEYS.passwordHash));
   if (!LOOPBACK.has(o.bindHost) && !(await passwordMode())) {
     throw new Error(`Refusing to listen on ${o.bindHost} without a password. Run "npm run console:auth set-password" first.`);
   }
@@ -100,6 +101,8 @@ export async function createConsole(opts = {}) {
     res.end(String(body).replaceAll('<script>', `<script nonce="${nonce}">`));
   };
   const originOk = (req) => req.headers.origin === `${o.scheme}://${req.headers.host}`;
+  // True (after answering 403) when the request's Origin is not this console's own address. Every state-changing route starts with it.
+  const badOrigin = (req, res) => (originOk(req) ? false : (json(res, 403, { error: 'bad origin' }), true));
   const readBody = async (req, max = 4096) => { let b = ''; for await (const c of req) { b += c; if (b.length > max) throw tooLarge(); } return b; };
 
   async function sessionOk(req) {
@@ -108,7 +111,7 @@ export async function createConsole(opts = {}) {
   }
 
   async function login(req, res) {
-    if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+    if (badOrigin(req, res)) return;
     const ip = clientIp(req, trusted), ua = String(req.headers['user-agent'] || '').slice(0, 200);
     // 8 tries per IP per 15 minutes (hard limit). Failed tries overall are also counted: past the cap, wrong guesses are
     // refused with 429 but a correct password + code still signs in, so a flood of bad guesses from many addresses
@@ -118,9 +121,9 @@ export async function createConsole(opts = {}) {
       return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' }, { 'retry-after': '900' });
     }
     let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.status === 413 ? 413 : 400, { error: 'bad request' }); }
-    if (!b || typeof b !== 'object' || Array.isArray(b)) return json(res, 400, { error: 'bad request' });
-    const hash = await store.meta.get('admin_password_hash');
-    const totpStored = await store.meta.get('admin_totp_secret');
+    if (!isPlainObject(b)) return json(res, 400, { error: 'bad request' });
+    const hash = await store.meta.get(ADMIN_KEYS.passwordHash);
+    const totpStored = await store.meta.get(ADMIN_KEYS.totpSecret);
     const totpSecret = totpStored || '';
     let totpPlain = null; // the usable secret; stays null when it is encrypted and the key is missing or wrong (sign-in then fails closed)
     if (totpStored) { try { totpPlain = unseal(totpStored); } catch (err) { logger.error('cannot read the 2-step secret; sign-in is refused', { err }); } }
@@ -129,9 +132,9 @@ export async function createConsole(opts = {}) {
     // Read the last used step, check the code and record the new step as ONE unit (one login at a time), so two
     // simultaneous logins with the same code cannot both pass. Only the password-correct case burns the code.
     const step = await withTotpLock(async () => {
-      const lastStep = Number((await store.meta.get('admin_totp_last_step')) ?? -1);
+      const lastStep = Number((await store.meta.get(ADMIN_KEYS.totpLastStep)) ?? -1);
       const s = totpSecret ? (totpPlain ? verifyTotp(totpPlain, b.code, Date.now(), lastStep) : null) : 0;
-      if (totpSecret && s !== null && pwOk) await store.meta.set('admin_totp_last_step', s);
+      if (totpSecret && s !== null && pwOk) await store.meta.set(ADMIN_KEYS.totpLastStep, s);
       return s;
     });
     if (!pwOk || step === null) {
@@ -149,7 +152,7 @@ export async function createConsole(opts = {}) {
     await store.sessions.create(hashSessionId(id), new Date(Date.now() + maxAge * 1000).toISOString());
     audit({ ev: 'admin-login', ip, ua });
     // the password was right: if its hash was made with an older, cheaper setting, replace it with a current one
-    if (needsRehash(hash)) { try { await store.meta.set('admin_password_hash', await hashPassword(String(b.password))); } catch (err) { logger.warn('could not upgrade the password hash', { err }); } }
+    if (needsRehash(hash)) { try { await store.meta.set(ADMIN_KEYS.passwordHash, await hashPassword(String(b.password))); } catch (err) { logger.warn('could not upgrade the password hash', { err }); } }
     res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`, ...securityHeaders });
     res.end(JSON.stringify({ ok: true }));
   }
@@ -171,7 +174,7 @@ export async function createConsole(opts = {}) {
       }
       if (url.pathname === '/login' && req.method === 'POST') return login(req, res);
       if (url.pathname === '/logout' && req.method === 'POST') {
-        if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+        if (badOrigin(req, res)) return;
         const id = readCookie(req, COOKIE); if (id) await store.sessions.delete(hashSessionId(id));
         audit({ ev: 'admin-logout', ip: clientIp(req, trusted) });
         res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`, ...securityHeaders });
@@ -260,14 +263,14 @@ export async function createConsole(opts = {}) {
       return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
     }
     if (req.method === 'POST' && url.pathname === '/api/demos') {
-      if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+      if (badOrigin(req, res)) return;
       const b = JSON.parse((await readBody(req)) || '{}'); // SyntaxError -> 400, too large -> 413 (see toResponse)
-      if (!b || typeof b !== 'object' || Array.isArray(b)) throw new HttpError(400, 'Expected a JSON object');
+      if (!isPlainObject(b)) throw new HttpError(400, 'Expected a JSON object');
       const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock });
       return json(res, 200, { grant: publicGrant(grant), link });
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([\w-]+)\/reset$/))) {
-      if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+      if (badOrigin(req, res)) return;
       const product = m[1], app = demoApps()[product];
       if (!app?.reset || app.perLink) throw new HttpError(404, 'That demo cannot be reset');
       const b = JSON.parse((await readBody(req)) || '{}');
@@ -279,7 +282,7 @@ export async function createConsole(opts = {}) {
       return json(res, r.busy ? 409 : r.ok ? 200 : 502, r.busy ? { error: r.output } : r);
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
-      if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+      if (badOrigin(req, res)) return;
       await revokeGrant(m[1]); // throws a 404 HttpError when there is no such grant; a database failure is a real 500
       return json(res, 200, { ok: true });
     }

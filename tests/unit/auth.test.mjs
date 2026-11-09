@@ -93,3 +93,9 @@ test('otpauth URL and session ids', () => {
   assert.match(hashSessionId(id), /^[a-f0-9]{64}$/);
   assert.notEqual(hashSessionId(id), id, 'only the hash is stored');
 });
+
+test('ADMIN_KEYS: the stored names are fixed (renaming one would silently sign everyone out of password mode)', async () => {
+  const { ADMIN_KEYS } = await import('../../lib/auth.mjs');
+  assert.deepEqual({ ...ADMIN_KEYS }, { passwordHash: 'admin_password_hash', totpSecret: 'admin_totp_secret', totpLastStep: 'admin_totp_last_step', totpPending: 'admin_totp_pending', totpPendingFile: 'admin_totp_pending_file' });
+  assert.ok(Object.isFrozen(ADMIN_KEYS));
+});

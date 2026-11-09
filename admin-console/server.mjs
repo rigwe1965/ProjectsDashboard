@@ -2,18 +2,18 @@
 import { createConsole } from './console.mjs';
 import { ports } from '../lib/config.mjs';
 import { getStore, closeStore } from '../lib/store/index.mjs';
-import { dataKey, isSealed, seal } from '../lib/auth.mjs';
+import { ADMIN_KEYS, dataKey, isSealed, seal } from '../lib/auth.mjs';
 import { logger, installProcessHandlers } from '../lib/log.mjs';
 
 // 2-step secret at rest: encrypt it when ADMIN_DATA_KEY is set; say so when it is not.
 if (process.env.ADMIN_DATA_KEY && !dataKey()) { logger.error('ADMIN_DATA_KEY must be 64 hex characters (npm run console:auth -- gen-key)'); process.exit(1); }
 {
   const st = await getStore();
-  for (const k of ['admin_totp_secret', 'admin_totp_pending']) {
+  for (const k of [ADMIN_KEYS.totpSecret, ADMIN_KEYS.totpPending]) {
     const v = await st.meta.get(k);
     if (v && !isSealed(v)) {
       if (dataKey()) { await st.meta.set(k, seal(v)); logger.info('encrypted a stored 2-step secret', { key: k }); }
-      else if (k === 'admin_totp_secret') logger.warn('the 2-step secret is stored unencrypted; set ADMIN_DATA_KEY (npm run console:auth -- gen-key) to encrypt it');
+      else if (k === ADMIN_KEYS.totpSecret) logger.warn('the 2-step secret is stored unencrypted; set ADMIN_DATA_KEY (npm run console:auth -- gen-key) to encrypt it');
     }
   }
 }
