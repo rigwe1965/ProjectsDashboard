@@ -1,5 +1,5 @@
 # Caddy (HTTPS reverse proxy) with the built showcase site baked in. Build context = repository root.
-FROM node:24-slim@sha256:01d566e8d94d8c619591d78652babfccd3c6992a3dffa9ed5ab39e11cf6c70e9 AS showcase
+FROM node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS showcase
 WORKDIR /app
 COPY showcase showcase
 RUN node showcase/build.mjs
