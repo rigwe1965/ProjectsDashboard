@@ -375,7 +375,11 @@ async function loadDemos(){
         if (!confirm('Revoke the demo link for ' + g.customer + '?')) return;
         try { const j = await api('/api/demos/' + g.id + '/revoke', { method: 'POST' }); say(j.error ? 'Revoke FAILED: ' + j.error : 'Revoked'); }
         catch (e) { if (e.message !== 'signed out') say('Revoke FAILED: request did not complete'); }
-        loadDemos(); } }, 'Revoke') : null)))
+        loadDemos(); } }, 'Revoke') : g.customer === '(removed)' ? null : el('button', { title: 'Delete the address and browser records for this link and remove the customer name', onclick: async () => {
+        if (!confirm('Forget ' + g.customer + '? Their address and browser records and name are deleted. This cannot be undone.')) return;
+        try { const j = await api('/api/demos/' + g.id + '/forget', { method: 'POST' }); say(j.error ? 'Forget FAILED: ' + j.error : 'Removed ' + j.removed + ' records'); }
+        catch (e) { if (e.message !== 'signed out') say('Forget FAILED: request did not complete'); }
+        loadDemos(); } }, 'Forget'))))
       : [el('tr', {}, el('td', { colspan: '6', class: 'empty' }, 'No demo links yet. Create one above, then send it to your customer.'))]));
   panel.replaceChildren(services, el('div', { class: 'group' }, el('h3', {}, 'New demo link'), form, ...(keepLink ? [keepLink] : [])), ...(accounts ? [accounts] : []), el('div', { class: 'group' }, el('h3', {}, 'Links you have sent'), el('div', { class: 'tablewrap' }, table)));
 }

@@ -14,7 +14,7 @@ import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } fro
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createGrants, publicGrant } from '../demo-gateway/grants.mjs';
+import { createGrants, publicGrant, isActive } from '../demo-gateway/grants.mjs';
 import { demoApps } from '../lib/registry.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
@@ -303,7 +303,11 @@ export async function createConsole(opts = {}) {
 
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/forget$/))) { // remove every audit event (address, browser) recorded for one customer's link
       if (badOrigin(req, res)) return;
+      const g = await store.grants.findById(m[1]);
+      if (!g) throw new HttpError(404, 'No such demo link');
+      if (isActive(g)) throw new HttpError(409, 'Revoke the link first; it is still active');
       const removed = await store.audit.deleteForGrant(m[1]);
+      await store.grants.anonymize(m[1]); // the name on the grant goes too
       audit({ ev: 'grant-forgotten', ip: clientIp(req, trusted), removed }); // deliberately without the grant id
       return json(res, 200, { ok: true, removed });
     }

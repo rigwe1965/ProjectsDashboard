@@ -568,3 +568,21 @@ test('a start/stop request that is refused (wrong origin, or the app is busy) is
   const feed = JSON.parse((await req(port, { path: '/api/audit?kind=problems', headers: { cookie } })).body).events;
   assert.deepEqual(feed.filter((e) => e.ev === 'admin-action-refused').map((e) => e.why).sort(), ['bad-origin', 'busy']);
 });
+
+test('forgetting a customer removes their audit events and name, but only once the link is no longer active', async () => {
+  const { c, port } = await start();
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const made = JSON.parse((await post(port, '/api/demos', { customer: 'Forget Me', app: 'toy', hours: 1 }, { cookie })).body);
+  const id = made.grant.id;
+  assert.equal((await post(port, '/api/demos/' + id + '/forget', {}, { cookie })).status, 409, 'still active');
+  assert.equal((await post(port, '/api/demos/' + id + '/revoke', {}, { cookie })).status, 200);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.ok((await store.audit.list(500)).some((e) => e.grant === id), 'events exist first');
+  const r = await post(port, '/api/demos/' + id + '/forget', {}, { cookie });
+  assert.equal(r.status, 200);
+  assert.ok(JSON.parse(r.body).removed >= 2);
+  await new Promise((r2) => setTimeout(r2, 50));
+  assert.ok(!(await store.audit.list(500)).some((e) => e.grant === id), 'no events left for the grant');
+  assert.equal((await store.grants.findById(id)).customer, '(removed)');
+  assert.equal((await post(port, '/api/demos/deadbeef/forget', {}, { cookie })).status, 404);
+});

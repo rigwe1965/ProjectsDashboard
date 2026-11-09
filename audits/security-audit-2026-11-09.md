@@ -348,7 +348,7 @@ return json(res, 200, { log: tail(...).replace(/((?:password|secret|token|key)\w
 ---
 
 ### S-14: Customer addresses and browser strings are kept for 90 days, with no per-customer removal · 2/10
-**Status: fixed 2026-11-09.** `audit.deleteForGrant(id)` in both stores and a console route `POST /api/demos/:id/forget` remove every audit event for one customer's link (the removal is itself logged, without the grant id). Customer events are pruned at `AUDIT_RETENTION_DAYS` (90) and the owner's `admin-*` events at the new `AUDIT_ADMIN_RETENTION_DAYS` (365). The customer's name on the grant row itself is not removed. Tests added in the store contract.
+**Status: fixed 2026-11-09.** `audit.deleteForGrant(id)` in both stores and a console route `POST /api/demos/:id/forget` remove every audit event for one customer's link (the removal is itself logged, without the grant id). Customer events are pruned at `AUDIT_RETENTION_DAYS` (90) and the owner's `admin-*` events at the new `AUDIT_ADMIN_RETENTION_DAYS` (365). Forgetting is only allowed once the link is revoked or expired, and it also replaces the customer name on the grant with "(removed)"; the console has a Forget button for this. Tests added in the store contract.
 **Category:** Data flow & Privacy
 **Location:** `demo-gateway/server.mjs:10-20` (`AUDIT_RETENTION_DAYS`, default 90); `lib/store/sqlite.mjs` and `postgres.mjs` (`audit.prune(days)` is the only delete); events carry `ip`, `ua`, `customer`.
 
