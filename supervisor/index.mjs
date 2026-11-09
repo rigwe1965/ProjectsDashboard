@@ -63,23 +63,25 @@ const getApp = (id) => {
 };
 
 // Is this process running AND one we started (a recorded PID is still the same process)? The shell wrapper may be gone while the app listens.
-async function isManaged(p, rec, up) {
+async function isManaged(p, rec, up, timeOf = startTime) {
   if (p.container) return !!(rec?.container && up && await containerRunning(rec.container));
-  return !!(rec && up && ((rec.startTime && startTime(rec.pid) === rec.startTime) || (rec.listenPid && startTime(rec.listenPid) === rec.listenStartTime)));
+  return !!(rec && up && ((rec.startTime && timeOf(rec.pid) === rec.startTime) || (rec.listenPid && timeOf(rec.listenPid) === rec.listenStartTime)));
 }
 
 async function status(json) {
   const state = await store.processState.all();
-  const rows = [];
-  for (const app of registry.apps) {
-    for (const p of app.processes) {
-      const rec = state[app.id]?.[p.name];
-      const up = await httpUp(p.port, p.health, p.host);
-      // managed = one of the PIDs we recorded is still alive (the shell wrapper may be gone while the app listens)
-      const managed = await isManaged(p, rec, up);
-      rows.push({ app: app.id, proc: p.name, port: p.port, optional: !!p.optional, up, managed, url: `http://127.0.0.1:${p.port}${p.health}` });
-    }
-  }
+  // All recorded PIDs are looked up in one call, and every process is probed at the same time: a status check used to take as long
+  // as the sum of every probe (about ten seconds with everything running), which left the console page waiting on its first load.
+  const pids = Object.values(state).flatMap((procs) => Object.values(procs)).flatMap((r) => [r.pid, r.listenPid]).filter(Boolean);
+  const times = driver.startTimes ? driver.startTimes(pids) : new Map();
+  const timeOf = (pid) => (times.has(Number(pid)) ? times.get(Number(pid)) : null);
+  const rows = await Promise.all(registry.apps.flatMap((app) => app.processes.map(async (p) => {
+    const rec = state[app.id]?.[p.name];
+    const up = await httpUp(p.port, p.health, p.host);
+    // managed = one of the PIDs we recorded is still alive (the shell wrapper may be gone while the app listens)
+    const managed = await isManaged(p, rec, up, timeOf);
+    return { app: app.id, proc: p.name, port: p.port, optional: !!p.optional, up, managed, url: `http://127.0.0.1:${p.port}${p.health}` };
+  })));
   if (json) { console.log(JSON.stringify(rows)); return; }
   for (const r of rows) {
     const app = registry.apps.find((a) => a.id === r.app);

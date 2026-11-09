@@ -65,6 +65,7 @@ export async function createConsole(opts = {}) {
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     supervisor: defaultSupervisor,
     gatewayPort: num(process.env.GATEWAY_PORT, 4300),
+    statusReuseMs: 2000, // how long one status check answers further requests
     ...opts,
   };
   const registry = loadRegistry();
@@ -200,7 +201,7 @@ export async function createConsole(opts = {}) {
         all: () => true,
         admin: (e) => e.ev.startsWith('admin-'),
         demos: (e) => !e.ev.startsWith('admin-'),
-        problems: (e) => e.ev === 'admin-login-failed' || e.ev === 'denied',
+        problems: (e) => e.ev === 'admin-login-failed' || e.ev === 'denied' || e.ev === 'admin-action-refused',
       }[kind];
       if (!keep) return json(res, 400, { error: 'unknown filter' });
       const rows = (await store.audit.list(1000)).filter((e) => keep(e)).slice(0, limit)
@@ -228,12 +229,12 @@ export async function createConsole(opts = {}) {
     }
 
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/apps\/([\w-]+)\/(start|stop|restart)$/))) {
-      if (!originOk(req)) return json(res, 403, { error: 'bad origin' });
+      if (!originOk(req)) { audit({ ev: 'admin-action-refused', app: m[1], why: 'bad-origin', ip: clientIp(req, trusted) }); return json(res, 403, { error: 'bad origin' }); }
       const app = registry.apps.find((a) => a.id === m[1]);
       if (!app) return json(res, 404, { error: 'unknown app' });
       const only = url.searchParams.get('proc');
       if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
-      if (busy.has(app.id)) return json(res, 409, { error: `${app.id} is busy with another action` });
+      if (busy.has(app.id)) { audit({ ev: 'admin-action-refused', app: app.id, why: 'busy', ip: clientIp(req, trusted) }); return json(res, 409, { error: `${app.id} is busy with another action` }); }
       busy.add(app.id);
       audit({ ev: 'admin-app-' + m[2], app: app.id, ip: clientIp(req, trusted), ...(only ? { proc: only } : {}) });
       try {
@@ -241,7 +242,7 @@ export async function createConsole(opts = {}) {
         const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])], m[2] === 'stop' ? 120000 : 300000);
         if (!r.ok) logger.warn('supervisor command failed', { action: m[2], app: app.id, timedOut: !!r.timedOut });
         return json(res, r.ok ? 200 : 502, r);
-      } finally { busy.delete(app.id); }
+      } finally { busy.delete(app.id); dropStatus(); }
     }
 
     if (req.method === 'GET' && url.pathname === '/api/demos') {
@@ -275,6 +276,7 @@ export async function createConsole(opts = {}) {
       if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });
       audit({ ev: 'demo-reset-requested', app: product, forced: !!inUse, ip: clientIp(req, trusted) });
       const r = await runReset({ store, product, app, supervisor: o.supervisor, by: 'admin' });
+      dropStatus();
       return json(res, r.busy ? 409 : r.ok ? 200 : 502, r.busy ? { error: r.output } : r);
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
@@ -289,12 +291,27 @@ export async function createConsole(opts = {}) {
   }
 
   // Process status as rows. A failed or unreadable status check is reported, never silently shown as "everything stopped".
-  async function statusRows() {
-    const { ok, output } = await o.supervisor(['status', '--json'], 30000);
-    try { return { rows: JSON.parse(output), statusError: null }; } catch {
-      logger.warn('supervisor status unreadable', { ok, output: String(output).slice(0, 300) });
-      return { rows: [], statusError: ok ? 'unreadable' : 'failed' };
+  // Each status check starts a supervisor process and probes every app, so concurrent requests (the page asks for apps and demos at
+  // the same time, from every open tab) share ONE check, and its answer is reused for a couple of seconds. An action that changes
+  // what is running (start, stop, restart, reset) drops the saved answer, so the next request sees the new state.
+  let statusSaved = null, statusRun = null, statusGen = 0;
+  const dropStatus = () => { statusGen++; statusSaved = null; };
+  function statusRows() {
+    if (statusSaved && Date.now() - statusSaved.t < o.statusReuseMs) return Promise.resolve(statusSaved.v);
+    if (!statusRun) {
+      const gen = statusGen;
+      statusRun = (async () => {
+        const { ok, output } = await o.supervisor(['status', '--json'], 30000);
+        let v;
+        try { v = { rows: JSON.parse(output), statusError: null }; } catch {
+          logger.warn('supervisor status unreadable', { ok, output: String(output).slice(0, 300) });
+          v = { rows: [], statusError: ok ? 'unreadable' : 'failed' };
+        }
+        if (gen === statusGen && !v.statusError) statusSaved = { t: Date.now(), v };
+        return v;
+      })().finally(() => { statusRun = null; });
     }
+    return statusRun;
   }
 
   const server = http.createServer((req, res) => {

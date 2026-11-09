@@ -85,3 +85,10 @@ test('registry: the same port is fine on different hosts, still refused on the s
   assert.match(validate(reg({ host: 'one' }, { host: 'bad host!' })).join(), /invalid host/);
   assert.match(validate({ reservedPorts: [5400], apps: reg({}, { host: 'two' }).apps }).join(), /reserved/, 'reserved ports apply to this machine only');
 });
+
+test('parseStartTimes reads one "<pid> <start time>" line per process and ignores anything else', async () => {
+  const { parseStartTimes } = await import('../../lib/process-driver.mjs');
+  const m = parseStartTimes('1234 133912345678901234\r\n5678 133912345678999999\r\nnot a line\r\n\r\n');
+  assert.deepEqual([...m], [[1234, '133912345678901234'], [5678, '133912345678999999']]);
+  assert.equal(parseStartTimes('').size, 0);
+});

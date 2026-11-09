@@ -464,3 +464,40 @@ test('security: starting an app and signing out are recorded in the audit log', 
   assert.ok(evs.includes('admin-app-start'), evs.join());
   assert.ok(evs.includes('admin-logout'), evs.join());
 });
+
+test('status: requests that arrive together share one supervisor status check, and an action drops the saved answer', async () => {
+  await store.meta.set('admin_password_hash', ''); // token mode
+  let statusRuns = 0;
+  const supervisor = async (args) => {
+    if (args[0] !== 'status') return { ok: true, output: 'done' };
+    statusRuns++; await new Promise((r) => setTimeout(r, 150)); // a slow check, like a real one
+    return { ok: true, output: '[]' };
+  };
+  const { c, port } = await start({ supervisor });
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const get = (path) => req(port, { path, headers: { cookie } });
+  await Promise.all([get('/api/apps'), get('/api/demos'), get('/api/apps'), get('/api/demos')]);
+  assert.equal(statusRuns, 1, 'four requests at once ran one check');
+  await get('/api/apps');
+  assert.equal(statusRuns, 1, 'a request a moment later reuses the answer');
+  const done = await post(port, '/api/apps/toy/start', {}, { cookie });
+  assert.equal(done.status, 200);
+  await get('/api/apps');
+  assert.equal(statusRuns, 2, 'after a start the next request asks again');
+});
+
+test('a start/stop request that is refused (wrong origin, or the app is busy) is recorded in the activity feed', async () => {
+  await store.meta.set('admin_password_hash', ''); // token mode
+  let release; const slow = new Promise((r) => { release = r; });
+  const supervisor = async (args) => { if (args[0] === 'status') return { ok: true, output: '[]' }; await slow; return { ok: true, output: 'done' }; };
+  const { c, port } = await start({ supervisor });
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const bad = await req(port, { method: 'POST', path: '/api/apps/toy/start', headers: { cookie, origin: 'http://evil.example', 'content-type': 'application/json' }, body: '{}' });
+  assert.equal(bad.status, 403);
+  const first = post(port, '/api/apps/toy/start', {}, { cookie }); // holds the app busy until released
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal((await post(port, '/api/apps/toy/start', {}, { cookie })).status, 409);
+  release(); assert.equal((await first).status, 200);
+  const feed = JSON.parse((await req(port, { path: '/api/audit?kind=problems', headers: { cookie } })).body).events;
+  assert.deepEqual(feed.filter((e) => e.ev === 'admin-action-refused').map((e) => e.why).sort(), ['bad-origin', 'busy']);
+});
