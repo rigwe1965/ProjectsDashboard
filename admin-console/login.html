@@ -2,28 +2,35 @@
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sign in - Projects Dashboard</title>
 <style>
-:root{--bg:#f6f7f9;--card:#fff;--ink:#1c2230;--mute:#667085;--line:#d9dde5;--accent:#2b4acb;--bad:#b42318}
-@media (prefers-color-scheme:dark){:root{--bg:#10131a;--card:#181c26;--ink:#e8ebf2;--mute:#98a2b3;--line:#2a3140;--accent:#6c8cff;--bad:#ff7b72}}
-*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,sans-serif;padding:16px}
-form{width:100%;max-width:360px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:28px}
-h1{font-size:20px;margin:0 0 4px}p{margin:0 0 20px;color:var(--mute);font-size:14px}
-label{display:block;font-size:13px;margin:14px 0 4px;color:var(--mute)}
-input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;font:inherit}
-input:focus{outline:2px solid var(--accent);outline-offset:1px}
-button{margin-top:20px;width:100%;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
-button:disabled{opacity:.6;cursor:wait}
-#err{min-height:20px;margin-top:12px;color:var(--bad);font-size:14px}
-/* glass: the sign-in card floats over soft colour (same look as the public showcase) */
-:root{--glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.8)}
-@media (prefers-color-scheme:dark){:root{--glass:rgba(24,28,38,.66);--glass-edge:rgba(255,255,255,.1)}}
-body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(520px 520px at 12% 14%,rgba(43,74,203,.26),transparent 70%),radial-gradient(480px 480px at 90% 10%,rgba(124,58,237,.2),transparent 70%),radial-gradient(540px 540px at 80% 92%,rgba(14,116,104,.2),transparent 70%)}
-form{background:var(--glass);border-color:var(--glass-edge);box-shadow:0 18px 50px -24px rgba(16,19,26,.45);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
-@media (prefers-reduced-transparency:reduce){form{background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none}}
+/* Same look as the console and the public site: Bahnschrift headings, a frosted card over soft colour, a pill button. */
+:root{--paper:#EEF1F6;--ink:#0F1B2D;--mute:#4F5E78;--line:rgba(15,27,45,.16);--field:rgba(255,255,255,.75);--glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.85);--bad:#b42318;--action:#0F1B2D;--onaction:#EEF1F6;--focus:#2b4acb;
+  --display:"Bahnschrift","Segoe UI Variable Display","SF Pro Display","Avenir Next","Helvetica Neue",system-ui,sans-serif;
+  --text:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif}
+@media (prefers-color-scheme:dark){:root{--paper:#0A1020;--ink:#EAF0FA;--mute:#9DAAC4;--line:rgba(255,255,255,.16);--field:rgba(255,255,255,.06);--glass:rgba(17,26,46,.66);--glass-edge:rgba(255,255,255,.1);--bad:#ff8a80;--action:#EAF0FA;--onaction:#0A1020;--focus:#8aa2ff}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--paper);color:var(--ink);font:16px/1.45 var(--text);padding:16px;-webkit-font-smoothing:antialiased}
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(520px 520px at 12% 14%,rgba(43,74,203,.26),transparent 70%),radial-gradient(480px 480px at 90% 10%,rgba(124,58,237,.2),transparent 70%),radial-gradient(540px 540px at 80% 92%,rgba(14,116,104,.2),transparent 70%),radial-gradient(420px 420px at 6% 94%,rgba(194,65,12,.14),transparent 70%)}
+form{width:100%;max-width:380px;background:var(--glass);border:1px solid var(--glass-edge);border-radius:26px;padding:32px 30px 28px;box-shadow:0 22px 60px -28px rgba(15,27,45,.5);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
+.brand{display:flex;align-items:center;gap:11px;margin-bottom:26px;font:700 18px/1 var(--display);letter-spacing:-.01em}
+.mark{display:grid;grid-template-columns:repeat(3,7px);gap:3px}.mark i{width:7px;height:7px;border-radius:50%}
+h1{font:700 30px/1.05 var(--display);letter-spacing:-.03em;margin:0 0 6px}
+p{margin:0 0 22px;color:var(--mute);font-size:14.5px}
+label{display:block;font-size:13px;font-weight:600;margin:16px 0 6px;color:var(--mute)}
+label small{font-weight:400}
+input{width:100%;padding:11px 14px;border:1px solid var(--line);border-radius:14px;background:var(--field);color:inherit;font:inherit}
+input::placeholder{color:var(--mute);opacity:.7}
+input:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+button{margin-top:24px;width:100%;padding:12px;border:0;border-radius:999px;background:var(--action);color:var(--onaction);font:inherit;font-weight:600;cursor:pointer}
+button:hover{opacity:.9}button:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+button:disabled{opacity:.55;cursor:wait}
+#err{min-height:22px;margin-top:14px;color:var(--bad);font-size:14px}
+@media (prefers-reduced-transparency:reduce){form{background:var(--paper);-webkit-backdrop-filter:none;backdrop-filter:none}}
 </style></head><body>
 <form id="f" autocomplete="on">
-  <h1>Projects Dashboard</h1><p>Owner sign-in</p>
+  <div class="brand"><span class="mark" aria-hidden="true"><i style="background:#2b4acb"></i><i style="background:#0f766e"></i><i style="background:#c2410c"></i><i style="background:#0369a1"></i><i style="background:#7c3aed"></i><i style="background:#407E3C"></i><i style="background:#2b4acb"></i><i style="background:#0f766e"></i><i style="background:#c2410c"></i></span>Projects Dashboard</div>
+  <h1>Sign in</h1><p>This console is for the owner only.</p>
   <label for="pw">Password</label><input id="pw" name="password" type="password" autocomplete="current-password" required autofocus>
-  <label for="code">Authenticator code <span style="opacity:.7">(if you turned it on)</span></label>
+  <label for="code">Authenticator code <small>(only if you turned two-step on)</small></label>
   <input id="code" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="7" placeholder="123456">
   <div id="err" role="alert"></div>
   <button id="go" type="submit">Sign in</button>
@@ -37,7 +44,7 @@ f.addEventListener('submit', async (e) => {
       body: JSON.stringify({ password: f.password.value, code: f.code.value }) });
     const j = await r.json().catch(() => ({}));
     if (r.ok) location.href = '/'; else err.textContent = j.error || 'Could not sign in.';
-  } catch { err.textContent = 'Could not reach the console.'; }
+  } catch { err.textContent = 'Could not reach the console. Check that it is still running.'; }
   go.disabled = false;
 });
 </script></body></html>

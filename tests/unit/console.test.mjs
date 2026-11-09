@@ -107,7 +107,7 @@ test('password mode: login page, sessions, wrong password, logout; launch token 
   assert.equal((await req(port, { path: '/?t=' + c.launchToken })).status, 302, 'token URL no longer logs in: it just redirects to /login');
   assert.equal((await req(port, { path: '/?t=' + c.launchToken })).headers.location, '/login');
   const page = await req(port, { path: '/login' });
-  assert.equal(page.status, 200); assert.match(page.body, /Owner sign-in/);
+  assert.equal(page.status, 200); assert.ok(page.body.includes('<h1>Sign in</h1>'));
 
   assert.equal((await post(port, '/login', { password: 'nope nope nope' })).status, 401);
   assert.equal((await req(port, { method: 'POST', path: '/login', body: '{}', headers: { 'content-type': 'application/json' } })).status, 403, 'login needs a same-origin header');
