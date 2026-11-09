@@ -586,3 +586,27 @@ test('forgetting a customer removes their audit events and name, but only once t
   assert.equal((await store.grants.findById(id)).customer, '(removed)');
   assert.equal((await post(port, '/api/demos/deadbeef/forget', {}, { cookie })).status, 404);
 });
+
+test('forget refuses a request that is not signed in, not same-origin or not a POST, and deletes nothing', async () => {
+  const { c, port } = await start();
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const made = JSON.parse((await post(port, '/api/demos', { customer: 'Keep Me', app: 'toy', hours: 1 }, { cookie })).body);
+  const id = made.grant.id, path = '/api/demos/' + id + '/forget';
+  assert.equal((await post(port, '/api/demos/' + id + '/revoke', {}, { cookie })).status, 200); // inactive, so only the checks below can stop a forget
+  await new Promise((r) => setTimeout(r, 50));
+  const eventsBefore = (await store.audit.list(500)).filter((e) => e.grant === id).length;
+  assert.ok(eventsBefore >= 2);
+
+  const signedOut = await req(port, { method: 'POST', path, body: '{}', headers: { 'content-type': 'application/json', origin: `http://127.0.0.1:${port}` } });
+  assert.ok([401, 403].includes(signedOut.status), 'without a session: ' + signedOut.status);
+  const noOrigin = await req(port, { method: 'POST', path, body: '{}', headers: { cookie, 'content-type': 'application/json' } });
+  assert.equal(noOrigin.status, 403, 'no Origin header');
+  const crossSite = await req(port, { method: 'POST', path, body: '{}', headers: { cookie, origin: 'http://evil.example', 'content-type': 'application/json' } });
+  assert.equal(crossSite.status, 403, 'another site');
+  const wrongVerb = await req(port, { method: 'GET', path, headers: { cookie } });
+  assert.ok([404, 405].includes(wrongVerb.status), 'GET: ' + wrongVerb.status);
+
+  assert.equal((await store.audit.list(500)).filter((e) => e.grant === id).length, eventsBefore, 'no events were deleted');
+  assert.equal((await store.grants.findById(id)).customer, 'Keep Me', 'the name was not removed');
+  assert.equal((await post(port, path, {}, { cookie })).status, 200, 'a proper request still works');
+});
