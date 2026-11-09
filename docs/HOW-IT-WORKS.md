@@ -4,7 +4,7 @@ ProjectsDashboard is the control and showcase layer for your separate apps (CRM,
 
 ## 1. The big picture
 
-```
+```text
                          registry/apps.json  (what exists, where, how to start it, which port)
                                   |
         ┌─────────────────────────┼─────────────────────────────┐
@@ -20,7 +20,7 @@ ProjectsDashboard is the control and showcase layer for your separate apps (CRM,
 ```
 
 | Part | Folder | Port | Who uses it | What it does |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | Registry | `registry/apps.json` | – | everything | The single list of apps: path, start command, port, health URL, demo support |
 | Supervisor | `supervisor/` | – | you / console | Starts, stops, restarts and reports on apps |
 | Admin console | `admin-console/` | 4100 | you only | Web UI: app status and controls, logs, demo links, activity feed |
@@ -35,7 +35,7 @@ Ports 4100, 4200 and 4300 can be changed with `CONSOLE_PORT`, `SHOWCASE_PORT` an
 All four are in the project root. Each starts its service, waits until it really responds (not just a fixed delay), opens your browser, and will not start a second copy if the service is already running. If something fails they print the reason and pause.
 
 | File | Starts | Opens |
-|---|---|---|
+| --- | --- | --- |
 | `start-console.bat` | Admin console | `http://127.0.0.1:4100/` |
 | `start-showcase.bat` | Builds and serves the showcase | `http://127.0.0.1:4200/` |
 | `start-crm.bat` | Your **real** CRM from `Desktop\CRM` | `http://localhost:3101/sign-in` |
@@ -72,7 +72,7 @@ One entry per app, with these key fields:
 - Placeholders in commands and env values: `{port}`, `{url}`, `{port:NAME}`.
 
 | Entry | Ports |
-|---|---|
+| --- | --- |
 | airfinder / airfinder-demo | 5200 / 5210 |
 | claudeos (api, ui) | 5100, 8601 |
 | rmm (api, ui) | 5300, 8701 |
@@ -85,7 +85,7 @@ Port 3000 is reserved because it belongs to an unrelated process.
 
 ## 5. Supervisor
 
-```
+```text
 node supervisor/index.mjs status
 node supervisor/index.mjs start <app> [--only=proc]
 node supervisor/index.mjs stop <app> [--only=proc]
@@ -93,6 +93,7 @@ node supervisor/index.mjs restart <app> [--only=proc]
 ```
 
 Safety rules built in:
+
 - It never reads or writes an app's `.env` and never writes into an app folder.
 - It refuses to start a process whose port is already in use or reserved, and checks all ports before starting anything.
 - It records each PID it starts. `stop` only kills PIDs it recorded, and only if the process start time still matches (this guards against a reused PID). It never kills by port or by name.
@@ -109,7 +110,7 @@ Run `npm run console` (or `start-console.bat`). It binds to localhost only.
 
 ## 7. Demo gateway and demo links
 
-```
+```text
 npm run gateway
 npm run demo -- create --customer "Acme" --app crm --hours 48 [--max-uses 3] [--device-lock]
 npm run demo -- list
@@ -117,6 +118,7 @@ npm run demo -- revoke <id>
 ```
 
 How a customer visit works:
+
 1. You create a link for one customer and one product. The link is shown **once**; only a SHA-256 hash is stored.
 2. The customer opens `http://<product>.localhost:4300/d/<token>`.
 3. The gateway checks the grant (not expired, not revoked, within its use limit, device lock if set), then gives the browser a separate random session cookie. The link token itself is never reused as a cookie.
@@ -140,7 +142,7 @@ Edit `showcase/site.json` (brand, contact) and `showcase/products.json` (product
 ## 10. Commands
 
 | Command | Purpose |
-|---|---|
+| --- | --- |
 | `npm run status` | Which registered apps are responding (read-only) |
 | `npm run console` | Start the admin console |
 | `npm run console:auth -- <cmd>` | Console password and 2-step codes |
@@ -167,7 +169,7 @@ Hosting is planned for later; the local setup is the working state. `deploy/READ
 ## 13. Troubleshooting
 
 | Symptom | Likely cause |
-|---|---|
+| --- | --- |
 | CRM sign-in says "Invalid email or password" on the demo | You are using a real-CRM or default password; the demo uses `SEED_USER_PASSWORD` from `data/crm-demo.env` |
 | Signs in, then bounces back to the sign-in page | Password-change time in the database is in the future (time zone mistake, see rule above) |
 | Launcher says "already running" but the page is wrong | A different process owns the port; check `node supervisor/index.mjs status` |

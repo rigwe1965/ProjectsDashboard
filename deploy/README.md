@@ -4,7 +4,7 @@ Runs the public showcase, the owner console, the customer demo gateway and a Pos
 behind Caddy, which gets and renews HTTPS certificates automatically. This is the "hosted" way; running it on your own
 PC (`npm run console`, `npm run gateway`) keeps working as before.
 
-```
+```text
                       internet
                          |
                    Caddy  :80 :443        automatic HTTPS
@@ -53,7 +53,7 @@ excludes the app's real `.env` files, databases and caches from the build (`Dock
 can never contain production secrets or data. Demos start empty; none of them has email, payment, AI or monitoring keys.
 
 | Demo | Needs in `.env` | One-time step |
-|---|---|---|
+| --- | --- | --- |
 | ImageApp | nothing | none |
 | Airfinder | `AIRFINDER_*` (own SQLite file in a volume) | none; staff login is the `AIRFINDER_ADMIN_*` pair |
 | CRM | `CRM_*` (its own Postgres container) | `docker compose --profile apps run --rm crm-demo seed` (wipes and fills the demo database only) |

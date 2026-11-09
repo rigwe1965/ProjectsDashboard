@@ -21,7 +21,7 @@ Full explanation of how everything fits together: [docs/HOW-IT-WORKS.md](docs/HO
 Never edit the apps, their .env files, databases or repos. Anything that would need that requires explicit approval first.
 
 ## Supervisor commands
-```
+```text
 node supervisor/index.mjs status
 node supervisor/index.mjs start <app> [--only=proc]
 node supervisor/index.mjs stop <app> [--only=proc]

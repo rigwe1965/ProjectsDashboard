@@ -1,7 +1,7 @@
 # Demo gateway
 Gives one customer time-limited access to ONE product's isolated demo instance.
 
-```
+```text
 npm run gateway                                   # start the gateway (port 4300)
 npm run demo -- create --customer "Acme" --app imageapp --hours 48   # prints the customer link (shown once)
 npm run demo -- create --customer "Acme" --app crm --max-uses 3 --device-lock   # optional limits
@@ -24,7 +24,7 @@ npm run demo -- revoke <id>
 
 ## Settings (environment variables, all optional)
 | Variable | Default | Meaning |
-|---|---|---|
+| --- | --- | --- |
 | `GATEWAY_PORT` | 4300 | port to listen on |
 | `DEMO_BASE_HOST`, `DEMO_SCHEME` | `localhost:<port>`, `http` | public host and scheme used in links |
 | `TRUSTED_PROXIES` | none | comma-separated IPs of your reverse proxy. `X-Forwarded-For` is believed only from these; otherwise it is ignored (so nobody can spoof their IP to dodge the rate limit) |
