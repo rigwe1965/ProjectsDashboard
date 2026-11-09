@@ -28,8 +28,13 @@ cd deploy
 cp .env.example .env                  # fill in POSTGRES_PASSWORD, the three domains, ACME_EMAIL
 cp ../registry/apps.hosted.example.json ../registry/apps.hosted.json    # which demos exist (edit later)
 docker compose up -d --build          # dashboard only
+./check-apps-env.sh                   # stops here if a secret or password the app containers need is empty in .env
 docker compose --profile apps up -d --build   # ...and the app containers (needs the app folders, see below)
 ```
+
+The app services default missing values to empty (compose reads every `${VAR:?...}` even for services outside the profile, so
+making them required would also break the plain `docker compose up -d`). `check-apps-env.sh` is what refuses an empty secret:
+name the demos you run (`./check-apps-env.sh crm`) or leave it empty to check all three.
 The **console refuses to start until you set a password** (it is reachable from the internet, so a launch token is not
 enough). Set it once:
 ```bash

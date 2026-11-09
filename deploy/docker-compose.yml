@@ -1,7 +1,7 @@
 # Hosted setup: Postgres + demo gateway + admin console + Caddy (HTTPS), plus optional app containers.
 #   cd deploy && cp .env.example .env     (fill it in)  &&  cp ../registry/apps.hosted.example.json ../registry/apps.hosted.json
 #   docker compose up -d                       the dashboard
-#   docker compose --profile apps up -d        ...plus the app containers (ImageApp demo so far)
+#   ./check-apps-env.sh && docker compose --profile apps up -d    ...plus the app containers (the check refuses empty secrets)
 # See deploy/README.md. Local test without a domain: add  -f docker-compose.local.yml  (plain HTTP on :8080).
 name: projects-dashboard
 
@@ -29,6 +29,8 @@ services:
     image: postgres:17-alpine
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]   # what the postgres entrypoint needs to set up its data folder and drop to the postgres user
     environment:
       POSTGRES_DB: dashboard
       POSTGRES_USER: dashboard
@@ -142,6 +144,9 @@ services:
     profiles: ["apps"]
     image: postgres:17-alpine
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
     environment:
       POSTGRES_DB: crm
       POSTGRES_USER: crm
