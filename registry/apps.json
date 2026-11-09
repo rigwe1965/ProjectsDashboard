@@ -392,12 +392,12 @@
       "reset": { "steps": [
         { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\rmm_reset.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 },
         { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe seed.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 },
-        { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ..\\..\\..\\tools\\seed-rmm-demo.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 }
+        { "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\seed-rmm-demo.py", "cwd": "api", "envFile": "data/rmm-demo.env", "timeoutSec": 300 }
       ] },
       "demoAccounts": [
         { "label": "Demo admin", "user": "admin@rmm-demo.test" }
       ],
-      "_note": "Runs from a separate git clone of the RMM's committed code (data/demo-src/rmm, no .env, remote removed). Own Postgres (port 5433) and Redis (6380) in Docker, started by data/tools/rmm_demo_api.py. All devices, customers, alerts and tickets are SIMULATED (data/tools/seed-rmm-demo.py); no agent can enrol because the API listens on 127.0.0.1 only. No Celery worker, so scheduled jobs, backups and email do not run. Env from data/rmm-demo.env: SMTP, MQTT and MDM unset; AI assistant uses the RMM's own Anthropic key with agentic tools OFF and triage OFF (owner approved 2026-11-07), so AI chat costs money. Uses the real RMM venv read-only.",
+      "_note": "Runs from a separate git clone of the RMM's committed code (data/demo-src/rmm, no .env, remote removed). Own Postgres (port 5433) and Redis (6380) in Docker, started by supervisor/demo-fixes/rmm_demo_api.py. All devices, customers, alerts and tickets are SIMULATED (supervisor/demo-fixes/seed-rmm-demo.py); no agent can enrol because the API listens on 127.0.0.1 only. No Celery worker, so scheduled jobs, backups and email do not run. Env from data/rmm-demo.env: SMTP, MQTT and MDM unset; AI assistant uses the RMM's own Anthropic key with agentic tools OFF and triage OFF (owner approved 2026-11-07), so AI chat costs money. Uses the real RMM venv read-only.",
       "processes": [
         {
           "name": "ui",
@@ -412,7 +412,7 @@
         },
         {
           "name": "api",
-          "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ..\\..\\..\\tools\\rmm_demo_api.py {port}",
+          "cmd": "${APPS_ROOT}\\RemoteManagementSystem\\api\\venv\\Scripts\\python.exe ${DASHBOARD_ROOT}\\supervisor\\demo-fixes\\rmm_demo_api.py {port}",
           "cwd": "api",
           "port": 5310,
           "health": "/api/health",
