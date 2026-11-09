@@ -40,6 +40,7 @@ Date: 2026-11-09 · Commit reviewed: `2be9616` (`main`) · Scope: `lib/`, `lib/s
 ## 1. Single responsibility
 
 ### S-01: `supervisor/index.mjs` · 5/10
+**Status: fixed 2026-11-09.** `index.mjs` is now the command line only (and importable: `main(argv, { registry, store, driver, logDir })`); the commands are in `core.mjs` (`createSupervisor`), the shell steps in `steps.mjs`, command/env building in `env.mjs`. Command-line behaviour and exit codes are unchanged; early exits are an `Exit` error instead of `process.exit`.
 **Location:** `supervisor/index.mjs` (289 lines). Functions: `fill`, `childEnv` (environment building), `isManaged`, `status`, `start`, `stop` (process lifecycle for host processes and containers), `instanceStart`, `instanceStop` (per-link copies), `redact`, `runStep`, `runLoggedStep` (shell step runner with log files), `build`, `reset`. Lines 277-288 parse `process.argv` and run, at import time. `registry`, `store` and `driver` are bound at lines 25-33.
 
 **Why it hurts:** the file changes for five different reasons (a new command, a new log rule, a change in how env is built, a new container behaviour, a new reset flow). It cannot be imported by a test, because importing it executes the command line; the tests start it as a child process instead (`tests/unit/supervisor-start.test.mjs`, `supervisor-steps.test.mjs`).
@@ -133,6 +134,7 @@ const mode = target.perLink ? privateMode(slug, target, g) : sharedMode;
 Then `if (!(await mode.hasRoom()))`, `await mode.onEnter()`, and so on. `instances.mjs` already isolates the private-copy logic, so this only moves the `if`s.
 
 ### O-03: supervisor commands · 3/10
+**Status: fixed 2026-11-09** (a `commands` table in `supervisor/index.mjs`, done together with S-01).
 **Location:** `supervisor/index.mjs:279-287`.
 ```js
 const commands = {
@@ -254,6 +256,7 @@ const ownHeaders = { ...OWN_HEADERS_BASE, ...(https ? { 'strict-transport-securi
 `page` currently sits outside the factory (line 51), so it needs the headers passed in or moved inside.
 
 ### D-04: the supervisor binds its parts at import · 3/10
+**Status: fixed 2026-11-09** (registry, store, driver, docker and log folder are passed to `createSupervisor`; `tests/unit/supervisor-core.test.mjs` runs it with fakes).
 **Location:** `supervisor/index.mjs:25-33` (`registry = loadRegistry()`, `store = await getStore()`, `driver = getDriver()`) and direct imports of `containerRunning`, `startContainer`, `stopContainer`. Same cause as S-01; the fix is the same `createSupervisor({ registry, store, driver, docker })` factory. The driver is already an interface with two implementations, so only the wiring is missing.
 
 **Unable to verify:** whether anything outside this repository imports `grants.mjs` or `supervisor/index.mjs` directly. D-01 and S-01 change signatures; keeping the old zero-argument behaviour as the default (as shown) avoids breaking such callers, but only a search of the other projects could prove there are none.
