@@ -121,7 +121,7 @@ export async function createConsole(opts = {}) {
     // refused with 429 but a correct password + code still signs in, so a flood of bad guesses from many addresses
     // cannot lock the real owner out.
     const overall = (await store.rateLimit.count('login-fail:all', 900000)) >= o.loginMaxTotal;
-    if ((await store.rateLimit.hit('login:' + ip, 900000)) > o.loginMaxPerIp) {
+    if ((await store.rateLimit.hit('login:' + ip, 900000, o.loginMaxPerIp)) > o.loginMaxPerIp) {
       return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' }, { 'retry-after': '900' });
     }
     let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.status === 413 ? 413 : 400, { error: 'bad request' }); }

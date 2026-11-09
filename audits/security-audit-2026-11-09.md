@@ -72,6 +72,7 @@ Keep `TRUSTED_PROXIES: 172.30.0.2` pointing at Caddy's address on `edge`. **Unab
 ---
 
 ### S-02: The rate limiter's cost grows with the attack · 4/10
+**Status: fixed 2026-11-09** (`rateLimit.hit(key, window, max)` stops recording once the window holds `max` hits; used by the gateway and the console sign-in; store contract test added).
 **Category:** Configuration & Hardening (denial of service)
 **Location:** `demo-gateway/gateway.mjs:90` (`limited`) and `:187`; `lib/store/sqlite.mjs`, `rateLimit.hit`; `lib/store/postgres.mjs`, `rateLimit.hit`. The same pattern is used by `admin-console/console.mjs:120` (`login:<ip>`).
 
@@ -166,6 +167,7 @@ async function withSlot(fn) {
 ---
 
 ### S-05: WebSocket counter is not released when a per-link copy is not ready · 3/10
+**Status: fixed 2026-11-09, confirmed defect** (the new gateway test fails on the old code and passes now; `releaseWs()` gives the count back on every refusal).
 **Category:** Availability / Data flow (found in code review; not exercised)
 **Location:** `demo-gateway/gateway.mjs:324-333` (`upgrade`).
 

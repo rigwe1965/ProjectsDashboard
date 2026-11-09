@@ -37,6 +37,8 @@ const reg = { apps: [
   { id: 'hosty-demo', name: 'Hosty demo', path: '.', demoOf: 'hosty', demoReady: true, processes: [{ ...proc('app', thirdPort), host: '127.0.0.1' }] },
   { id: 'nohost', name: 'Nohost', path: '.', processes: [proc('app', 19004)] },
   { id: 'nohost-demo', name: 'Nohost demo', path: '.', demoOf: 'nohost', demoReady: true, processes: [{ ...proc('app', 19005), host: 'no-such-host.invalid' }] },
+  { id: 'pl', name: 'Pl', path: '.', processes: [proc('app', 19006)] },
+  { id: 'pl-demo', name: 'Pl demo', path: '.', demoOf: 'pl', demoReady: true, processes: [proc('app', deadPort + 1)], perLink: { max: 1, portBase: 21900, prepare: [] } },
   { id: 'dead', name: 'Dead', path: '.', processes: [proc('app', 19002)] },
   { id: 'dead-demo', name: 'Dead demo', path: '.', demoOf: 'dead', demoReady: true, processes: [proc('app', deadPort)] },
 ] };
@@ -245,6 +247,17 @@ test('WebSocket: at most maxWsPerGrant sockets per grant', async () => {
   const c = await wsOpen({ cookie: g.cookie });
   assert.ok(c.ws, 'a slot frees up when a socket closes');
   b.ws.close(); c.ws.close();
+});
+
+test('WebSocket: refusals while a private copy is not ready do not use up the socket slots of a link', async () => {
+  // Stand-ins for the copy's state, so no real process is started.
+  const real = { hasRoom: gw.instances.hasRoom, ensure: gw.instances.ensure, lookup: gw.instances.lookup };
+  gw.instances.hasRoom = async () => true; gw.instances.ensure = async () => ({ status: 'starting', slot: 0 }); gw.instances.lookup = async () => null;
+  try {
+    const g = await newGrant('pl');
+    // maxWsPerGrant is 2: a streamlit-style client retrying while the copy starts must keep getting "unavailable", never "too many"
+    for (let i = 0; i < 5; i++) assert.equal((await wsOpen({ cookie: g.cookie, host: 'pl.localhost' })).status, 503, 'attempt ' + (i + 1));
+  } finally { Object.assign(gw.instances, real); }
 });
 
 // ---- link limits and abuse protection

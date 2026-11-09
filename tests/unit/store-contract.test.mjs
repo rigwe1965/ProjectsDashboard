@@ -103,6 +103,10 @@ for (const f of factories) {
 
     test('rateLimit counts per key inside the window; meta overwrites', async () => {
       assert.equal(await s.rateLimit.hit('a', 60000), 1); assert.equal(await s.rateLimit.hit('a', 60000), 2); assert.equal(await s.rateLimit.hit('b', 60000), 1);
+      // with a limit: once the window holds max hits, more are not recorded (the table stays small) but still read as over the limit
+      for (let i = 1; i <= 3; i++) assert.equal(await s.rateLimit.hit('cap', 60000, 3), i);
+      for (let i = 0; i < 5; i++) assert.equal(await s.rateLimit.hit('cap', 60000, 3), 4);
+      assert.equal(await s.rateLimit.count('cap', 60000), 3);
       assert.equal(await s.meta.get('k'), null);
       await s.meta.set('k', 'one'); await s.meta.set('k', 'two'); await s.meta.set('n', 5);
       assert.equal(await s.meta.get('k'), 'two'); assert.equal(await s.meta.get('n'), '5');

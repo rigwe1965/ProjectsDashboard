@@ -87,10 +87,10 @@ export async function createGateway(opts = {}) {
   // An audit failure must never break a customer's request.
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
   // Rate limits live in the database (pruned there, survive restarts).
-  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000)) > o.redeemPerMinute;
+  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000, o.redeemPerMinute)) > o.redeemPerMinute;
   // A browser whose link was just revoked keeps retrying (Streamlit reconnects in a loop). Record the first few
   // denials per grant and place, not every retry, so the audit log stays readable.
-  const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000)) <= 3) audit(e); };
+  const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000, 3)) <= 3) audit(e); };
   const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 200);
   try { await store.grantSessions.prune(); } catch (err) { logger.warn('session prune failed at startup', { err }); }
   const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, 3600000);
@@ -108,6 +108,7 @@ export async function createGateway(opts = {}) {
   missTimer.unref();
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();
+  const releaseWs = (id) => { const left = (wsCounts.get(id) || 1) - 1; if (left > 0) wsCounts.set(id, left); else wsCounts.delete(id); };
 
   // Metrics (Prometheus text at /_pd/metrics) and health (/_pd/healthz). Both are answered before host routing and
   // before any grant check, so a load balancer or monitor needs no demo link. Metrics have no per-customer labels.
@@ -184,13 +185,13 @@ export async function createGateway(opts = {}) {
     const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
     if (m) {
       const ua = uaOf(req);
-      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return tooMany(res, 60); }
+      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000, 30)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return tooMany(res, 60); }
       const g = await findGrant(m[1]);
       if (!isActive(g) || g.app !== slug) {
         audit(deniedRecord(null, slug, ip, ua, { why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' }));
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
-        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000)) > o.redeemFailLimit) return tooMany(res, 600);
+        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
       if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });
@@ -327,8 +328,9 @@ export async function createGateway(opts = {}) {
     const url = new URL(req.url, `${o.scheme}://${hostHdr}`);
     let slot = null;
     if (target.perLink) {
-      const inst = await instances.lookup(slug, g.id);
-      if (inst?.state !== 'ready') return rejectUpgrade(socket, 503, 'Service Unavailable');
+      // The socket was counted above; a refusal here never reaches close(), so it must give the count back itself.
+      let inst; try { inst = await instances.lookup(slug, g.id); } catch (err) { releaseWs(g.id); throw err; }
+      if (inst?.state !== 'ready') { releaseWs(g.id); return rejectUpgrade(socket, 503, 'Service Unavailable'); }
       slot = inst.slot; instances.touch(slug, slot);
     }
     const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
@@ -337,7 +339,7 @@ export async function createGateway(opts = {}) {
     const close = (why) => {
       if (closed) return; closed = true;
       clearInterval(timer); wsClosers.delete(close);
-      const left = (wsCounts.get(g.id) || 1) - 1; if (left > 0) wsCounts.set(g.id, left); else wsCounts.delete(g.id);
+      releaseWs(g.id);
       socket.destroy(); upstream.destroy();
       if (why) audit({ ev: 'ws-closed', grant: g.id, app: slug, ip, why });
     };
