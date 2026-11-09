@@ -51,6 +51,9 @@ jobs:
   # Looks for committed secrets in the whole history. Free for repositories owned by a personal account.
   secrets:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read   # on pull requests the action lists the PR's commits through the API
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
