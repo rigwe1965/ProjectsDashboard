@@ -171,6 +171,15 @@ test('password mode: too many wrong attempts are refused with 429 (even with the
   assert.equal((await post(port, '/login', { password: 'a long test passphrase' })).status, 429, 'locked out even for the right password');
 });
 
+test('sign-in limit counts an IPv6 client by its /64, so new addresses do not give new tries', async () => {
+  const { port } = await start({ loginMaxPerIp: 3, loginMaxTotal: 1000, trustedProxies: ['127.0.0.1'] });
+  let last;
+  for (let i = 0; i < 6; i++) last = await post(port, '/login', { password: 'wrong wrong wrong' }, { 'x-forwarded-for': '2001:db8:aa:bb:' + (i + 1) + '::' + (i + 7) });
+  assert.equal(last.status, 429, 'six addresses in one /64 used up one budget');
+  const other = await post(port, '/login', { password: 'wrong wrong wrong' }, { 'x-forwarded-for': '2001:db8:aa:cc::1' });
+  assert.equal(other.status, 401, 'a different /64 has its own');
+});
+
 test('password mode: a flood of failed logins from other addresses does not lock the owner out', async () => {
   const { port } = await start({ loginMaxPerIp: 100, loginMaxTotal: 3, loginPenaltyMs: 0 });
   for (let i = 0; i < 6; i++) await post(port, '/login', { password: 'wrong wrong wrong' });

@@ -57,3 +57,15 @@ test('BASE_SECURITY_HEADERS is the fixed baseline and cannot be changed by a cal
   assert.deepEqual(BASE_SECURITY_HEADERS, { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer' });
   assert.ok(Object.isFrozen(BASE_SECURITY_HEADERS));
 });
+
+test('limitKey: an IPv6 client is limited as its whole /64, IPv4 as itself', async () => {
+  const { limitKey } = await import('../../lib/http-util.mjs');
+  assert.equal(limitKey('203.0.113.7'), '203.0.113.7');
+  assert.equal(limitKey('2001:db8:1:2::5'), limitKey('2001:db8:1:2:aaaa:bbbb:cccc:dddd'), 'same /64, same key');
+  assert.equal(limitKey('2001:db8:1:2::5'), '2001:db8:1:2::/64');
+  assert.notEqual(limitKey('2001:db8:1:2::5'), limitKey('2001:db8:1:3::5'), 'a different /64 is a different client');
+  assert.equal(limitKey('::1'), '0:0:0:0::/64');
+  assert.equal(limitKey('2001:DB8:0001:0002:0:0:0:9'), '2001:db8:1:2::/64', 'case and leading zeros do not matter');
+  assert.equal(limitKey('not an address'), 'not an address');
+  assert.equal(limitKey(undefined), 'undefined');
+});

@@ -3,7 +3,7 @@
 import { randomBytes } from 'node:crypto';
 import { isActive } from './grants.mjs';
 import { isResetting } from './reset.mjs';
-import { cookieOf as readCookie } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, limitKey } from '../lib/http-util.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 import { PRIVATE_NOTICE, SHARED_NOTICE, deniedRecord } from './pages.mjs';
 
@@ -21,7 +21,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
         audit(deniedRecord(null, slug, ip, ua, { why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' }));
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
-        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
+        if ((await store.rateLimit.hit('redeem-fail:' + limitKey(ip), 600000, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
       if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });

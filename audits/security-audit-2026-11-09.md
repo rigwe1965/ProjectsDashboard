@@ -138,6 +138,7 @@ Optional extra layer at the edge (the console is for one person): an address all
 ---
 
 ### S-04: Sign-in throttling is per address, and the hashing queue is unbounded · 3/10
+**Status: fixed 2026-11-09.** `limitKey()` (`lib/http-util.mjs`) makes an IPv6 client count as its whole /64 for the console sign-in and for the gateway's link-open and no-session limits. The password-hashing queue holds at most 20 waiting checks (`AUTH_BUSY`); further ones get an immediate 429 and are not counted as wrong passwords. Tests added for all three.
 **Category:** Authentication
 **Location:** `admin-console/console.mjs:119-121` (`login:<ip>` limit), `:143-147` (penalty only when the overall cap is passed); `lib/auth.mjs:21-26` (`withSlot`, `queue`).
 

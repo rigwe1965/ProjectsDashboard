@@ -16,7 +16,7 @@ import { createGrants, isActive } from './grants.mjs';
 import { demoApps } from '../lib/registry.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { ports } from '../lib/config.mjs';
-import { cookieOf as readCookie, clientIp, safeEq, json } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, clientIp, limitKey, safeEq, json } from '../lib/http-util.mjs';
 import { num, fireAndForget, unmapV4 } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
@@ -74,7 +74,7 @@ export async function createGateway(opts = {}) {
   // An audit failure must never break a customer's request.
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
   // Rate limits live in the database (pruned there, survive restarts).
-  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000, o.redeemPerMinute)) > o.redeemPerMinute;
+  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + limitKey(ip), 60000, o.redeemPerMinute)) > o.redeemPerMinute;
   // A browser whose link was just revoked keeps retrying (Streamlit reconnects in a loop). Record the first few
   // denials per grant and place, not every retry, so the audit log stays readable.
   const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000, 3)) <= 3) audit(e); };
@@ -85,10 +85,10 @@ export async function createGateway(opts = {}) {
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
   // A request with no valid session still costs a database read. Count those per address in memory (no database writes) and
   // answer 429 past a limit, so a flood of cookie-less or bogus-cookie requests cannot be used to hammer the database.
-  const misses = new Map(); // ip -> { n, t }
+  const misses = new Map(); // limitKey(ip) -> { n, t }
   const tooManyMisses = (ip) => {
-    const now = Date.now(), b = misses.get(ip);
-    if (!b || now - b.t > 60000) { misses.set(ip, { n: 1, t: now }); return false; }
+    const now = Date.now(), key = limitKey(ip), b = misses.get(key); // an IPv6 client counts as its whole /64
+    if (!b || now - b.t > 60000) { misses.set(key, { n: 1, t: now }); return false; }
     return ++b.n > o.noSessionPerMinute;
   };
   const missTimer = setInterval(() => { const cut = Date.now() - 60000; for (const [k, v] of misses) if (v.t < cut) misses.delete(k); }, 60000);

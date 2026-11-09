@@ -18,7 +18,7 @@ import { createGrants, publicGrant } from '../demo-gateway/grants.mjs';
 import { demoApps } from '../lib/registry.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
-import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, limitKey, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
 import { num, createSerialLock, fireAndForget } from '../lib/util.mjs';
@@ -124,7 +124,7 @@ export async function createConsole(opts = {}) {
     // refused with 429 but a correct password + code still signs in, so a flood of bad guesses from many addresses
     // cannot lock the real owner out.
     const overall = (await store.rateLimit.count('login-fail:all', 900000)) >= o.loginMaxTotal;
-    if ((await store.rateLimit.hit('login:' + ip, 900000, o.loginMaxPerIp)) > o.loginMaxPerIp) {
+    if ((await store.rateLimit.hit('login:' + limitKey(ip), 900000, o.loginMaxPerIp)) > o.loginMaxPerIp) {
       return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' }, { 'retry-after': '900' });
     }
     let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.status === 413 ? 413 : 400, { error: 'bad request' }); }
@@ -135,7 +135,12 @@ export async function createConsole(opts = {}) {
     let totpPlain = null; // the usable secret; stays null when it is encrypted and the key is missing or wrong (sign-in then fails closed)
     if (totpStored) { try { totpPlain = unseal(totpStored); } catch (err) { logger.error('cannot read the 2-step secret; sign-in is refused', { err }); } }
     // both checks always run, so timing does not reveal which of the two was wrong
-    const pwOk = !!hash && await verifyPassword(String(b.password ?? ''), hash);
+    let pwOk;
+    try { pwOk = !!hash && await verifyPassword(String(b.password ?? ''), hash); }
+    catch (e) { // too many checks already waiting (a flood): refuse this one without counting it as a wrong password
+      if (e?.code !== 'AUTH_BUSY') throw e;
+      return json(res, 429, { error: 'Sign-in is busy. Wait a few seconds and try again.' }, { 'retry-after': '10' });
+    }
     // Read the last used step, check the code and record the new step as ONE unit (one login at a time), so two
     // simultaneous logins with the same code cannot both pass. Only the password-correct case burns the code.
     const step = await withTotpLock(async () => {

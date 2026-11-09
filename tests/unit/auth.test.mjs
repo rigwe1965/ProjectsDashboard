@@ -99,3 +99,17 @@ test('ADMIN_KEYS: the stored names are fixed (renaming one would silently sign e
   assert.deepEqual({ ...ADMIN_KEYS }, { passwordHash: 'admin_password_hash', totpSecret: 'admin_totp_secret', totpLastStep: 'admin_totp_last_step', totpPending: 'admin_totp_pending', totpPendingFile: 'admin_totp_pending_file' });
   assert.ok(Object.isFrozen(ADMIN_KEYS));
 });
+
+test('sign-in checks beyond the queue limit are refused at once with AUTH_BUSY, not queued', async () => {
+  // a cheap hash, so the test is quick; what matters is how many are waiting when the 22nd arrives
+  const { scryptSync, randomBytes } = await import('node:crypto');
+  const salt = randomBytes(16), key = scryptSync('pw', salt, 64, { N: 1024, r: 8, p: 1 });
+  const cheap = ['scrypt', 1024, 8, 1, salt.toString('base64'), key.toString('base64')].join('$');
+  const results = await Promise.allSettled(Array.from({ length: 40 }, () => verifyPassword('pw', cheap)));
+  const busy = results.filter((r) => r.status === 'rejected' && r.reason.code === 'AUTH_BUSY').length;
+  const ok = results.filter((r) => r.status === 'fulfilled' && r.value === true).length;
+  assert.equal(busy + ok, 40, 'every attempt either ran or was refused as busy; none was reported as a wrong password');
+  assert.equal(ok, 22, '2 running + 20 waiting');
+  assert.equal(busy, 18);
+  assert.equal(await verifyPassword('pw', cheap), true, 'and it recovers once they have finished');
+});
