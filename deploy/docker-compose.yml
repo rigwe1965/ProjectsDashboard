@@ -13,6 +13,9 @@ x-dashboard-env: &dashboard-env
   # The console creates the demo links, the gateway serves them: both must know the public address.
   DEMO_BASE_HOST: ${DEMO_DOMAIN:?set DEMO_DOMAIN in deploy/.env}
   DEMO_SCHEME: https
+  # The status check probes every demo's address at once. Node resolves host names on a pool of 4 threads, and a name that does not exist
+  # (the registry's placeholder hosts) can take seconds to fail, which left the real demos' lookups waiting behind it and made them look down.
+  UV_THREADPOOL_SIZE: "64"
 
 # Container hardening for the two Node services: no privilege gain, no Linux capabilities, a read-only root filesystem
 # (only /tmp and the /data volume are writable), and limits so one runaway process cannot take the host down.
