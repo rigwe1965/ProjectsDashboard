@@ -196,7 +196,8 @@ async function instanceStop(base, slotArg) {
 // Step output goes to a log file: hide the values of secret-looking settings (keys, tokens, passwords, connection strings) if a script prints them.
 function redact(text, env) {
   for (const [k, v] of Object.entries(env ?? {})) if (/KEY|SECRET|TOKEN|PASS|URL|DSN/i.test(k) && typeof v === 'string' && v.length >= 8) text = text.split(v).join('***');
-  return text;
+  // a seed script that prints the account it created ("Created admin user: name / password") is not an env value, so mask by pattern too
+  return text.replace(/(Created \w+ user: \S+ \/ )\S+/gi, '$1***');
 }
 function runStep(cmd, cwd, env, timeoutMs) {
   return new Promise((resolve) => {
