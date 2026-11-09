@@ -1,4 +1,4 @@
-# Code audit (third pass): ProjectsDashboard
+**Fixed** |**Fixed** |**Fixed** |**Fixed** |**Fixed** |**Fixed** |# Code audit (third pass): ProjectsDashboard
 
 Date: 2026-11-09 · Commit audited: `33fc7c1` (`main`) · Scope: the code that runs in production or guards it, read in full: `demo-gateway/gateway.mjs`, `demo-gateway/grants.mjs`, `admin-console/console.mjs`, `admin-console/index.html`, `lib/auth.mjs`, `lib/http-util.mjs`, `lib/registry.mjs`, `lib/process-driver.mjs`, `lib/run-supervisor.mjs`, `lib/config.mjs`, `lib/clean-env.mjs`, `supervisor/index.mjs`, `supervisor/run-with-env.mjs`, `showcase/serve.mjs`, `showcase/build.mjs` (`esc`), `deploy/docker-compose.yml`, `deploy/Caddyfile`, `.github/workflows/ci.yml`, `start-customer-demo.bat`, `data/tools/rmm_demo_api.py`.
 
@@ -12,16 +12,25 @@ No high or medium security issue found. The gateway, console and auth code is ca
 
 | ID | Finding | Importance | Status |
 | --- | --- | --- | --- |
-| N-01 | `npm run lint` fails on `tests/journeys.mjs:30`; CI runs lint | 4/10 | Open |
-| N-02 | Nothing tests the console page's inline script; a syntax error shipped and blanked the console | 4/10 | Script fixed in `33fc7c1`; test missing |
-| N-03 | Hosted compose defaults app secrets and passwords to empty (`:-`) | 3/10 | Open |
-| N-04 | RMM demo needs Docker, which nothing started or checked | 3/10 | Fixed (launcher); console path still open |
-| N-05 | Sign-in error text reveals whether two-step codes are on | 2/10 | Open |
-| N-06 | Gateway tunnels any `Upgrade` request as a raw socket, not only WebSocket | 2/10 | Open |
-| N-07 | Unknown session cookies cost one database read per request, with no rate limit | 2/10 | Open |
-| N-08 | RMM demo reset depends on files that are not tracked in git | 2/10 | Open |
-| N-09 | A demo account password is printed into a reset log | 1/10 | Open |
-| N-10 | Hosted `postgres` containers lack `cap_drop` | 1/10 | Open |
+| N-01 | `npm run lint` fails on `tests/journeys.mjs:30`; CI runs lint | 4/10 | **Fixed** |
+| N-02 | Nothing tests the console page's inline script; a syntax error shipped and blanked the console | 4/10 | **Fixed** (script in `33fc7c1`, test added) |
+| N-03 | Hosted compose defaults app secrets and passwords to empty (`:-`) | 3/10 | **Fixed** (with a check script; see note) |
+| N-04 | RMM demo needs Docker, which nothing started or checked | 3/10 | **Fixed** (launcher); console path still open |
+| N-05 | Sign-in error text reveals whether two-step codes are on | 2/10 | **Fixed** |
+| N-06 | Gateway tunnels any `Upgrade` request as a raw socket, not only WebSocket | 2/10 | **Fixed** |
+| N-07 | Unknown session cookies cost one database read per request, with no rate limit | 2/10 | **Fixed** |
+| N-08 | RMM demo reset depends on files that are not tracked in git | 2/10 | **Fixed** |
+| N-09 | A demo account password is printed into a reset log | 1/10 | **Fixed** |
+| N-10 | Hosted `postgres` containers lack `cap_drop` | 1/10 | **Fixed** |
+
+## Remediation status (2026-11-09)
+
+All findings except the console path of N-04 were fixed after this report was first written. Two corrections to the report itself came out of the work:
+
+- **N-03:** the `${VAR:?message}` form suggested below cannot be used on its own. Compose reads it for every service in the file, even those outside the profile, so it would also stop the plain `docker compose up -d`. The fix is `deploy/check-apps-env.sh`, which refuses empty values for the demos you name, plus a README and compose-header note.
+- **N-08:** `data/tools/rmm_demo_api.py` is also untracked (`.gitignore` ignores `/data/*`; an earlier `git ls-files` reading suggested otherwise). Both RMM scripts now live in `supervisor/demo-fixes/` and the registry points there.
+
+New tests: a non-WebSocket `Upgrade` is refused, the per-address limit on session-less requests (and that valid sessions are not counted), and the sign-in error wording with two-step off. Tests: 147 pass, lint clean. `cap_drop` on the Postgres services (N-10) is checked only by `docker compose config`; Docker was not running, so a fresh-volume start is untested.
 
 ## N-01: lint fails, so CI fails · 4/10
 
@@ -144,9 +153,9 @@ if (!g) return tooManyMisses(ip) ? page(res, 429, 'Too many attempts', 'Please w
 ## N-08: RMM demo reset depends on untracked files · 2/10
 
 **Category:** Reproducibility
-**Location:** `registry/apps.json` (`rmm-demo` reset step 3: `..\..\..\tools\seed-rmm-demo.py`; process `api`: `..\..\..\tools\rmm_demo_api.py`). `.gitignore` has `/data/*` with only `!/data/README.md`; `git ls-files data` lists `data/README.md` and `data/tools/rmm_demo_api.py`, but not `data/tools/seed-rmm-demo.py` (it exists on disk).
+**Location:** `registry/apps.json` (`rmm-demo` reset step 3: `..\..\..\tools\seed-rmm-demo.py`; process `api`: `..\..\..\tools\rmm_demo_api.py`). `.gitignore` has `/data/*` with only `!/data/README.md`; `git ls-files data` lists only `data/README.md`; both `data/tools/rmm_demo_api.py` and `data/tools/seed-rmm-demo.py` exist on disk but are untracked.
 
-**Description:** On a fresh clone the RMM reset's third step would fail because its script is not in git, while the API launcher is. The same applies to any other `data/tools` script the registry names. This is a reliability gap, not a security one.
+**Description:** On a fresh clone the RMM demo's API launcher and reset step 3 would fail because neither script is in git. The same applies to any other `data/tools` script the registry names. This is a reliability gap, not a security one.
 
 **Remediation:** move the scripts the registry depends on out of the ignored `data/` folder (for example `supervisor/demo-fixes/`, which already holds `rmm_reset.py`) and update the paths, or add `!/data/tools/` to `.gitignore` and track them:
 
