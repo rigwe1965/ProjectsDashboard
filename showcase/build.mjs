@@ -229,6 +229,23 @@ footer{margin-top:72px;border-top:1px solid var(--line);padding:26px 0 44px;colo
   .sheet li{grid-template-columns:minmax(0,1fr)}
   .cta{padding:40px 26px;border-radius:30px;margin-top:72px}
 }
+
+/* glass: frosted translucent surfaces over soft colour behind the page */
+:root{--glass:rgba(255,255,255,.55);--glass-edge:rgba(255,255,255,.7);--glass-shadow:0 8px 32px -12px rgba(15,27,45,.25)}
+@media (prefers-color-scheme:dark){:root{--glass:rgba(17,26,46,.55);--glass-edge:rgba(255,255,255,.12);--glass-shadow:0 8px 32px -12px rgba(0,0,0,.6)}}
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(520px 520px at 8% 12%,rgba(43,74,203,.28),transparent 70%),radial-gradient(480px 480px at 92% 8%,rgba(124,58,237,.22),transparent 70%),radial-gradient(560px 560px at 80% 88%,rgba(14,116,104,.22),transparent 70%),radial-gradient(420px 420px at 10% 90%,rgba(196,64,14,.18),transparent 70%)}
+.top{position:sticky;top:12px;z-index:20;margin-top:12px;padding:10px 12px 10px 20px;border-radius:999px;background:var(--glass);border:1px solid var(--glass-edge);box-shadow:var(--glass-shadow);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
+.links a:hover{background:var(--glass);box-shadow:inset 0 0 0 1px var(--glass-edge)}
+.btn.outline,.pill{background:var(--glass);border-color:var(--glass-edge);box-shadow:var(--glass-shadow);-webkit-backdrop-filter:blur(14px) saturate(160%);backdrop-filter:blur(14px) saturate(160%)}
+.btn.line{background:rgba(255,255,255,.14);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.window{-webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 36px 60px -34px rgba(0,0,0,.5)}
+.tab .spec{opacity:.95}
+.tab:before{content:"";position:absolute;inset:0;background:linear-gradient(160deg,rgba(255,255,255,.22),rgba(255,255,255,0) 45%);pointer-events:none}
+.tab:first-child .in{margin:14px;padding:18px 20px;border-radius:22px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.strip:hover .tab:first-child:not(:hover) .in{background:none;border-color:transparent;-webkit-backdrop-filter:none;backdrop-filter:none}
+.benefits div{background:var(--glass);border:1px solid var(--glass-edge);border-left:3px solid var(--accent);border-radius:16px;padding:16px 20px;box-shadow:var(--glass-shadow);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+@media (max-width:900px){.top{top:8px;padding-left:16px}.tab:first-child .in{margin:0}}
+@media (prefers-reduced-transparency:reduce){.top,.btn.outline,.pill,.benefits div{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--surface)}}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
 `;
 
