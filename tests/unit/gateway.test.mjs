@@ -270,6 +270,21 @@ test('HSTS on the gateway pages follows the scheme option, like the cookies do',
   } finally { await secure.close(); }
 });
 
+test('a gateway uses the store it is given, not the process-wide one', async () => {
+  const { openSqlite } = await import('../../lib/store/sqlite.mjs');
+  const own = openSqlite(join(dir, 'own.db'));
+  const mine = await createGateway({ port: 0, baseHost: 'localhost', store: own });
+  const minePort = await mine.listen();
+  try {
+    const { link } = await grants.createGrants(own).createGrant({ customer: 'Own store', app: 'toy', hours: 1 });
+    const token = link.split('/d/')[1];
+    assert.equal(await grants.findGrant(token), null, 'the process-wide store does not know this link');
+    const opened = await request({ port: minePort, path: '/d/' + token, method: 'POST' });
+    assert.equal(opened.status, 302, 'the gateway found it in the store it was given');
+    assert.equal((await request({ path: '/d/' + token, method: 'POST' })).status, 403, 'the default gateway does not');
+  } finally { await mine.close(); own.close(); }
+});
+
 // ---- link limits and abuse protection
 const ua = (name) => ({ 'user-agent': name });
 // A browser: keeps cookies between requests. Opens a link the way a customer does.

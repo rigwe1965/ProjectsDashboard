@@ -10,7 +10,7 @@ import http from 'node:http';
 import net from 'node:net';
 import { pipeline } from 'node:stream';
 import { randomBytes } from 'node:crypto';
-import { findGrant, isActive, demoApps } from './grants.mjs';
+import { createGrants, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { ports } from '../lib/config.mjs';
 import { cookieOf as readCookie, clientIp, safeEq, json, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
@@ -76,6 +76,7 @@ export async function createGateway(opts = {}) {
     redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
     noSessionPerMinute: num(process.env.GATEWAY_NO_SESSION_PER_MINUTE, 120), // requests per IP per minute without a valid session before a 429
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
+    store: null, // the store to use; null = the process-wide one (lib/store/index.mjs)
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
     ...opts,
   };
@@ -88,7 +89,8 @@ export async function createGateway(opts = {}) {
   const baseName = baseHost.split(':')[0];
   const { page, tooMany } = makePages(https);
   const trusted = new Set(o.trustedProxies);
-  const store = await getStore();
+  const store = o.store ?? await getStore(); // a store can be passed in (tests, or a second gateway); the default is the process-wide one
+  const { findGrant } = createGrants(store);
   const instances = createInstances({ store, supervisor: o.supervisor }); // private copies, one per link (registry perLink)
   // An audit failure must never break a customer's request.
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));

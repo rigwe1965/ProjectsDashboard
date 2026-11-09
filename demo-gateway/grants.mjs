@@ -15,7 +15,6 @@ export { dataDir, registryPath };
 export const MAX_HOURS = 720;
 
 export const hashToken = sha256;
-export const loadGrants = async () => (await getStore()).grants.list();
 
 // product id -> demo instance entry (only instances explicitly marked demoReady)
 // If apps.json is saved in a broken state while the gateway runs, keep serving the last valid copy instead of failing every request.
@@ -31,13 +30,10 @@ export function demoApps() {
   return lastGood;
 }
 
-export async function findGrant(token) {
-  return (await getStore()).grants.findByHash(hashToken(token));
-}
 export const isActive = (g) => g && !g.revoked && Date.parse(g.expiresAt) > Date.now();
 
 // maxUses: how many times the link may be opened (empty = unlimited). deviceLock: pin the link to the first browser that opens it.
-export async function createGrant({ customer, app, hours = 48, maxUses = null, deviceLock = false }) {
+async function createGrantIn(store, { customer, app, hours = 48, maxUses = null, deviceLock = false }) {
   customer = String(customer || '').trim().slice(0, 80);
   if (!customer || !app) throw new HttpError(400, 'Customer and app are required');
   if (!demoApps()[app]) throw new HttpError(400, '"' + app + '" has no demo-ready instance');
@@ -48,18 +44,28 @@ export async function createGrant({ customer, app, hours = 48, maxUses = null, d
   const token = randomBytes(24).toString('hex');
   const grant = { id: randomBytes(4).toString('hex'), tokenHash: hashToken(token), customer, app, createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + hours * 3600e3).toISOString(), revoked: false, uses: 0, maxUses, deviceLock: !!deviceLock, lastUsedAt: null };
-  const store = await getStore();
   await store.grants.insert(grant);
   await store.audit.add({ ev: 'grant-created', grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock });
   return { grant, link: demoLink(app, token) };
 }
-export async function revokeGrant(id) {
-  const store = await getStore();
+async function revokeGrantIn(store, id) {
   const t = await store.grants.revoke(id);
   if (!t) throw new HttpError(404, 'No such grant');
   await store.audit.add({ ev: 'grant-revoked', grant: t.id, app: t.app });
   return t;
 }
+
+// The grant operations on a given store, so a service can be handed its store (createGateway / createConsole take `store`).
+export const createGrants = (store) => ({
+  loadGrants: async () => store.grants.list(),
+  findGrant: async (token) => store.grants.findByHash(hashToken(token)),
+  createGrant: (args) => createGrantIn(store, args),
+  revokeGrant: (id) => revokeGrantIn(store, id),
+});
+// The same operations on the process-wide store, for the command line and for callers that do not pass one.
+const onDefault = (name) => async (...a) => createGrants(await getStore())[name](...a);
+export const loadGrants = onDefault('loadGrants'), findGrant = onDefault('findGrant');
+export const createGrant = onDefault('createGrant'), revokeGrant = onDefault('revokeGrant');
 export const demoLink = (app, token) =>
   (process.env.DEMO_SCHEME || 'http') + '://' + app + '.' + (process.env.DEMO_BASE_HOST || 'localhost:4300') + '/d/' + token;
 export const publicGrant = (g) => ({ id: g.id, customer: g.customer, app: g.app, createdAt: g.createdAt, expiresAt: g.expiresAt,

@@ -14,7 +14,7 @@ import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } fro
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { loadGrants, createGrant, revokeGrant, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
+import { createGrants, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
@@ -64,13 +64,15 @@ export async function createConsole(opts = {}) {
     loginMaxPerIp: 8, loginMaxTotal: 40, // sign-in attempts per 15 minutes
     loginPenaltyMs: 1500, // extra wait before answering a FAILED sign-in once the overall failure cap is passed (slows guessing spread over many addresses)
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
+    store: null, // the store to use; null = the process-wide one
     supervisor: defaultSupervisor,
     gatewayPort: ports.gateway,
     statusReuseMs: 2000, // how long one status check answers further requests
     ...opts,
   };
   const registry = loadRegistry();
-  const store = await getStore();
+  const store = o.store ?? await getStore(); // a store can be passed in; the default is the process-wide one
+  const { loadGrants, createGrant, revokeGrant } = createGrants(store);
   const trusted = new Set(o.trustedProxies);
   const launchToken = randomBytes(24).toString('hex');
   const busy = new Set();

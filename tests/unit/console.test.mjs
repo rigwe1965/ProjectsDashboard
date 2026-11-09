@@ -103,6 +103,20 @@ test('demo links: created with limits through the API, listed with use counts', 
   assert.equal(list.grants.find((g) => g.id === made.grant.id).uses, 0);
 });
 
+test('a console uses the store it is given: links it creates are not in the process-wide store', async () => {
+  const { openSqlite } = await import('../../lib/store/sqlite.mjs');
+  const own = openSqlite(join(dir, 'own-console.db'));
+  const before = (await store.grants.list()).length;
+  const { c, port } = await start({ store: own });
+  try {
+    const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+    const made = await post(port, '/api/demos', { customer: 'Own store', app: 'toy', hours: 1 }, { cookie });
+    assert.equal(made.status, 200);
+    assert.equal((await own.grants.list()).length, 1);
+    assert.equal((await store.grants.list()).length, before);
+  } finally { own.close(); }
+});
+
 test('/_pd/healthz needs no login but still obeys the Host allow-list', async () => {
   const { port } = await start();
   const ok = await req(port, { path: '/_pd/healthz' });
