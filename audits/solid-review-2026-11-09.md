@@ -241,6 +241,7 @@ export async function createGateway(opts = {}) {
 The same option removes the need for tests to write a registry file just to define a fake product.
 
 ### D-03: two sources of truth for HTTPS · 3/10
+**Status: fixed 2026-11-09** (`makePages(https)` builds the pages from `o.scheme`; the module-level `HTTPS` constant is gone; test fails on the old code).
 **Location:** `demo-gateway/gateway.mjs:47` (`const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https'`, read once at import) feeds `OWN_HEADERS` (lines 48-49) and the proxied-response header at `:273`, while cookies, redirects and `X-Forwarded-Proto` use the option `o.scheme` (`:81`, `:226`, `:260`). A gateway created with `{ scheme: 'https' }` (as `createGateway` allows) would set `Secure` cookies but not send `Strict-Transport-Security` unless the environment variable also says so.
 **Fix:** derive both from the option:
 ```js
