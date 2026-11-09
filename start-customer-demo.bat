@@ -43,6 +43,21 @@ if not exist node_modules (
 )
 if not exist data\logs mkdir data\logs
 
+if /i not "%APP%"=="rmm" goto :dockerok
+rem The RMM demo keeps its own Postgres and Redis in Docker, so the Docker engine must be running.
+docker info >nul 2>&1 && goto :dockerok
+where docker >nul 2>&1 || ( echo [demo] ERROR: Docker is not installed. The RMM demo needs Docker Desktop. & goto :fail )
+echo [demo] Docker is not running. Starting Docker Desktop (this can take a couple of minutes)...
+if exist "%ProgramFiles%\Docker\Docker\Docker Desktop.exe" start "" "%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+set /a TRIES=0
+:dockerwait
+docker info >nul 2>&1 && goto :dockerok
+set /a TRIES+=1
+if %TRIES% GEQ 60 ( echo [demo] ERROR: Docker did not start within 3 minutes. Start Docker Desktop yourself, then try again. & goto :fail )
+timeout /t 3 >nul
+goto :dockerwait
+:dockerok
+
 curl.exe -s -o NUL -m 2 "%GW%" && (
   echo [demo] Gateway already running on port 4300.
   goto :gwdone
