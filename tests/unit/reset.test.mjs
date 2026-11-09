@@ -32,7 +32,10 @@ let outcome = { ok: true, output: 'done' };
 const supervisor = async (args) => { calls.push(args.join(' ')); return outcome; };
 const sweep = () => resetSweep({ store, apps: grants.demoApps(), supervisor });
 // a customer opens a link (this is what the gateway does when the Open button is pressed)
+// It waits first: a link counts as "opened since the last reset" only if its timestamp is later than the reset's start (millisecond
+// resolution, strictly later), so a link opened in the same millisecond as the previous test's reset would wrongly look clean.
 async function open(app = 'rst') {
+  await new Promise((r) => setTimeout(r, 20));
   const { grant } = await grants.createGrant({ customer: 'C', app, hours: 1 });
   assert.equal((await store.grants.redeem(grant.id, 'dev')).ok, true);
   return grant;
