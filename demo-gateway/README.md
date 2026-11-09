@@ -34,4 +34,5 @@ npm run demo -- revoke <id>
 | `GATEWAY_MAX_WS_PER_GRANT` | 20 | open WebSockets allowed per demo link |
 | `GATEWAY_REDEEM_PER_MINUTE` | 20 | link opens allowed per IP per minute |
 | `GATEWAY_REDEEM_FAIL_LIMIT` | 10 | bad links per IP per 10 minutes before it is refused |
-| `AUDIT_RETENTION_DAYS` | 90 | how long audit events are kept |
+| `AUDIT_RETENTION_DAYS` | 90 | how long customer audit events are kept |
+| `AUDIT_ADMIN_RETENTION_DAYS` | 365 | how long the owner's sign-in events (`admin-*`) are kept |

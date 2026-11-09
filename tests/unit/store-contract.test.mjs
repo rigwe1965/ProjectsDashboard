@@ -94,6 +94,19 @@ for (const f of factories) {
       assert.equal(await s.audit.count(), 2);
     });
 
+    test('audit: admin events get their own retention, and one grant can be forgotten', async () => {
+      await s.audit.addMany([
+        { t: '2020-01-01T00:00:00.000Z', ev: 'enter', grant: 'g9', ip: '1.1.1.1' },
+        { t: '2020-01-01T00:00:00.000Z', ev: 'admin-login', ip: '2.2.2.2' },
+        { ev: 'enter', grant: 'g9', ip: '1.1.1.1' }, { ev: 'enter', grant: 'g8', ip: '3.3.3.3' },
+      ]);
+      const before = await s.audit.count();
+      assert.equal(await s.audit.prune(30, 100000), 1, 'old customer event goes, old admin event stays');
+      assert.equal(await s.audit.deleteForGrant('g9'), 1);
+      assert.equal(await s.audit.count(), before - 2);
+      assert.equal(await s.audit.prune(30, 30), 1, 'now the admin event goes too');
+    });
+
     test('processState: per-process rows, upsert, remove', async () => {
       await s.processState.set('crm', 'app', { pid: 1 }); await s.processState.set('af', 'app', { pid: 2 }); await s.processState.set('crm', 'app', { pid: 3 });
       assert.deepEqual(await s.processState.all(), { crm: { app: { pid: 3 } }, af: { app: { pid: 2 } } });

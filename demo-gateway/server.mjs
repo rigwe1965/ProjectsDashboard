@@ -12,9 +12,12 @@ const RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS || 90);
 // Housekeeping must never keep the gateway from starting.
 // Retention is applied at start-up and then once a day, so a long-running gateway does not keep personal data past the limit.
 const keepDays = Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90;
+// The owner's own sign-in events are the ones worth keeping longest for an investigation.
+const ADMIN_DAYS = Number(process.env.AUDIT_ADMIN_RETENTION_DAYS || 365);
+const keepAdminDays = Number.isFinite(ADMIN_DAYS) ? ADMIN_DAYS : 365;
 async function pruneAudit() {
   try {
-    const pruned = await gw.store.audit.prune(keepDays);
+    const pruned = await gw.store.audit.prune(keepDays, keepAdminDays);
     if (pruned) logger.info('pruned old audit events', { count: pruned, olderThanDays: keepDays });
   } catch (err) { logger.warn('audit prune failed; continuing', { err }); }
 }

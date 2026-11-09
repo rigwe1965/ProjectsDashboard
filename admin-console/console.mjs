@@ -301,6 +301,13 @@ export async function createConsole(opts = {}) {
       return json(res, 200, { ok: true });
     }
 
+    if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/forget$/))) { // remove every audit event (address, browser) recorded for one customer's link
+      if (badOrigin(req, res)) return;
+      const removed = await store.audit.deleteForGrant(m[1]);
+      audit({ ev: 'grant-forgotten', ip: clientIp(req, trusted), removed }); // deliberately without the grant id
+      return json(res, 200, { ok: true, removed });
+    }
+
     const known = url.pathname === '/' || /^\/api\/(session|audit|apps|demos)(\/|$)/.test(url.pathname) || url.pathname === '/login' || url.pathname === '/logout';
     if (known && req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST' }); return res.end('Method not allowed'); }
     res.writeHead(404); res.end('Not found');
