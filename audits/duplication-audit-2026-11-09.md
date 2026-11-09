@@ -44,8 +44,9 @@ Sorting by value for effort: D-02, D-06, D-05 and D-07 first (small, mechanical,
 ## Remediation status (2026-11-09)
 
 - **Done:** D-06 (one `sha256`; `hashSessionId` and `hashToken` are aliases), D-16 (constants renamed `INSTANCE_RETRY_AFTER_FAIL_MS` and `RESET_RETRY_AFTER_FAIL_MS`), and D-05 except two items: the `sleep` replacements and the shared health check are still to do.
-- **Next, in order:** D-02, D-07, then D-01 and D-03.
-- After these changes: lint clean, 167 of 168 tests pass (one skipped, as before).
+- **Done (second batch):** D-02 (the six scripts use `parseEnvText`; `missingKeys` added to `lib/util.mjs`; `run-with-env.mjs` no longer has its own parser, and `tests/journeys.mjs` keeps its own because it filters differently) and D-07 (`lib/config.mjs` is the one reader of the three port variables; `start-console.bat` and `start-showcase.bat` honour `CONSOLE_PORT` / `SHOWCASE_PORT`). The Caddyfile, compose file and `start-customer-demo.bat` still hold 4300 and 4100 literally.
+- **Next, in order:** D-01 and D-03.
+- After these changes: lint clean, 168 of 169 tests pass (one skipped, as before).
 
 ## The utilities module
 

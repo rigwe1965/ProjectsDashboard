@@ -2,7 +2,8 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 title ProjectsDashboard - Console launcher
-set "PORT=4100"
+if not defined CONSOLE_PORT set "CONSOLE_PORT=4100"
+set "PORT=%CONSOLE_PORT%"
 set "BASE=http://127.0.0.1:%PORT%/"
 set "LOG=data\logs\console-launcher.out"
 

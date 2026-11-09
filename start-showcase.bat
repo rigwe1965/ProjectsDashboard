@@ -2,7 +2,8 @@
 setlocal EnableExtensions
 cd /d "%~dp0"
 title ProjectsDashboard - Showcase launcher
-set "PORT=4200"
+if not defined SHOWCASE_PORT set "SHOWCASE_PORT=4200"
+set "PORT=%SHOWCASE_PORT%"
 set "BASE=http://127.0.0.1:%PORT%/"
 set "LOG=data\logs\showcase-launcher.out"
 

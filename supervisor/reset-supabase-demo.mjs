@@ -10,17 +10,17 @@
 // It only talks to the project named in the env file, which is the dashboard's own demo env (never the app's real .env).
 // Keys are never printed.
 import { readFileSync } from 'node:fs';
+import { parseEnvText, missingKeys } from '../lib/util.mjs';
 
 const args = process.argv.slice(2);
 const fromEnv = args[0] === '--env';
 const envFile = fromEnv ? null : args[0];
 if (!fromEnv && !envFile) { console.error('Usage: reset-supabase-demo.mjs <envfile> [--yes]  |  --env [--yes]'); process.exit(2); }
 const apply = args.includes('--yes');
-const env = {};
-if (fromEnv) for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD']) env[k] = (process.env[k] || '').trim();
-else for (const l of readFileSync(envFile, 'utf8').split(/\r?\n/)) { const t = l.trim(), i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
-for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD'])
-  if (!env[k] || env[k] === 'REPLACE_ME') { console.error('STOP: missing ' + k); process.exit(1); }
+const KEYS = ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD'];
+const env = fromEnv ? Object.fromEntries(KEYS.map((k) => [k, (process.env[k] || '').trim()])) : parseEnvText(readFileSync(envFile, 'utf8'), { trimValues: true });
+const missing = missingKeys(env, KEYS);
+if (missing.length) { console.error('STOP: missing ' + missing[0]); process.exit(1); }
 
 const base = env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
 const h = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY, 'content-type': 'application/json' };

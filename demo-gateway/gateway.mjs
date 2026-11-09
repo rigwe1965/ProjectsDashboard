@@ -12,6 +12,7 @@ import { pipeline } from 'node:stream';
 import { randomBytes } from 'node:crypto';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
+import { ports } from '../lib/config.mjs';
 import { cookieOf as readCookie, clientIp, safeEq, json } from '../lib/http-util.mjs';
 import { num, fireAndForget, unmapV4 } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
@@ -54,7 +55,7 @@ const page = (res, code, title, msg, headers = {}) => {
 // Options (all have environment-variable defaults, see demo-gateway/README.md)
 export async function createGateway(opts = {}) {
   const o = {
-    port: num(process.env.GATEWAY_PORT, 4300),
+    port: ports.gateway,
     baseHost: process.env.DEMO_BASE_HOST,
     scheme: process.env.DEMO_SCHEME || 'http',
     upstreamTimeoutMs: num(process.env.GATEWAY_UPSTREAM_TIMEOUT_MS, 60000), // an upstream silent this long gets a 504

@@ -15,7 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { loadGrants, createGrant, revokeGrant, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
-import { dataDir } from '../lib/config.mjs';
+import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
@@ -54,7 +54,7 @@ function tail(file, maxBytes = 12000) {
 
 export async function createConsole(opts = {}) {
   const o = {
-    port: num(process.env.CONSOLE_PORT, 4100),
+    port: ports.console,
     bindHost: process.env.ADMIN_BIND || '127.0.0.1',
     allowedHosts: (process.env.ADMIN_ALLOWED_HOSTS || '127.0.0.1,localhost').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     scheme: process.env.ADMIN_SCHEME || 'http',
@@ -64,7 +64,7 @@ export async function createConsole(opts = {}) {
     loginPenaltyMs: 1500, // extra wait before answering a FAILED sign-in once the overall failure cap is passed (slows guessing spread over many addresses)
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     supervisor: defaultSupervisor,
-    gatewayPort: num(process.env.GATEWAY_PORT, 4300),
+    gatewayPort: ports.gateway,
     statusReuseMs: 2000, // how long one status check answers further requests
     ...opts,
   };

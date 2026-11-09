@@ -8,14 +8,14 @@
 // already has tables not created by this tool; each file + its tracking row run as ONE request (atomic).
 import { readFileSync, writeFileSync, readdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
+import { parseEnvText } from '../lib/util.mjs';
 
 const [envFile, cmd, arg, flag] = process.argv.slice(2);
 if (!envFile || !cmd) { console.error('Usage: supabase-admin.mjs <envfile> info | fetch-keys | migrate <sqlDir> [--yes]'); process.exit(2); }
 const die = (m) => { console.error('STOP: ' + m); process.exit(1); };
 
 const text = readFileSync(envFile, 'utf8');
-const env = {};
-for (const l of text.split(/\r?\n/)) { const t = l.trim(), i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
+const env = parseEnvText(text, { trimValues: true });
 
 const token = env.SUPABASE_ACCESS_TOKEN;
 if (!token || token === 'REPLACE_ME' || token.length < 20) die('SUPABASE_ACCESS_TOKEN is missing or too short in ' + envFile);

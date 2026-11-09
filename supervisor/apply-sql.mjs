@@ -7,6 +7,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { parseEnvText } from '../lib/util.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const { Client } = createRequire(join(root, 'data', 'tools', 'package.json'))('pg');
@@ -14,8 +15,7 @@ const [envFile, sqlDir, flag] = process.argv.slice(2);
 if (!envFile || !sqlDir) { console.error('Usage: apply-sql.mjs <envfile> <sqlDir> [--yes]'); process.exit(2); }
 const apply = flag === '--yes';
 
-const env = {};
-for (const l of readFileSync(envFile, 'utf8').split(/\r?\n/)) { const t = l.trim(), i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
+const env = parseEnvText(readFileSync(envFile, 'utf8'), { trimValues: true });
 const die = (m) => { console.error('STOP: ' + m); process.exit(1); };
 
 if (!env.DEMO_DB_URL || env.DEMO_DB_URL === 'REPLACE_ME') die('DEMO_DB_URL is not set in ' + envFile);

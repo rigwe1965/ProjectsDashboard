@@ -3,9 +3,10 @@ import http from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize, extname, sep } from 'node:path';
+import { ports } from '../lib/config.mjs';
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), 'dist');
-const PORT = Number(process.env.SHOWCASE_PORT || 4200);
+const PORT = ports.showcase;
 const types = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg' };
 
 function serve(req, res) {

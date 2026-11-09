@@ -3,13 +3,13 @@
 // Env file keys: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, ADMIN_EMAIL, ADMIN_PASSWORD, CUSTOMER_EMAIL, CUSTOMER_PASSWORD
 // Idempotent: an existing email is reported and left alone. Passwords are never printed.
 import { readFileSync } from 'node:fs';
+import { parseEnvText, missingKeys } from '../lib/util.mjs';
 
 const envFile = process.argv[2];
 if (!envFile) { console.error('Usage: create-demo-users.mjs <envfile>'); process.exit(2); }
-const env = {};
-for (const l of readFileSync(envFile, 'utf8').split(/\r?\n/)) { const t = l.trim(), i = t.indexOf('='); if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1).trim(); }
-for (const k of ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD'])
-  if (!env[k] || env[k] === 'REPLACE_ME') { console.error('STOP: missing ' + k); process.exit(1); }
+const env = parseEnvText(readFileSync(envFile, 'utf8'), { trimValues: true });
+const missing = missingKeys(env, ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD']);
+if (missing.length) { console.error('STOP: missing ' + missing[0]); process.exit(1); }
 
 const base = env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
 const h = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, 'content-type': 'application/json' };

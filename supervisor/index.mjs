@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { getStore, closeStore } from '../lib/store/index.mjs';
 import { join, resolve } from 'node:path';
 import { cleanEnv, minimalEnv } from '../lib/clean-env.mjs';
+import { parseEnvText } from '../lib/util.mjs';
 import { root, dataDir } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
@@ -47,10 +48,7 @@ function childEnv(app, p, fillStr) {
   if (p.envFile) {
     const f = join(root, p.envFile);
     if (!existsSync(f)) throw new Error(`Env file missing for ${app.id}: ${p.envFile}`);
-    for (const line of readFileSync(f, 'utf8').split(/\r?\n/)) {
-      const t = line.trim(); const i = t.indexOf('=');
-      if (t && !t.startsWith('#') && i > 0) env[t.slice(0, i).trim()] = t.slice(i + 1);
-    }
+    Object.assign(env, parseEnvText(readFileSync(f, 'utf8')));
   }
   for (const [k, v] of Object.entries(p.env ?? {})) env[k] = fillStr(v);
   return env;

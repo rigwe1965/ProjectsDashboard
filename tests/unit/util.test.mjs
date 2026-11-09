@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { num, sleep, errMessage, unmapV4, parseEnvText, createSerialLock, skipIfRunning, fireAndForget } from '../../lib/util.mjs';
+import { num, sleep, errMessage, unmapV4, parseEnvText, missingKeys, createSerialLock, skipIfRunning, fireAndForget } from '../../lib/util.mjs';
 
 test('num: a number, or the default for unset / empty / not-a-number', () => {
   assert.equal(num('42', 1), 42);
@@ -26,6 +26,10 @@ test('parseEnvText: comments, blanks, "=" inside a value, CRLF', () => {
   const env = parseEnvText('# note\r\n\r\nA=1\r\n  B = two words  \r\nC=x=y\r\n=nokey\r\nD\r\n');
   assert.deepEqual(env, { A: '1', B: ' two words', C: 'x=y' });
   assert.deepEqual(parseEnvText('B = two words  ', { trimValues: true }), { B: 'two words' });
+});
+
+test('missingKeys: absent, empty and REPLACE_ME', () => {
+  assert.deepEqual(missingKeys({ A: '1', B: '', C: 'REPLACE_ME' }, ['A', 'B', 'C', 'D']), ['B', 'C', 'D']);
 });
 
 test('createSerialLock runs in order and a failure does not block the next', async () => {
