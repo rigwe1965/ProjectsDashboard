@@ -143,7 +143,7 @@ export async function createConsole(opts = {}) {
         if (o.loginPenaltyMs > 0) await new Promise((r) => setTimeout(r, o.loginPenaltyMs));
         return json(res, 429, { error: 'Too many failed attempts. Wait a few minutes and try again.' }, { 'retry-after': '300' });
       }
-      return json(res, 401, { error: totpSecret ? 'Wrong password or code.' : 'Wrong password.' });
+      return json(res, 401, { error: 'Wrong password or code.' }); // the same words whether or not 2-step is on, so that is not revealed
     }
     const id = newSessionId(), maxAge = Math.round(o.sessionHours * 3600);
     await store.sessions.create(hashSessionId(id), new Date(Date.now() + maxAge * 1000).toISOString());

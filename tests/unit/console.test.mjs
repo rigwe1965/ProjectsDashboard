@@ -266,6 +266,8 @@ test('2-step codes: required, wrong code refused, a code cannot be used twice', 
   assert.equal((await post(port, '/login', { password: 'a long test passphrase', code: totpCode(secret, step) })).status, 401, 'same code again is a replay');
   const err = JSON.parse((await post(port, '/login', { password: 'x', code: '1' })).body).error;
   assert.equal(err, 'Wrong password or code.', 'does not reveal which part was wrong');
+  await store.meta.set('admin_totp_secret', '');
+  assert.equal(JSON.parse((await post(port, '/login', { password: 'x' })).body).error, 'Wrong password or code.', 'same words when 2-step is off');
 });
 
 // ---------- the CLI
