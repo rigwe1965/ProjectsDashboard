@@ -21,7 +21,9 @@ done
 exec "$@"
 SH
 # The demo's own database lives in /app/instance (a volume in compose); mail is never configured, so nothing is sent.
-RUN useradd --create-home --uid 10001 app && mkdir -p /app/instance && chown -R app /app
+# The container's root is read-only (compose), so the two log files the app keeps next to its code are redirected into the instance
+# volume: they stay writable and survive a restart. /app/.claude (the app's development mail log) is a small tmpfs set in compose.
+RUN useradd --create-home --uid 10001 app && mkdir -p /app/instance  && ln -sf /app/instance/security.log /app/security.log && ln -sf /app/instance/demo_requests.log /app/demo_requests.log  && chown -R app /app
 USER app
 
 ENV PYTHONUNBUFFERED=1 PYTHONPATH=/app FLASK_ENV=production

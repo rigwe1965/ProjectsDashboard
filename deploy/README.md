@@ -88,6 +88,7 @@ re-seeded, and ClaudeWorkspace's Supabase project is emptied of customer data an
 
 In `registry/apps.hosted.json` a process is either a host process (`cmd`) or an existing container
 (`container` = its name, `host` = its service name on the compose network, `port` = the port inside the container).
+The demo, database and proxy containers run with a **read-only root filesystem**, no capabilities and CPU, memory and process limits; they write only to their volumes and small `tmpfs` folders listed in `docker-compose.yml`. If you add an app that writes elsewhere, give it a `tmpfs` or a volume for that folder instead of removing `read_only`.
 Each demo runs on its **own** network so a demo cannot reach the others (see the `networks:` comment in `docker-compose.yml`). When you add a demo, give it an `app_<name>` network and add that network to the `gateway` and `console` services.
 The gateway reaches demo instances by `host:port`.
 
