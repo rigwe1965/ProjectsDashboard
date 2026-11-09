@@ -1,34 +1,14 @@
 // Demo grants: one customer, one app, expiring. Only a SHA-256 hash of the token is stored (in the database).
-// Usage:
-//   node demo-gateway/grants.mjs create --customer "Acme Ltd" --app imageapp [--hours 48] [--max-uses 3] [--device-lock]
-//   node demo-gateway/grants.mjs list
-//   node demo-gateway/grants.mjs revoke <grantId>
 import { randomBytes } from 'node:crypto';
 import { sha256 } from '../lib/auth.mjs';
-import { dataDir, registryPath } from '../lib/config.mjs';
-import { loadRegistry } from '../lib/registry.mjs';
-import { getStore, closeStore } from '../lib/store/index.mjs';
+import { demoApps } from '../lib/registry.mjs';
+import { getStore } from '../lib/store/index.mjs';
 import { HttpError } from '../lib/errors.mjs';
-import { logger } from '../lib/log.mjs';
 
-export { dataDir, registryPath };
+export { demoApps }; // lives in lib/registry.mjs; still importable from here
 export const MAX_HOURS = 720;
 
 export const hashToken = sha256;
-
-// product id -> demo instance entry (only instances explicitly marked demoReady)
-// If apps.json is saved in a broken state while the gateway runs, keep serving the last valid copy instead of failing every request.
-let lastGood = null;
-export function demoApps() {
-  try {
-    const reg = loadRegistry(registryPath);
-    lastGood = Object.fromEntries(reg.apps.filter((a) => a.demoOf && a.demoReady === true).map((a) => [a.demoOf, a]));
-  } catch (err) {
-    if (!lastGood) throw err;
-    logger.error('registry reload failed; using the last valid copy', { err });
-  }
-  return lastGood;
-}
 
 export const isActive = (g) => g && !g.revoked && Date.parse(g.expiresAt) > Date.now();
 
@@ -71,18 +51,3 @@ export const demoLink = (app, token) =>
 export const publicGrant = (g) => ({ id: g.id, customer: g.customer, app: g.app, createdAt: g.createdAt, expiresAt: g.expiresAt,
   uses: g.uses ?? 0, maxUses: g.maxUses ?? null, deviceLock: !!g.deviceLock, lastUsedAt: g.lastUsedAt ?? null,
   state: g.revoked ? 'revoked' : isActive(g) ? 'active' : 'expired' });
-
-if (process.argv[1]?.endsWith('grants.mjs')) {
-  const [cmd, ...args] = process.argv.slice(2);
-  const opt = (n) => { const i = args.indexOf('--' + n); return i >= 0 ? args[i + 1] : undefined; };
-  try {
-    if (cmd === 'create') {
-      const { grant, link } = await createGrant({ customer: opt('customer'), app: opt('app'), hours: opt('hours') || 48, maxUses: opt('max-uses') ?? null, deviceLock: args.includes('--device-lock') });
-      console.log('Grant ' + grant.id + ' for "' + grant.customer + '" -> ' + grant.app + ', expires ' + grant.expiresAt + '\nSend this link (shown once):\n  ' + link);
-    } else if (cmd === 'list') {
-      for (const g of (await loadGrants()).map(publicGrant)) console.log(g.id + '  ' + g.app.padEnd(12) + ' ' + g.customer.padEnd(24) + ' ' + g.state.padEnd(8) + ' until ' + g.expiresAt + '  used ' + g.uses + (g.maxUses ? '/' + g.maxUses : '') + (g.deviceLock ? '  device-locked' : ''));
-    } else if (cmd === 'revoke') { console.log('Revoked ' + (await revokeGrant(args[0])).id); }
-    else console.log('Usage: grants.mjs create --customer "X" --app <id> [--hours N] [--max-uses N] [--device-lock] | list | revoke <id>');
-  } catch (e) { console.error(e.message); process.exitCode = 1; }
-  await closeStore();
-}

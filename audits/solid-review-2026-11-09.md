@@ -54,6 +54,7 @@ if (process.argv[1]?.endsWith('index.mjs')) await main(process.argv.slice(2));
 Then move out, one at a time: `childEnv`/`fill`/`portRefs` → `supervisor/env.mjs`; `redact`/`runStep`/`runLoggedStep` → `supervisor/steps.mjs`; `start`/`stop`/`isManaged` → `supervisor/lifecycle.mjs`, each taking `{ registry, store, driver }` as arguments (see D-01).
 
 ### S-02: `createGateway` · 5/10
+**Status: fixed 2026-11-09.** `gateway.mjs` (428 to 253 lines) now wires the parts: `pages.mjs`, `redeem.mjs` (`createRedeemHandler`), `proxy-headers.mjs` (pure header and cookie rules), `websocket.mjs` (`createUpgradeHandler`). Moved verbatim; the 40 gateway tests are unchanged and pass.
 **Location:** `demo-gateway/gateway.mjs:61-426`. Inside one closure: link redemption (`handle`, lines 178-229), proxying with header and cookie rewriting (230-303), WebSocket proxying and recheck timers (`upgrade`, 308-385), Prometheus metrics set-up (112-127), `health` and `tlsAsk`, the miss limiter (`tooManyMisses`), and the server wiring.
 
 **Why it hurts:** a change to the cookie rules, the proxy headers or the WebSocket handling is a change to the same 365-line scope, and the closure shares ten variables (`o`, `store`, `instances`, `trusted`, `wsCounts`, `audit`, `metrics`, ...) so nothing can be tested without building the whole gateway (as `tests/unit/gateway.test.mjs` does).
@@ -86,6 +87,7 @@ for (const [method, re, fn] of routes) { const m = req.method === method && url.
 Move the audit feed and the status cache to their own files (`admin-console/audit-feed.mjs`, `status-cache.mjs`); both already have clear inputs and outputs.
 
 ### S-04: `demo-gateway/grants.mjs` · 3/10
+**Status: fixed 2026-11-09.** `demoApps()` moved to `lib/registry.mjs` (still re-exported from `grants.mjs`); the command line is `demo-gateway/grants-cli.mjs` (`npm run demo` and `start-customer-demo.bat` updated). `demoLink` stays in `grants.mjs`.
 **Location:** `demo-gateway/grants.mjs`: grant rules (`createGrant`, `revokeGrant`, `isActive`, `publicGrant`), registry lookup (`demoApps`, lines 22-32, which the gateway and `reset.mjs` also use), link text (`demoLink`, reading `DEMO_SCHEME`/`DEMO_BASE_HOST`), and a command line at lines 69-82.
 
 **Fix:** `demoApps` belongs with the registry (`lib/registry.mjs`: `export const demoApps = ...`); the CLI to `demo-gateway/grants-cli.mjs`. `gateway.mjs` then no longer imports a "grants" module to find out which products exist.

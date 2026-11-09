@@ -1,7 +1,7 @@
 // Starts the demo gateway (see gateway.mjs for how it works). Settings come from environment variables,
 // listed in demo-gateway/README.md.
 import { createGateway } from './gateway.mjs';
-import { demoApps } from './grants.mjs';
+import { demoApps } from '../lib/registry.mjs';
 import { ports } from '../lib/config.mjs';
 import { closeStore } from '../lib/store/index.mjs';
 import { logger, installProcessHandlers } from '../lib/log.mjs';

@@ -6,60 +6,39 @@
 //
 // WebSockets (needed by Streamlit apps) are proxied too. They are checked once when they open, and then
 // re-checked every `wsRecheckMs`, so revoking a grant also cuts off sockets that are already open.
+//
+// The parts: pages.mjs (own pages), redeem.mjs (opening a link), proxy-headers.mjs (what goes to the demo app and what comes back),
+// websocket.mjs (upgrades), instances.mjs (private copies), reset.mjs (shared demos). This file wires them to the server.
 import http from 'node:http';
-import net from 'node:net';
 import { pipeline } from 'node:stream';
 import { randomBytes } from 'node:crypto';
-import { createGrants, isActive, demoApps } from './grants.mjs';
+import { createGrants, isActive } from './grants.mjs';
+import { demoApps } from '../lib/registry.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { ports } from '../lib/config.mjs';
-import { cookieOf as readCookie, clientIp, safeEq, json, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, clientIp, safeEq, json } from '../lib/http-util.mjs';
 import { num, fireAndForget, unmapV4 } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
-import { isResetting, resetSweep } from './reset.mjs';
+import { resetSweep } from './reset.mjs';
 import { createInstances } from './instances.mjs';
-import { instanceApp } from '../lib/instance-app.mjs';
+import { makePages, deniedRecord, HSTS } from './pages.mjs';
+import { createRedeemHandler } from './redeem.mjs';
+import { createUpgradeHandler } from './websocket.mjs';
+import { upstreamPort, requestHeaders, responseHeaders } from './proxy-headers.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
-import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
+import { hashSessionId } from '../lib/auth.mjs';
 
 const COOKIE_BASE = 'pd_demo';
 // Device lock: a random id kept in this cookie (only its hash is stored with the grant). A User-Agent string is shared by
 // everyone with the same browser, so it could not pin a link to one browser.
 const DEV_BASE = 'pd_dev';
-// Cookies the gateway owns, with or without the __Host- prefix. A demo app must not be able to overwrite or clear them.
-const OURS = /^\s*(__Host-)?pd_(demo|dev)=/i;
-// Every product's demo is one shared instance with one set of sample accounts (not one per customer), so say so before entry.
-const PRIVATE_NOTICE = 'This is your own private copy of the demonstration, filled with sample data. It is started for you when you open it and deleted when your link ends, so nobody else can see what you enter.<br><br><strong>Please still avoid entering real personal, customer or confidential information.</strong>';
-const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>';
 // Next.js dev servers expose helper routes that return source-code excerpts and open an editor on the host. A customer has no use
 // for them, so the gateway answers them itself instead of forwarding.
-// Headers that frameworks read as "the client's address". A customer must not be able to present a false one to the demo app's
-// own logging or rate limiting, so they are dropped; the gateway's own X-Forwarded-For is the one source.
-const SPOOFABLE = new Set(['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip', 'x-cluster-client-ip', 'fastly-client-ip', 'x-original-forwarded-for']);
 const DEV_ONLY_PATH = /^\/__nextjs_[\w-]*/;
-const DEV_RE = /^[a-f0-9]{32}$/;
 // The link token (48 hex) is only ever presented at /d/<token>. The browser's cookie holds a DIFFERENT random value
 // (64 hex) minted at redemption, so the link cannot double as a cookie and skip the use limit / device lock.
 const SESSION_RE = /^[a-f0-9]{64}$/;
-const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
-
-const HSTS = 'max-age=31536000';
-// The gateway's own pages. Whether they carry HSTS follows the gateway's scheme option (the same one the cookies use), not a second reading of the environment.
-const makePages = (https) => {
-const OWN_HEADERS = { ...BASE_SECURITY_HEADERS,
-  'content-security-policy': "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'none'", ...(https ? { 'strict-transport-security': HSTS } : {}) };
-// `head` is extra markup for <head> (for example a meta refresh).
-const page = (res, code, title, msg, headers = {}, head = '') => {
-  res.writeHead(code, { 'content-type': 'text/html; charset=utf-8', ...OWN_HEADERS, ...headers });
-  res.end(`<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">${head}<title>${title}</title><body style="font:17px system-ui;max-width:32rem;margin:15vh auto;padding:0 20px;color:#222"><h1 style="font-size:22px">${title}</h1><p>${msg}</p>`);
-};
-// A 429 page. `seconds` is both the wait shown to the customer and the Retry-After header.
-const tooMany = (res, seconds) => page(res, 429, 'Too many attempts', `Please wait ${seconds === 60 ? 'a minute' : 'a few minutes'} and try again.`, { 'retry-after': String(seconds) });
-return { page, tooMany };
-};
-// The audit record of a refused request. `grant` is the grant's id when the request got as far as one; extra fields (why, via) follow.
-const deniedRecord = (grant, app, ip, ua, extra = {}) => ({ ev: 'denied', ...(grant ? { grant } : {}), app, ip, ua, ...extra });
 
 // Options (all have environment-variable defaults, see demo-gateway/README.md)
 export async function createGateway(opts = {}) {
@@ -165,23 +144,8 @@ export async function createGateway(opts = {}) {
     const target = slug && !slug.includes('.') ? demoApps()[slug] : null;
     return { hostHdr, slug, target };
   }
-  // A demo instance may have several processes (e.g. customer site + admin portal); registry demoRoutes maps path prefixes to them.
-  // Returns { host, port }: the demo instance is on this machine by default, or on another host (a container) when the
-  // registry process has a "host".
-  function upstreamPort(target, pathname, slot = null) {
-    if (slot !== null) target = instanceApp(target, slot); // this customer's private copy: its own ports
-    const route = (target.demoRoutes || []).find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'));
-    const p = route ? target.processes.find((q) => q.name === route.process) : target.processes[0];
-    return { host: p.host || '127.0.0.1', port: p.port };
-  }
-  const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !OURS.test(c)).join('; ');
-  // What the demo instance sees in X-Forwarded-For: a trusted proxy's chain plus that proxy; otherwise just the peer.
-  // A client-supplied header from an untrusted peer is dropped, never passed on.
-  const forwardedFor = (req) => {
-    const peer = unmapV4(req.socket.remoteAddress);
-    const prior = req.headers['x-forwarded-for'];
-    return trusted.has(peer) && prior ? `${prior}, ${peer}` : peer;
-  };
+  const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, page, tooMany, uaOf, COOKIE, DEV_COOKIE, https });
+  const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, wsCounts, wsClosers, releaseWs, audit, metrics });
 
   async function handle(req, res) {
     const { hostHdr, slug, target } = resolveRequest(req);
@@ -191,50 +155,7 @@ export async function createGateway(opts = {}) {
 
     // 1. Link redemption
     const m = url.pathname.match(/^\/d\/([a-f0-9]{48})$/);
-    if (m) {
-      const ua = uaOf(req);
-      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000, 30)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return tooMany(res, 60); }
-      const g = await findGrant(m[1]);
-      if (!isActive(g) || g.app !== slug) {
-        audit(deniedRecord(null, slug, ip, ua, { why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' }));
-        metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
-        // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
-        if ((await store.rateLimit.hit('redeem-fail:' + ip, 600000, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
-        return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
-      }
-      if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });
-      if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST', 'cache-control': 'no-store' }); return res.end(); }
-      // A GET never opens the demo or spends a use: mail scanners and chat link-previews fetch links automatically. The
-      // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
-      if (req.method === 'GET') {
-        if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
-        return page(res, 200, 'Open your demo', (target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE) + '<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open the demo</button></form>');
-      }
-      req.resume(); // a POST body (the empty form) is not needed
-      // a private copy needs a free seat: say so BEFORE the link's use is counted
-      if (target.perLink && !(await instances.hasRoom(slug, target, g.id))) return page(res, 503, 'All demo seats are taken', 'Every private demo seat is in use right now. Please try this link again in a few minutes.', { 'retry-after': '120' });
-      // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
-      let devId = readCookie(req, DEV_COOKIE);
-      const hadDev = DEV_RE.test(devId);
-      if (!hadDev) devId = randomBytes(16).toString('hex');
-      const use = await store.grants.redeem(g.id, sha256(devId));
-      if (!use.ok) {
-        metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
-        audit(deniedRecord(g.id, slug, ip, ua, { why: use.why }));
-        return page(res, 403, 'Link not available', use.why === 'device-locked'
-          ? 'This link is tied to the browser it was first opened in. Please contact us if you need a new one.'
-          : 'This link has already been used the maximum number of times. Please contact us for a new one.');
-      }
-      metrics.inc('pd_gateway_redeem_total', { result: 'ok' });
-      audit({ ev: 'enter', grant: g.id, app: slug, ip, ua });
-      const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
-      const sid = newSessionId(); // only its hash is stored
-      await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);
-      if (target.perLink) await instances.ensure(slug, target, g.id); // allocates the seat and starts the copy in the background
-      const flags = `; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${https ? '; Secure' : ''}`;
-      res.writeHead(302, { 'set-cookie': [`${COOKIE}=${sid}${flags}`, ...(g.deviceLock && !hadDev ? [`${DEV_COOKIE}=${devId}${flags}`] : [])], location: '/', 'cache-control': 'no-store' });
-      return res.end();
-    }
+    if (m) return redeem(req, res, { m, slug, target, ip });
 
     // 2. Every other request needs a live grant for THIS product
     const g = await grantFor(req);
@@ -260,26 +181,9 @@ export async function createGateway(opts = {}) {
       slot = inst.slot; instances.touch(slug, slot);
     }
     const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
-    const headers = {};
-    for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host' && !k.startsWith('x-forwarded-') && !SPOOFABLE.has(k)) headers[k] = v;
-    const rest = cookiesForUpstream(req);
-    if (rest) headers.cookie = rest;
-    headers.host = `${upHost}:${port}`;
-    headers['x-forwarded-host'] = hostHdr; headers['x-forwarded-proto'] = o.scheme; headers['x-forwarded-for'] = forwardedFor(req);
+    const headers = requestHeaders(req, { upHost, port, hostHdr, scheme: o.scheme, trusted });
     const up = http.request({ host: upHost, port, method: req.method, path: req.url, headers, agent }, (ur) => {
-      const out = {};
-      for (const [k, v] of Object.entries(ur.headers)) if (!HOP.has(k)) out[k] = v;
-      out['x-content-type-options'] ??= 'nosniff';
-      out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
-      out['x-frame-options'] ??= 'SAMEORIGIN'; // demo pages cannot be framed by another site (clickjacking)
-      if (out['set-cookie']) {
-        // A demo app may set its own cookies, but not ours, and not for the whole parent domain (Domain=.demo.example.com
-        // would reach every other product's demo host).
-        const kept = [].concat(out['set-cookie']).filter((c) => !OURS.test(c)).map((c) => c.replace(/;\s*domain=[^;]*/gi, ''));
-        if (kept.length) out['set-cookie'] = kept; else delete out['set-cookie'];
-      }
-      if (https) out['strict-transport-security'] ??= HSTS;
-      if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${o.scheme}://${hostHdr}`);
+      const out = responseHeaders(ur.headers, { upHost, port, hostHdr, scheme: o.scheme, https, hsts: HSTS });
       res.writeHead(ur.statusCode, out);
       // pipeline() keeps pipe()'s backpressure (a slow browser slows the upstream) and also ends the browser's response
       // when the upstream dies mid-body, instead of leaving it hanging
@@ -309,89 +213,6 @@ export async function createGateway(opts = {}) {
       }
     });
     req.pipe(up);
-  }
-
-  const rejectUpgrade = (socket, code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); };
-
-  async function upgrade(req, socket, head) {
-    socket.on('error', () => {});
-    const { hostHdr, slug, target } = resolveRequest(req);
-    if (!target) return rejectUpgrade(socket, 404, 'Not Found');
-    // Only WebSocket is proxied. Any other Upgrade (h2c, ...) would become an unfiltered raw byte pipe to the demo app.
-    if (String(req.headers.upgrade || '').toLowerCase() !== 'websocket') return rejectUpgrade(socket, 400, 'Bad Request');
-    const ip = clientIp(req, trusted);
-    const g = await grantFor(req);
-    if (!g) return tooManyMisses(ip) ? rejectUpgrade(socket, 429, 'Too Many Requests') : rejectUpgrade(socket, 401, 'Unauthorized');
-    if (!isActive(g) || g.app !== slug) { await auditDenied(g.id + ':' + ip, deniedRecord(g.id, slug, ip, uaOf(req), { via: 'websocket' })); return rejectUpgrade(socket, 403, 'Forbidden'); }
-    // The upstream is told a different Origin below, so its own cross-site check cannot work: do the check here. A browser
-    // always sends the page's own origin; a page on another (even sibling) host must not ride this session.
-    if (req.headers.origin) {
-      let sameHost = false;
-      try { sameHost = new URL(req.headers.origin).host.toLowerCase() === hostHdr; } catch { /* malformed Origin */ }
-      if (!sameHost) { await auditDenied(g.id + ':' + ip, deniedRecord(g.id, slug, ip, uaOf(req), { why: 'bad-origin', via: 'websocket' })); return rejectUpgrade(socket, 403, 'Forbidden'); }
-    }
-    if ((wsCounts.get(g.id) || 0) >= o.maxWsPerGrant) return rejectUpgrade(socket, 429, 'Too Many Requests');
-    wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
-
-    const url = new URL(req.url, `${o.scheme}://${hostHdr}`);
-    let slot = null;
-    if (target.perLink) {
-      // The socket was counted above; a refusal here never reaches close(), so it must give the count back itself.
-      let inst; try { inst = await instances.lookup(slug, g.id); } catch (err) { releaseWs(g.id); throw err; }
-      if (inst?.state !== 'ready') { releaseWs(g.id); return rejectUpgrade(socket, 503, 'Service Unavailable'); }
-      slot = inst.slot; instances.touch(slug, slot);
-    }
-    const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
-    const upstream = net.connect({ host: upHost, port });
-    let connected = false, closed = false;
-    const close = (why) => {
-      if (closed) return; closed = true;
-      clearInterval(timer); wsClosers.delete(close);
-      releaseWs(g.id);
-      socket.destroy(); upstream.destroy();
-      if (why) audit({ ev: 'ws-closed', grant: g.id, app: slug, ip, why });
-    };
-    wsClosers.add(close);
-    // Revocation and expiry apply to sockets that are already open: look the grant up again every few seconds.
-    // If the database cannot be asked, the grant cannot be confirmed: after three failed checks in a row, fail closed.
-    let fails = 0;
-    const timer = setInterval(async () => {
-      try {
-        const cur = await grantFor(req); fails = 0;
-        if (slot !== null) instances.touch(slug, slot); // an open socket counts as use
-        if (!isActive(cur) || cur.app !== slug) close('grant-ended');
-      } catch (err) {
-        logger.warn('ws grant re-check failed', { grant: g.id, fails: fails + 1, err });
-        if (++fails >= 3) close('recheck-failed');
-      }
-    }, o.wsRecheckMs);
-    timer.unref?.();
-
-    upstream.setTimeout(10000, () => { if (!connected) { rejectUpgrade(socket, 504, 'Gateway Timeout'); close('connect-timeout'); } });
-    upstream.on('error', () => { if (!connected) rejectUpgrade(socket, 503, 'Service Unavailable'); close(connected ? 'upstream-error' : 'upstream-unreachable'); });
-    upstream.on('close', () => close());
-    socket.on('close', () => close());
-    upstream.on('connect', () => {
-      connected = true; upstream.setTimeout(0); socket.setTimeout(0); socket.setNoDelay(true); upstream.setNoDelay(true);
-      // Re-send the upgrade request as received, minus the gateway cookie, with Host/Origin pointed at the upstream
-      // (Streamlit and similar servers refuse a WebSocket whose Origin does not match its Host).
-      const lines = [`${req.method} ${req.url} HTTP/1.1`];
-      for (let i = 0; i < req.rawHeaders.length; i += 2) {
-        const k = req.rawHeaders[i], lk = k.toLowerCase();
-        if (lk === 'host' || lk === 'cookie' || lk === 'origin' || lk.startsWith('x-forwarded-') || SPOOFABLE.has(lk)) continue;
-        lines.push(`${k}: ${req.rawHeaders[i + 1]}`);
-      }
-      lines.push(`Host: ${upHost}:${port}`);
-      const rest = cookiesForUpstream(req);
-      if (rest) lines.push(`Cookie: ${rest}`);
-      if (req.headers.origin) lines.push(`Origin: http://${upHost}:${port}`);
-      lines.push(`X-Forwarded-Host: ${hostHdr}`, `X-Forwarded-Proto: ${o.scheme}`, `X-Forwarded-For: ${forwardedFor(req)}`);
-      upstream.write(lines.join('\r\n') + '\r\n\r\n');
-      if (head?.length) upstream.write(head);
-      socket.pipe(upstream); upstream.pipe(socket);
-      metrics.inc('pd_gateway_websockets_total');
-      audit({ ev: 'ws-open', grant: g.id, app: slug, ip });
-    });
   }
 
   const server = http.createServer({ maxHeaderSize: 16384, headersTimeout: 20000 }, (req, res) => {

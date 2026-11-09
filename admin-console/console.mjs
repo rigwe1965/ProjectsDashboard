@@ -14,7 +14,8 @@ import { readFileSync, existsSync, statSync, openSync, readSync, closeSync } fro
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { createGrants, publicGrant, demoApps } from '../demo-gateway/grants.mjs';
+import { createGrants, publicGrant } from '../demo-gateway/grants.mjs';
+import { demoApps } from '../lib/registry.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';

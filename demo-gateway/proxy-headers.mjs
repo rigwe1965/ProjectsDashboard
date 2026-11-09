@@ -1,0 +1,60 @@
+// What the gateway sends to a demo app and what it lets back. Pure functions: no state, no I/O.
+import { instanceApp } from '../lib/instance-app.mjs';
+import { unmapV4 } from '../lib/util.mjs';
+
+// Cookies the gateway owns, with or without the __Host- prefix. A demo app must not be able to overwrite or clear them.
+export const OURS = /^\s*(__Host-)?pd_(demo|dev)=/i;
+// Headers that frameworks read as "the client's address". A customer must not be able to present a false one to the demo app's
+// own logging or rate limiting, so they are dropped; the gateway's own X-Forwarded-For is the one source.
+export const SPOOFABLE = new Set(['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip', 'x-cluster-client-ip', 'fastly-client-ip', 'x-original-forwarded-for']);
+export const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
+
+// A demo instance may have several processes (e.g. customer site + admin portal); registry demoRoutes maps path prefixes to them.
+// Returns { host, port }: the demo instance is on this machine by default, or on another host (a container) when the
+// registry process has a "host".
+export function upstreamPort(target, pathname, slot = null) {
+  if (slot !== null) target = instanceApp(target, slot); // this customer's private copy: its own ports
+  const route = (target.demoRoutes || []).find((r) => pathname === r.prefix || pathname.startsWith(r.prefix + '/'));
+  const p = route ? target.processes.find((q) => q.name === route.process) : target.processes[0];
+  return { host: p.host || '127.0.0.1', port: p.port };
+}
+
+export const cookiesForUpstream = (req) => (req.headers.cookie || '').split(/;\s*/).filter((c) => c && !OURS.test(c)).join('; ');
+
+// What the demo instance sees in X-Forwarded-For: a trusted proxy's chain plus that proxy; otherwise just the peer.
+// A client-supplied header from an untrusted peer is dropped, never passed on.
+export function forwardedFor(req, trusted) {
+  const peer = unmapV4(req.socket.remoteAddress);
+  const prior = req.headers['x-forwarded-for'];
+  return trusted.has(peer) && prior ? `${prior}, ${peer}` : peer;
+}
+
+// The request headers for the demo app: the customer's, minus hop-by-hop, our cookies, spoofable address headers and any x-forwarded-*,
+// plus the gateway's own Host / X-Forwarded-* values.
+export function requestHeaders(req, { upHost, port, hostHdr, scheme, trusted }) {
+  const headers = {};
+  for (const [k, v] of Object.entries(req.headers)) if (!HOP.has(k) && k !== 'cookie' && k !== 'host' && !k.startsWith('x-forwarded-') && !SPOOFABLE.has(k)) headers[k] = v;
+  const rest = cookiesForUpstream(req);
+  if (rest) headers.cookie = rest;
+  headers.host = `${upHost}:${port}`;
+  headers['x-forwarded-host'] = hostHdr; headers['x-forwarded-proto'] = scheme; headers['x-forwarded-for'] = forwardedFor(req, trusted);
+  return headers;
+}
+
+// The demo app's response headers for the customer's browser.
+export function responseHeaders(upstreamHeaders, { upHost, port, hostHdr, scheme, https, hsts }) {
+  const out = {};
+  for (const [k, v] of Object.entries(upstreamHeaders)) if (!HOP.has(k)) out[k] = v;
+  out['x-content-type-options'] ??= 'nosniff';
+  out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
+  out['x-frame-options'] ??= 'SAMEORIGIN'; // demo pages cannot be framed by another site (clickjacking)
+  if (out['set-cookie']) {
+    // A demo app may set its own cookies, but not ours, and not for the whole parent domain (Domain=.demo.example.com
+    // would reach every other product's demo host).
+    const kept = [].concat(out['set-cookie']).filter((c) => !OURS.test(c)).map((c) => c.replace(/;\s*domain=[^;]*/gi, ''));
+    if (kept.length) out['set-cookie'] = kept; else delete out['set-cookie'];
+  }
+  if (https) out['strict-transport-security'] ??= hsts;
+  if (out.location) out.location = String(out.location).replace(new RegExp(`^https?://(127\\.0\\.0\\.1|localhost|${upHost.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}):${port}`), `${scheme}://${hostHdr}`);
+  return out;
+}

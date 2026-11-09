@@ -9,7 +9,7 @@
     "console": "node admin-console/server.mjs",
     "console:auth": "node admin-console/auth-cli.mjs",
     "gateway": "node demo-gateway/server.mjs",
-    "demo": "node demo-gateway/grants.mjs",
+    "demo": "node demo-gateway/grants-cli.mjs",
     "showcase:build": "node showcase/build.mjs",
     "showcase": "node showcase/build.mjs && node showcase/serve.mjs",
     "test": "node --test \"tests/unit/*.test.mjs\"",
