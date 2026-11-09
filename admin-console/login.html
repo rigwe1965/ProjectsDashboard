@@ -13,6 +13,12 @@ input:focus{outline:2px solid var(--accent);outline-offset:1px}
 button{margin-top:20px;width:100%;padding:11px;border:0;border-radius:8px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
 button:disabled{opacity:.6;cursor:wait}
 #err{min-height:20px;margin-top:12px;color:var(--bad);font-size:14px}
+/* glass: the sign-in card floats over soft colour (same look as the public showcase) */
+:root{--glass:rgba(255,255,255,.66);--glass-edge:rgba(255,255,255,.8)}
+@media (prefers-color-scheme:dark){:root{--glass:rgba(24,28,38,.66);--glass-edge:rgba(255,255,255,.1)}}
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(520px 520px at 12% 14%,rgba(43,74,203,.26),transparent 70%),radial-gradient(480px 480px at 90% 10%,rgba(124,58,237,.2),transparent 70%),radial-gradient(540px 540px at 80% 92%,rgba(14,116,104,.2),transparent 70%)}
+form{background:var(--glass);border-color:var(--glass-edge);box-shadow:0 18px 50px -24px rgba(16,19,26,.45);-webkit-backdrop-filter:blur(18px) saturate(160%);backdrop-filter:blur(18px) saturate(160%)}
+@media (prefers-reduced-transparency:reduce){form{background:var(--card);-webkit-backdrop-filter:none;backdrop-filter:none}}
 </style></head><body>
 <form id="f" autocomplete="on">
   <h1>Projects Dashboard</h1><p>Owner sign-in</p>

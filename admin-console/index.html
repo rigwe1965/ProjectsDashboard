@@ -53,6 +53,16 @@ th,td{text-align:left;padding:7px 8px;border-top:1px solid var(--line)}th{color:
 .linkbox code{flex:1;min-width:200px}
 .pill.bad{background:#fbe4e2;color:var(--danger)}
 @media (prefers-color-scheme:dark){.pill.bad{background:#3a1c1a}}
+/* glass: frosted cards over soft colour (same look as the public showcase); text keeps full contrast */
+:root{--glass:rgba(255,255,255,.62);--glass-edge:rgba(255,255,255,.75);--glass-shadow:0 8px 28px -14px rgba(28,27,25,.3)}
+@media (prefers-color-scheme:dark){:root{--glass:rgba(30,30,28,.62);--glass-edge:rgba(255,255,255,.1);--glass-shadow:0 8px 28px -14px rgba(0,0,0,.7)}}
+body:before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(480px 480px at 6% 8%,rgba(43,74,203,.2),transparent 70%),radial-gradient(440px 440px at 94% 6%,rgba(124,58,237,.16),transparent 70%),radial-gradient(520px 520px at 88% 92%,rgba(14,116,104,.16),transparent 70%)}
+.card,.panel,dialog{background:var(--glass);border-color:var(--glass-edge);box-shadow:var(--glass-shadow);-webkit-backdrop-filter:blur(16px) saturate(150%);backdrop-filter:blur(16px) saturate(150%)}
+button,a.btn{background:var(--glass);border-color:var(--glass-edge);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+button:hover,a.btn:hover{border-color:var(--accent)}
+dialog::backdrop{background:rgba(0,0,0,.35);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+#toast{-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+@media (prefers-reduced-transparency:reduce){.card,.panel,dialog,button,a.btn,#toast,dialog::backdrop{-webkit-backdrop-filter:none;backdrop-filter:none}.card,.panel,dialog,button,a.btn{background:var(--card)}}
 </style>
 </head>
 <body>
