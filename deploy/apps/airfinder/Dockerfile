@@ -2,7 +2,7 @@
 # (as the build context) and never modified. Its real .env, database and logs are excluded by Dockerfile.dockerignore,
 # so the demo can never contain production data or secrets.
 #   docker build -f deploy/apps/airfinder/Dockerfile -t pd-airfinder ../Airfinder
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 
 WORKDIR /app
 COPY requirements.txt ./

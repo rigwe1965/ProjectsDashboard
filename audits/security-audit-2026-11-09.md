@@ -187,6 +187,7 @@ wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 ---
 
 ### S-06: Two demo containers lack the hardening the others have · 3/10
+**Status: fixed 2026-11-09** (`x-demo-limits` on `imageapp-demo` and `airfinder-demo`: no-new-privileges, all capabilities dropped, 256 processes, 768 MB; 1 GB on `crm-demo` and both `claudeworkspace-*`; all base images pinned by digest. `docker compose config` validates; the containers themselves were not started, so confirm each app still runs without capabilities when you next bring the stack up).
 **Category:** Configuration & Hardening
 **Location:** `deploy/docker-compose.yml`: `imageapp-demo` (line 105) and `airfinder-demo` (line 120) have no `security_opt`, `cap_drop`, `pids_limit` or `mem_limit`. `crm-demo` and the two `claudeworkspace-*` services have `no-new-privileges`, `cap_drop: [ALL]` and `pids_limit` but no `mem_limit`. Base images in `deploy/Dockerfile`, `deploy/Caddy.Dockerfile` and `deploy/apps/*/Dockerfile` are floating tags (`node:24-slim`, `postgres:17-alpine`, `caddy:2-alpine`, `python:3.12-slim`), not digests (carried from SEC-16).
 
@@ -210,6 +211,7 @@ Digests: `docker buildx imagetools inspect node:24-slim` and pin `FROM node:24-s
 ---
 
 ### S-07: `grant-created` and `grant-revoked` events say nothing about who or where · 3/10
+**Status: fixed 2026-11-09** (both events now carry `ip` and `by` (`console` or `cli`); they appear under the console's admin filter instead of the customer filter; tests added and one older filter test updated to the new definition).
 **Category:** Security logging / audit trail
 **Location:** `demo-gateway/grants.mjs:53` and `:60` (the audit calls); `admin-console/console.mjs:269` and `:286-287` (the callers), compared with `console.mjs:241` and `:279`, which do record `ip`.
 

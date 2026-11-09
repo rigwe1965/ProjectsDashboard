@@ -24,9 +24,17 @@ x-hardened: &hardened
   pids_limit: 256
   mem_limit: 512m
 
+# The customer-facing demo containers: no privilege gain, no Linux capabilities, and limits so one runaway request (a huge upload, a
+# decompression bomb) cannot take the host's memory or process table. (They keep a writable root: their images write to several folders.)
+x-demo-limits: &demo-limits
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  pids_limit: 256
+  mem_limit: 768m
+
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -111,6 +119,7 @@ services:
     image: pd-imageapp
     container_name: pd-imageapp-demo     # the registry's "container" name
     restart: unless-stopped
+    <<: *demo-limits
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5400/', timeout=3)"]
       interval: 20s
@@ -126,6 +135,7 @@ services:
     image: pd-airfinder
     container_name: pd-airfinder-demo
     restart: unless-stopped
+    <<: *demo-limits
     environment:     # no mail account is set, so the demo never sends email
       SECRET_KEY: ${AIRFINDER_SECRET_KEY:-}
       JWT_SECRET: ${AIRFINDER_JWT_SECRET:-}
@@ -143,7 +153,7 @@ services:
   # CRM demo: its own Postgres (never shared with production) plus the app as a production build (see deploy/apps/crm/Dockerfile).
   crm-demo-db:
     profiles: ["apps"]
-    image: postgres:17-alpine
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -210,6 +220,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     pids_limit: 512
+    mem_limit: 1g
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3101/sign-in').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 20s
@@ -242,6 +253,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     pids_limit: 512
+    mem_limit: 1g
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3102/').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
       interval: 20s
@@ -262,6 +274,7 @@ services:
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     pids_limit: 512
+    mem_limit: 1g
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3103/admin').then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
       interval: 20s

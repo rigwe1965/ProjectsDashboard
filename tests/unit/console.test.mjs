@@ -117,6 +117,23 @@ test('a console uses the store it is given: links it creates are not in the proc
   } finally { own.close(); }
 });
 
+test('creating and revoking a customer link is audited with where it came from, and shows under the admin filter', async () => {
+  const { c, port } = await start({ trustedProxies: ['127.0.0.1'] });
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const from = { 'x-forwarded-for': '198.51.100.23' };
+  const made = JSON.parse((await post(port, '/api/demos', { customer: 'Audited', app: 'toy', hours: 1 }, { cookie, ...from })).body);
+  assert.equal((await post(port, '/api/demos/' + made.grant.id + '/revoke', {}, { cookie, ...from })).status, 200);
+  await new Promise((r) => setTimeout(r, 50)); // the console writes its audit rows without waiting
+  const mine = (await store.audit.list(200)).filter((e) => e.grant === made.grant.id);
+  const created = mine.find((e) => e.ev === 'grant-created'), revoked = mine.find((e) => e.ev === 'grant-revoked');
+  assert.deepEqual([created?.ip, created?.by], ['198.51.100.23', 'console']);
+  assert.deepEqual([revoked?.ip, revoked?.by], ['198.51.100.23', 'console']);
+  const admin = JSON.parse((await req(port, { path: '/api/audit?kind=admin', headers: { cookie, ...from } })).body).events;
+  assert.ok(admin.some((e) => e.ev === 'grant-created' && e.grant === made.grant.id), 'under the admin filter');
+  const demos = JSON.parse((await req(port, { path: '/api/audit?kind=demos', headers: { cookie, ...from } })).body).events;
+  assert.ok(!demos.some((e) => e.ev === 'grant-created' && e.grant === made.grant.id), 'not under the customer filter');
+});
+
 test('/_pd/healthz needs no login but still obeys the Host allow-list', async () => {
   const { port } = await start();
   const ok = await req(port, { path: '/_pd/healthz' });
@@ -439,8 +456,9 @@ test('activity feed: needs sign-in, filters, limits, and never returns anything 
   assert.doesNotMatch(all.body, /SECRET-HASH|SECRET-SESSION/, 'fields outside the whitelist are never sent');
   assert.ok(events.every((e) => !('tokenHash' in e) && !('sid' in e)));
   assert.match(all.body, /onerror=alert/, 'untrusted text is returned as data (the page shows it as plain text)');
-  assert.ok(JSON.parse((await get('?kind=admin')).body).events.every((e) => e.ev.startsWith('admin-')));
-  assert.ok(JSON.parse((await get('?kind=demos')).body).events.every((e) => !e.ev.startsWith('admin-')));
+  const ownerEvent = (e) => e.ev.startsWith('admin-') || e.ev === 'grant-created' || e.ev === 'grant-revoked'; // what the owner did
+  assert.ok(JSON.parse((await get('?kind=admin')).body).events.every(ownerEvent));
+  assert.ok(JSON.parse((await get('?kind=demos')).body).events.every((e) => !ownerEvent(e)));
   const problems = JSON.parse((await get('?kind=problems')).body).events;
   assert.ok(problems.length >= 2 && problems.every((e) => e.ev === 'admin-login-failed' || e.ev === 'denied'));
   assert.equal(JSON.parse((await get('?limit=2')).body).events.length, 2);

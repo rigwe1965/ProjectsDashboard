@@ -30,6 +30,8 @@ import { ADMIN_KEYS, verifyPassword, needsRehash, hashPassword, verifyTotp, unse
 
 const here = dirname(fileURLToPath(import.meta.url));
 const COOKIE_BASE = 'pd_session';
+// Things the owner did (sign-ins, start/stop, creating and revoking customer links), as opposed to what customers did.
+const isAdminEvent = (ev) => ev.startsWith('admin-') || ev === 'grant-created' || ev === 'grant-revoked';
 const isPlainObject = (b) => !!b && typeof b === 'object' && !Array.isArray(b);
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
@@ -213,8 +215,8 @@ export async function createConsole(opts = {}) {
       const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 300);
       const keep = {
         all: () => true,
-        admin: (e) => e.ev.startsWith('admin-'),
-        demos: (e) => !e.ev.startsWith('admin-'),
+        admin: (e) => isAdminEvent(e.ev),
+        demos: (e) => !isAdminEvent(e.ev),
         problems: (e) => e.ev === 'admin-login-failed' || e.ev === 'denied' || e.ev === 'admin-action-refused',
       }[kind];
       if (!keep) return json(res, 400, { error: 'unknown filter' });
@@ -278,7 +280,7 @@ export async function createConsole(opts = {}) {
       if (badOrigin(req, res)) return;
       const b = JSON.parse((await readBody(req)) || '{}'); // SyntaxError -> 400, too large -> 413 (see toResponse)
       if (!isPlainObject(b)) throw new HttpError(400, 'Expected a JSON object');
-      const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock });
+      const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock }, { ip: clientIp(req, trusted), by: 'console' });
       return json(res, 200, { grant: publicGrant(grant), link });
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([\w-]+)\/reset$/))) {
@@ -295,7 +297,7 @@ export async function createConsole(opts = {}) {
     }
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
       if (badOrigin(req, res)) return;
-      await revokeGrant(m[1]); // throws a 404 HttpError when there is no such grant; a database failure is a real 500
+      await revokeGrant(m[1], { ip: clientIp(req, trusted), by: 'console' }); // throws a 404 HttpError when there is no such grant; a database failure is a real 500
       return json(res, 200, { ok: true });
     }
 

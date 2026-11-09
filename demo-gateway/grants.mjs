@@ -13,7 +13,8 @@ export const hashToken = sha256;
 export const isActive = (g) => g && !g.revoked && Date.parse(g.expiresAt) > Date.now();
 
 // maxUses: how many times the link may be opened (empty = unlimited). deviceLock: pin the link to the first browser that opens it.
-async function createGrantIn(store, { customer, app, hours = 48, maxUses = null, deviceLock = false }) {
+// `who` says where the action came from ({ ip, by }); it is written to the audit trail with the event.
+async function createGrantIn(store, { customer, app, hours = 48, maxUses = null, deviceLock = false }, who = {}) {
   customer = String(customer || '').trim().slice(0, 80);
   if (!customer || !app) throw new HttpError(400, 'Customer and app are required');
   if (!demoApps()[app]) throw new HttpError(400, '"' + app + '" has no demo-ready instance');
@@ -25,13 +26,13 @@ async function createGrantIn(store, { customer, app, hours = 48, maxUses = null,
   const grant = { id: randomBytes(4).toString('hex'), tokenHash: hashToken(token), customer, app, createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + hours * 3600e3).toISOString(), revoked: false, uses: 0, maxUses, deviceLock: !!deviceLock, lastUsedAt: null };
   await store.grants.insert(grant);
-  await store.audit.add({ ev: 'grant-created', grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock });
+  await store.audit.add({ ev: 'grant-created', grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock, ...who });
   return { grant, link: demoLink(app, token) };
 }
-async function revokeGrantIn(store, id) {
+async function revokeGrantIn(store, id, who = {}) {
   const t = await store.grants.revoke(id);
   if (!t) throw new HttpError(404, 'No such grant');
-  await store.audit.add({ ev: 'grant-revoked', grant: t.id, app: t.app });
+  await store.audit.add({ ev: 'grant-revoked', grant: t.id, app: t.app, ...who });
   return t;
 }
 
@@ -39,8 +40,8 @@ async function revokeGrantIn(store, id) {
 export const createGrants = (store) => ({
   loadGrants: async () => store.grants.list(),
   findGrant: async (token) => store.grants.findByHash(hashToken(token)),
-  createGrant: (args) => createGrantIn(store, args),
-  revokeGrant: (id) => revokeGrantIn(store, id),
+  createGrant: (args, who) => createGrantIn(store, args, who),
+  revokeGrant: (id, who) => revokeGrantIn(store, id, who),
 });
 // The same operations on the process-wide store, for the command line and for callers that do not pass one.
 const onDefault = (name) => async (...a) => createGrants(await getStore())[name](...a);
