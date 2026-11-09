@@ -41,6 +41,12 @@ Nothing found is a defect today except the hard-coded port in `start-console.bat
 
 Sorting by value for effort: D-02, D-06, D-05 and D-07 first (small, mechanical, low risk), then D-01 and D-03 (largest payoff), then the rest as you touch those files.
 
+## Remediation status (2026-11-09)
+
+- **Done:** D-06 (one `sha256`; `hashSessionId` and `hashToken` are aliases), D-16 (constants renamed `INSTANCE_RETRY_AFTER_FAIL_MS` and `RESET_RETRY_AFTER_FAIL_MS`), and D-05 except two items: the `sleep` replacements and the shared health check are still to do.
+- **Next, in order:** D-02, D-07, then D-01 and D-03.
+- After these changes: lint clean, 167 of 168 tests pass (one skipped, as before).
+
 ## The utilities module
 
 Created: `lib/util.mjs` and `tests/unit/util.test.mjs` (7 tests). Nothing existing was changed to use it yet, so behaviour is unchanged; the full suite passes (167 of 168, one skipped, the same as before) and lint is clean. Each finding below says which export replaces which copy.

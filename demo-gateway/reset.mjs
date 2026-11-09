@@ -10,9 +10,10 @@
 //   demo_reset_failed:<product>  ISO time of the last failed automatic reset (retry after a pause)
 import { isActive } from './grants.mjs';
 import { logger } from '../lib/log.mjs';
+import { errMessage } from '../lib/util.mjs';
 
 export const RESET_STALE_MS = 25 * 60 * 1000;   // a "resetting" flag older than this is a crashed reset, not a running one
-export const RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
+export const RESET_RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
 const resettingKey = (p) => 'demo_resetting:' + p, lastKey = (p) => 'demo_reset_at:' + p, failKey = (p) => 'demo_reset_failed:' + p;
 
 export async function isResetting(store, product) {
@@ -52,7 +53,7 @@ export async function runReset({ store, product, app, supervisor, by = 'auto' })
   if (!startedAt) return { ok: false, busy: true, output: 'A reset of this demo is already running.' };
   let r;
   try { r = await supervisor(['reset', app.id], 20 * 60 * 1000); }
-  catch (err) { r = { ok: false, output: String(err?.message || err) }; }
+  catch (err) { r = { ok: false, output: errMessage(err) }; }
   finally { /* the flag is cleared by endReset below, whatever happened */ }
   await endReset(store, product, { ok: !!r.ok, startedAt, by });
   return r;
@@ -67,7 +68,7 @@ export async function resetDue(store, product) {
   if (!dirty) return 'clean';
   if (busy) return 'busy';
   const failedAt = Date.parse((await store.meta.get(failKey(product))) || '') || 0;
-  if (Date.now() - failedAt < RETRY_AFTER_FAIL_MS) return 'backoff';
+  if (Date.now() - failedAt < RESET_RETRY_AFTER_FAIL_MS) return 'backoff';
   return 'due';
 }
 

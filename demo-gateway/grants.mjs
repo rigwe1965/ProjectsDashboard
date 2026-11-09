@@ -3,7 +3,8 @@
 //   node demo-gateway/grants.mjs create --customer "Acme Ltd" --app imageapp [--hours 48] [--max-uses 3] [--device-lock]
 //   node demo-gateway/grants.mjs list
 //   node demo-gateway/grants.mjs revoke <grantId>
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
+import { sha256 } from '../lib/auth.mjs';
 import { dataDir, registryPath } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { getStore, closeStore } from '../lib/store/index.mjs';
@@ -13,7 +14,7 @@ import { logger } from '../lib/log.mjs';
 export { dataDir, registryPath };
 export const MAX_HOURS = 720;
 
-export const hashToken = (t) => createHash('sha256').update(t).digest('hex');
+export const hashToken = sha256;
 export const loadGrants = async () => (await getStore()).grants.list();
 
 // product id -> demo instance entry (only instances explicitly marked demoReady)

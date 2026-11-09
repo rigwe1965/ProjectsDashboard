@@ -8,9 +8,10 @@ import { isActive } from './grants.mjs';
 import { instanceDir } from '../lib/instance-app.mjs';
 import { existsSync } from 'node:fs';
 import { logger } from '../lib/log.mjs';
+import { createSerialLock, fireAndForget, errMessage } from '../lib/util.mjs';
 
 export const START_TIMEOUT_MS = 6 * 60 * 1000;   // a copy that has been "starting" longer than this is treated as failed
-export const RETRY_AFTER_FAIL_MS = 20 * 1000;    // a failed start is retried by the customer's next request, not faster than this
+export const INSTANCE_RETRY_AFTER_FAIL_MS = 20 * 1000;    // a failed start is retried by the customer's next request, not faster than this
 export const FAILED_KEEP_MS = 60 * 1000;         // a failed seat is cleaned up and freed after this
 const key = (product) => 'inst:' + product;
 
@@ -19,11 +20,10 @@ export async function listInstances(store, product) {
 }
 
 export function createInstances({ store, supervisor, now = () => Date.now() }) {
-  let chain = Promise.resolve();
-  const locked = (fn) => { const run = chain.then(fn); chain = run.catch(() => {}); return run; };
+  const locked = createSerialLock();
   const seen = new Map(); // `${product}:${slot}` -> last time a request or open socket used the copy (saved to the table by sweep)
   const write = (product, table) => store.meta.set(key(product), JSON.stringify(table));
-  const audit = (e) => Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err }));
+  const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
   const mine = (table, grantId) => Object.entries(table).find(([, e]) => e.grant === grantId);
 
   // Read-only: this grant's copy, if it has one.
@@ -42,7 +42,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
     audit({ ev: 'instance-start', app: product, grant: grantId, slot });
     let r;
     try { r = await supervisor(['instance-start', app.id, String(slot)], START_TIMEOUT_MS); }
-    catch (err) { r = { ok: false, output: String(err?.message || err) }; }
+    catch (err) { r = { ok: false, output: errMessage(err) }; }
     if (!r.ok) {
       logger.error('private demo copy failed to start', { product, slot, output: String(r.output || '').slice(-400) });
       supervisor(['instance-stop', app.id, String(slot)], 120000).catch(() => {}); // stop whatever half-started and delete its folder
@@ -69,7 +69,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
         if (e.state === 'ready') return { status: 'ready', slot: Number(slot) };
         if (e.state === 'starting' && t - e.at < START_TIMEOUT_MS) return { status: 'starting', slot: Number(slot) };
         if (e.state === 'stopping') return { status: 'starting', slot: Number(slot) };
-        if (e.state === 'failed' && t - e.at < RETRY_AFTER_FAIL_MS) return { status: 'failed', slot: Number(slot) };
+        if (e.state === 'failed' && t - e.at < INSTANCE_RETRY_AFTER_FAIL_MS) return { status: 'failed', slot: Number(slot) };
         table[slot] = { grant: grantId, state: 'starting', at: t, seen: t };           // retry on the same seat
         await write(product, table);
         begin(product, app, Number(slot), grantId).catch((err) => logger.error('instance start errored', { err }));
@@ -101,7 +101,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
       await write(product, table);
     });
     const grant = (await listInstances(store, product))[slot]?.grant;
-    let r; try { r = await supervisor(['instance-stop', app.id, String(slot)], 120000); } catch (err) { r = { ok: false, output: String(err?.message || err) }; }
+    let r; try { r = await supervisor(['instance-stop', app.id, String(slot)], 120000); } catch (err) { r = { ok: false, output: errMessage(err) }; }
     if (r.ok) {
       await locked(async () => { const table = await listInstances(store, product); delete table[slot]; await write(product, table); });
       seen.delete(`${product}:${slot}`);

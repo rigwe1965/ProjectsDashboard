@@ -12,7 +12,8 @@ import { pipeline } from 'node:stream';
 import { randomBytes } from 'node:crypto';
 import { findGrant, isActive, demoApps } from './grants.mjs';
 import { getStore } from '../lib/store/index.mjs';
-import { cookieOf as readCookie, clientIp, safeEq } from '../lib/http-util.mjs';
+import { cookieOf as readCookie, clientIp, safeEq, json } from '../lib/http-util.mjs';
+import { num, fireAndForget, unmapV4 } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { isResetting, resetSweep } from './reset.mjs';
@@ -41,7 +42,6 @@ const DEV_RE = /^[a-f0-9]{32}$/;
 // (64 hex) minted at redemption, so the link cannot double as a cookie and skip the use limit / device lock.
 const SESSION_RE = /^[a-f0-9]{64}$/;
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
-const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 
 const HTTPS = (process.env.DEMO_SCHEME || 'http') === 'https';
 const OWN_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff', 'x-frame-options': 'DENY', 'referrer-policy': 'no-referrer',
@@ -79,7 +79,7 @@ export async function createGateway(opts = {}) {
   const store = await getStore();
   const instances = createInstances({ store, supervisor: o.supervisor }); // private copies, one per link (registry perLink)
   // An audit failure must never break a customer's request.
-  const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
+  const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
   // Rate limits live in the database (pruned there, survive restarts).
   const limited = async (ip) => (await store.rateLimit.hit('redeem:' + ip, 60000)) > o.redeemPerMinute;
   // A browser whose link was just revoked keeps retrying (Streamlit reconnects in a loop). Record the first few
@@ -116,9 +116,8 @@ export async function createGateway(opts = {}) {
   metrics.describe('pd_gateway_handler_errors_total', 'Unexpected errors inside a request handler (answered with a 500)');
   metrics.gauge('pd_gateway_websockets_open', () => [...wsCounts.values()].reduce((a, b) => a + b, 0));
   metrics.gauge('pd_gateway_uptime_seconds', () => Math.round((Date.now() - startedAt) / 1000));
-  const jsonRes = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(obj)); };
   async function health(res) {
-    try { await store.meta.get('health-check'); jsonRes(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); jsonRes(res, 503, { ok: false }); }
+    try { await store.meta.get('health-check'); json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); json(res, 503, { ok: false }); }
   }
   // Caddy's on-demand TLS asks this before obtaining a certificate for a host name, so certificates are issued only for
   // real demo addresses (<product>.<base host>), never for arbitrary names someone points at the server.
@@ -131,7 +130,7 @@ export async function createGateway(opts = {}) {
   }
   function metricsAllowed(req) {
     if (o.metricsToken) return safeEq(String(req.headers.authorization || '').replace(/^Bearer /, ''), o.metricsToken);
-    const peer = String(req.socket.remoteAddress).replace(/^::ffff:/, '');
+    const peer = unmapV4(req.socket.remoteAddress);
     return (peer === '127.0.0.1' || peer === '::1') && !req.headers['x-forwarded-for']; // not something a proxy forwarded
   }
 
@@ -164,7 +163,7 @@ export async function createGateway(opts = {}) {
   // What the demo instance sees in X-Forwarded-For: a trusted proxy's chain plus that proxy; otherwise just the peer.
   // A client-supplied header from an untrusted peer is dropped, never passed on.
   const forwardedFor = (req) => {
-    const peer = String(req.socket.remoteAddress).replace(/^::ffff:/, '');
+    const peer = unmapV4(req.socket.remoteAddress);
     const prior = req.headers['x-forwarded-for'];
     return trusted.has(peer) && prior ? `${prior}, ${peer}` : peer;
   };

@@ -20,6 +20,7 @@ import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
+import { num, createSerialLock, fireAndForget } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
@@ -29,7 +30,6 @@ import { verifyPassword, needsRehash, hashPassword, verifyTotp, unseal, newSessi
 const here = dirname(fileURLToPath(import.meta.url));
 const COOKIE_BASE = 'pd_session';
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
-const num = (v, d) => (v === undefined || v === '' || Number.isNaN(Number(v)) ? d : Number(v));
 
 const defaultSupervisor = runSupervisor;
 
@@ -73,11 +73,10 @@ export async function createConsole(opts = {}) {
   const trusted = new Set(o.trustedProxies);
   const launchToken = randomBytes(24).toString('hex');
   const busy = new Set();
-  let totpChain = Promise.resolve(); // serialises the TOTP check-and-record (one console process)
-  const withTotpLock = (fn) => { const run = totpChain.then(fn); totpChain = run.catch(() => {}); return run; };
+  const withTotpLock = createSerialLock(); // serialises the TOTP check-and-record (one console process)
   const secure = o.scheme === 'https' ? '; Secure' : '';
   const COOKIE = (o.scheme === 'https' ? '__Host-' : '') + COOKIE_BASE; // __Host-: browsers only accept it if Secure, host-only and Path=/
-  const audit = (e) => { Promise.resolve().then(() => store.audit.add(e)).catch((err) => logger.warn('audit write failed', { err })); };
+  const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
 
   const passwordMode = async () => !!(await store.meta.get('admin_password_hash'));
   if (!LOOPBACK.has(o.bindHost) && !(await passwordMode())) {
