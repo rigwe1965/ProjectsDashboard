@@ -1,0 +1,8 @@
+# Extends the default rules. The only exceptions are fake values in the tests that check secret masking.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Fake token/password strings used to test maskSecrets"
+targetRules = ["generic-api-key"]
+paths = ['''tests/unit/util\.test\.mjs''', '''tests/unit/console\.test\.mjs''']
