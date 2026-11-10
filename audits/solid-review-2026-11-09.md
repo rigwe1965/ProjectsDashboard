@@ -55,6 +55,7 @@ Then move out, one at a time: `childEnv`/`fill`/`portRefs` → `supervisor/env.m
 
 ### S-02: `createGateway` · 5/10
 **Status: fixed 2026-11-09.** `gateway.mjs` (428 to 253 lines) now wires the parts: `pages.mjs`, `redeem.mjs` (`createRedeemHandler`), `proxy-headers.mjs` (pure header and cookie rules), `websocket.mjs` (`createUpgradeHandler`). Moved verbatim; the 40 gateway tests are unchanged and pass.
+**Follow-up 2026-11-10:** the rest of the proxying moved to `demo-gateway/proxy.mjs` (`createProxy`: `readyCopy` for private copies, `forward` for the request itself), so `handle()` is the three steps (redeem, check the grant, proxy) and `gateway.mjs` is 219 lines. `createRedeemHandler` and `createUpgradeHandler` now take grouped inputs (`pages`, `cookies`, `ws`) instead of 13 loose ones. Details in `audits/refactor-2026-11-10.md`.
 **Location:** `demo-gateway/gateway.mjs:61-426`. Inside one closure: link redemption (`handle`, lines 178-229), proxying with header and cookie rewriting (230-303), WebSocket proxying and recheck timers (`upgrade`, 308-385), Prometheus metrics set-up (112-127), `health` and `tlsAsk`, the miss limiter (`tooManyMisses`), and the server wiring.
 
 **Why it hurts:** a change to the cookie rules, the proxy headers or the WebSocket handling is a change to the same 365-line scope, and the closure shares ten variables (`o`, `store`, `instances`, `trusted`, `wsCounts`, `audit`, `metrics`, ...) so nothing can be tested without building the whole gateway (as `tests/unit/gateway.test.mjs` does).
@@ -70,6 +71,7 @@ export const rewriteResponseHeaders = (ur, { ours, hostHdr, scheme, upHost, port
 then move `upgrade` to `demo-gateway/websocket.mjs` as `createUpgradeHandler(deps)` and redemption to `demo-gateway/redeem.mjs`, leaving `createGateway` to assemble them. Keep `wsCounts`/`releaseWs` together with the WebSocket handler.
 
 ### S-03: `createConsole().handle` · 4/10
+**Status: fixed 2026-11-10.** `handle()` is about 15 lines; `authenticate()` does the sign-in checks and each endpoint is its own function in a `routes` table. Also moved out of `createConsole()`: `status-cache.mjs` (`createStatusCache`), `login.mjs` (`createLogin`) and `listen-safety.mjs` (`assertSafeToListen`). Not done as suggested below: the audit feed stays in `console.mjs` as `apiAudit`, not its own file. Details in `audits/refactor-2026-11-10.md`.
 **Location:** `admin-console/console.mjs:164-297` (about 130 lines): host check, health, login routes, token mode, `/api/session`, `/api/audit` (filter map and field whitelist), `/api/apps`, logs, start/stop/restart, `/api/demos` (list, create, reset, revoke), 404/405. Also `login()` (117-160, password and 2-step), `statusRows()` (305-321, status cache).
 
 **Fix:** a route table makes each endpoint a small function and the 404/405 logic one place (this also helps O-03):
