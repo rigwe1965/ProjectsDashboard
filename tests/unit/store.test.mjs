@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { openSqlite } from '../../lib/store/sqlite.mjs';
+import { DatabaseSync } from 'node:sqlite';
+import { openSqlite, addMissingColumns, retryWhileLocked } from '../../lib/store/sqlite.mjs';
 import { importLegacy } from '../../lib/store/legacy-import.mjs';
 
 const fresh = () => {
@@ -136,4 +137,29 @@ test('grantSessions: a session points at its grant, expires, and is pruned; find
   assert.equal(store.grantSessions.get('missing'), null);
   assert.equal(store.grantSessions.prune(), 1);
   done();
+});
+
+test('adding columns: one another process added first is not an error; a real error still is', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec('CREATE TABLE t (id INTEGER)');
+  addMissingColumns(db, 't', [['a', 'INTEGER NOT NULL DEFAULT 0']]);
+  // the race: this process read the column list before the other one added "a", so it thinks "a" is missing and tries to add it
+  const stale = { prepare: () => ({ all: () => [{ name: 'id' }] }), exec: (sql) => db.exec(sql) };
+  assert.doesNotThrow(() => addMissingColumns(stale, 't', [['a', 'INTEGER NOT NULL DEFAULT 0'], ['b', 'TEXT']]));
+  assert.deepEqual(db.prepare('PRAGMA table_info(t)').all().map((c) => c.name), ['id', 'a', 'b'], 'the other column was still added');
+  assert.throws(() => addMissingColumns(db, 'nope', [['x', 'TEXT']]), /no such table/);
+  db.close();
+});
+
+test('retryWhileLocked: retries a locked database, passes other errors straight through, and gives up after the limit', () => {
+  const noWait = { sleep: () => {} };
+  let n = 0;
+  assert.equal(retryWhileLocked(() => { if (++n < 3) throw new Error('database is locked'); return 'ok'; }, noWait), 'ok');
+  assert.equal(n, 3);
+  n = 0;
+  assert.throws(() => retryWhileLocked(() => { n++; throw new Error('no such table: x'); }, noWait), /no such table/);
+  assert.equal(n, 1, 'another error is not retried');
+  n = 0;
+  assert.throws(() => retryWhileLocked(() => { n++; throw new Error('database is locked'); }, { ...noWait, tries: 4 }), /locked/);
+  assert.equal(n, 4);
 });
