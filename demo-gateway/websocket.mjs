@@ -8,9 +8,11 @@ import { logger } from '../lib/log.mjs';
 import { deniedRecord } from './pages.mjs';
 import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort } from './proxy-headers.mjs';
 
-// ctx: o (options), trusted (proxy addresses), resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, wsCounts, wsClosers,
-// releaseWs, audit, metrics. Returns the handler for the server's 'upgrade' event.
-export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, wsCounts, wsClosers, releaseWs, audit, metrics }) {
+// ctx: o (options), trusted (proxy addresses), resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, audit, metrics, and
+// `ws`, the gateway's record of open sockets: { counts (grant id -> open sockets), closers (a set of functions that close each socket),
+// release(grant id) (give back one slot) }. Returns the handler for the server's 'upgrade' event.
+export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws, audit, metrics }) {
+  const { counts: wsCounts, closers: wsClosers, release: releaseWs } = ws;
   const rejectUpgrade = (socket, code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); };
 
   async function upgrade(req, socket, head) {

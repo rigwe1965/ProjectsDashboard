@@ -12,8 +12,11 @@ import { PRIVATE_NOTICE, SHARED_NOTICE, deniedRecord } from './pages.mjs';
 const DEV_RE = /^[a-f0-9]{32}$/;
 
 // Everything it needs comes in as arguments: the options (`o`), the store, the private-copy manager, the grant lookup, the rate limiter,
-// the audit and metrics sinks, the page writers, and the cookie names. Returns the handler for one /d/<token> request.
-export function createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, page, tooMany, uaOf, COOKIE, DEV_COOKIE, https }) {
+// the audit and metrics sinks and the request's browser string, plus two groups: `pages` ({ page, tooMany }, the gateway's page writers)
+// and `cookies` ({ COOKIE, DEV_COOKIE, https }: the two cookie names and whether they are Secure). Returns the handler for one /d/<token> request.
+export function createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages, cookies }) {
+  const { page, tooMany } = pages;
+  const { COOKIE, DEV_COOKIE, https } = cookies;
   // `m` is the match of the path pattern (m[1] is the token); `ip` the client address.
   return async function redeem(req, res, { m, slug, target, ip }) {
       const ua = uaOf(req);
@@ -23,7 +26,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
         audit(deniedRecord(null, slug, ip, ua, { why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' }));
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
-        if ((await store.rateLimit.hit('redeem-fail:' + limitKey(ip), 600000, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
+        if ((await store.rateLimit.hit('redeem-fail:' + limitKey(ip), 10 * MINUTE, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
       if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });

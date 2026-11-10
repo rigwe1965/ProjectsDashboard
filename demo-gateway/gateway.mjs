@@ -144,8 +144,8 @@ export async function createGateway(opts = {}) {
     return { hostHdr, slug, target };
   }
   const { readyCopy, forward } = createProxy({ o, trusted, agent, metrics, instances, page, https });
-  const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, page, tooMany, uaOf, COOKIE, DEV_COOKIE, https });
-  const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, wsCounts, wsClosers, releaseWs, audit, metrics });
+  const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages: { page, tooMany }, cookies: { COOKIE, DEV_COOKIE, https } });
+  const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws: { counts: wsCounts, closers: wsClosers, release: releaseWs }, audit, metrics });
 
   async function handle(req, res) {
     const { hostHdr, slug, target } = resolveRequest(req);
