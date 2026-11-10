@@ -1,0 +1,600 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ProjectsDashboard Handover Book</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a book. Sticky contents column on the left, one chapter per section, a single reading column on the right. */
+:root {
+  --bg: #f6f8fb;
+  --paper: #ffffff;
+  --ink: #17202e;
+  --muted: #5a6779;
+  --line: #dde3ec;
+  --accent: #1f4fd8;
+  --accent-soft: #e6edfc;
+  --good: #1a7f4b;
+  --good-soft: #e3f4ea;
+  --warn: #a15c07;
+  --warn-soft: #fdf1dc;
+  --bad: #b3261e;
+  --bad-soft: #fbe7e5;
+  --code-bg: #eef2f8;
+  --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
+  --font-body: 'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, 'Courier New', monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --paper: #161d28; --ink: #e6ebf3; --muted: #9aa7b9; --line: #263142;
+    --accent: #7fa2ff; --accent-soft: #1b2744; --good: #5fd08f; --good-soft: #132a1f;
+    --warn: #f0b45a; --warn-soft: #2e2412; --bad: #ff8a80; --bad-soft: #301816; --code-bg: #1c2533;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --paper: #161d28; --ink: #e6ebf3; --muted: #9aa7b9; --line: #263142;
+  --accent: #7fa2ff; --accent-soft: #1b2744; --good: #5fd08f; --good-soft: #132a1f;
+  --warn: #f0b45a; --warn-soft: #2e2412; --bad: #ff8a80; --bad-soft: #301816; --code-bg: #1c2533;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.65; margin: 0;
+  padding-block: 24px 64px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 40px; }
+@media (max-width: 860px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 16px; } }
+
+nav.toc { position: sticky; top: 16px; align-self: start; max-height: calc(100vh - 32px); overflow: auto; font-size: 14px; }
+@media (max-width: 860px) { nav.toc { position: static; max-height: none; } }
+nav.toc .book { font-family: var(--font-display); font-weight: 700; font-size: 18px; line-height: 1.25; margin: 0 0 4px; }
+nav.toc .sub { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+nav.toc a { display: grid; grid-template-columns: 26px 1fr; gap: 6px; padding: 5px 8px; border-radius: 6px; color: var(--muted); text-decoration: none; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--accent-soft); color: var(--accent); outline: none; }
+nav.toc a span { font-family: var(--font-mono); font-size: 12px; padding-top: 2px; }
+
+main { min-width: 0; display: grid; gap: 28px; }
+.cover { background: var(--accent); color: #fff; border-radius: 12px; padding: 40px 32px; }
+.cover h1 { font-family: var(--font-display); font-size: clamp(30px, 5vw, 46px); line-height: 1.1; margin: 0 0 10px; text-wrap: balance; }
+.cover p { margin: 0; max-width: 56ch; opacity: .92; font-size: 17px; }
+.cover .meta { margin-top: 22px; font-size: 13px; opacity: .85; font-family: var(--font-mono); }
+:root[data-theme="dark"] .cover { background: #243a82; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .cover { background: #243a82; } }
+
+section.chapter { background: var(--paper); border: 1px solid var(--line); border-radius: 10px; padding: 32px; min-width: 0; scroll-margin-top: 16px; }
+@media (max-width: 560px) { section.chapter { padding: 22px 16px; } }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+h2 { font-family: var(--font-display); font-size: clamp(24px, 3.4vw, 32px); line-height: 1.2; margin: 0 0 14px; text-wrap: balance; }
+h3 { font-family: var(--font-display); font-size: 19px; margin: 28px 0 8px; text-wrap: balance; }
+p { margin: 0 0 14px; max-width: 70ch; }
+ul, ol.steps { margin: 0 0 16px; padding-left: 22px; max-width: 70ch; }
+li { margin-bottom: 6px; }
+.lead { font-size: 18px; color: var(--muted); }
+code { font-family: var(--font-mono); font-size: .88em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; overflow-x: auto; margin: 0 0 16px; font-size: 13.5px; line-height: 1.55; }
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.tablewrap { overflow-x: auto; margin: 0 0 18px; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--code-bg); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+.note { border-radius: 8px; padding: 12px 16px; margin: 0 0 16px; max-width: 70ch; font-size: 15px; }
+.note b { display: block; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2px; font-family: var(--font-mono); }
+.note.tip { background: var(--accent-soft); } .note.tip b { color: var(--accent); }
+.note.rule { background: var(--bad-soft); } .note.rule b { color: var(--bad); }
+.note.warn { background: var(--warn-soft); } .note.warn b { color: var(--warn); }
+.note p:last-child { margin: 0; }
+
+.diagram { display: grid; gap: 10px; margin: 0 0 18px; }
+.row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.box { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; background: var(--bg); min-width: 0; }
+.box strong { display: block; font-family: var(--font-display); }
+.box small { color: var(--muted); display: block; font-size: 13px; line-height: 1.45; }
+.box.main { border-color: var(--accent); background: var(--accent-soft); }
+.box.public { border-color: var(--good); background: var(--good-soft); }
+.arrow { text-align: center; color: var(--muted); font-family: var(--font-mono); font-size: 13px; }
+
+.example { border: 2px solid var(--accent); border-radius: 10px; padding: 20px; margin: 8px 0 18px; }
+.example > .tag { display: inline-block; background: var(--accent); color: #fff; font-size: 12px; font-family: var(--font-mono); letter-spacing: .06em; text-transform: uppercase; padding: 2px 10px; border-radius: 99px; margin-bottom: 10px; }
+:root[data-theme="dark"] .example > .tag { color: #0f141c; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .example > .tag { color: #0f141c; } }
+.step { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+.step:first-of-type { border-top: none; }
+.step .n { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-family: var(--font-display); font-weight: 700; display: grid; place-items: center; }
+.step h4 { margin: 4px 0 6px; font-family: var(--font-display); font-size: 17px; }
+.step p, .step pre, .step ul { max-width: none; }
+.check { list-style: none; padding: 0; }
+.check li { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; }
+.check li::before { content: ""; width: 16px; height: 16px; border: 2px solid var(--accent); border-radius: 4px; margin-top: 5px; }
+footer { color: var(--muted); font-size: 13px; text-align: center; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <p class="book">ProjectsDashboard<br>Handover Book</p>
+  <p class="sub">Contents</p>
+  <ol>
+    <li><a href="#c1"><span>1</span>What this project is</a></li>
+    <li><a href="#c2"><span>2</span>The big picture</a></li>
+    <li><a href="#c3"><span>3</span>Getting started</a></li>
+    <li><a href="#c4"><span>4</span>The registry</a></li>
+    <li><a href="#c5"><span>5</span>The supervisor</a></li>
+    <li><a href="#c6"><span>6</span>The admin console</a></li>
+    <li><a href="#c7"><span>7</span>The demo gateway</a></li>
+    <li><a href="#c8"><span>8</span>A full example</a></li>
+    <li><a href="#c9"><span>9</span>The public showcase</a></li>
+    <li><a href="#c10"><span>10</span>Data, backups, alerts</a></li>
+    <li><a href="#c11"><span>11</span>Tests and CI</a></li>
+    <li><a href="#c12"><span>12</span>Hosting later</a></li>
+    <li><a href="#c13"><span>13</span>Rules to keep</a></li>
+    <li><a href="#c14"><span>14</span>Troubleshooting</a></li>
+    <li><a href="#c15"><span>15</span>Handover checklist</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="cover">
+  <h1>ProjectsDashboard Handover Book</h1>
+  <p>How the project works, how to run it day to day, and what to look after. Written so a new owner can pick it up without having seen it before.</p>
+  <p class="meta">Repository: rigwe1965/ProjectsDashboard · branch main · written 10 Nov 2026</p>
+</header>
+
+<!-- 1 -->
+<section class="chapter" id="c1">
+  <p class="eyebrow">Chapter 1</p>
+  <h2>What this project is</h2>
+  <p class="lead">ProjectsDashboard is the control room for a set of separate apps. It starts and stops them, lets you give customers short-lived demo links, and publishes a public page for each product.</p>
+  <p>The apps themselves (CRM, ImageApp, Airfinder, ClaudeWorkspace, ClaudeOS and the Remote Management System) live in their own folders on the Desktop, each with its own settings, database and repository. The dashboard only <em>points at</em> them. It never changes them.</p>
+
+  <h3>The four jobs it does</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Job</th><th>Part</th><th>Who uses it</th></tr>
+    <tr><td>Start, stop and watch the apps</td><td>Supervisor</td><td>You</td></tr>
+    <tr><td>Manage everything from a web page</td><td>Admin console</td><td>You only</td></tr>
+    <tr><td>Let a customer try a product for a limited time</td><td>Demo gateway</td><td>Customers</td></tr>
+    <tr><td>Show the products to the public</td><td>Showcase</td><td>Anyone</td></tr>
+  </table></div>
+
+  <div class="note rule"><b>The golden rule</b><p>Never edit the apps, their <code>.env</code> files, their databases or their repositories. If something would need that, get explicit approval first.</p></div>
+
+  <h3>Words used in this book</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Word</th><th>Meaning</th></tr>
+    <tr><td>Real app</td><td>The app you use yourself, with your real data (for example CRM on port 3101).</td></tr>
+    <tr><td>Demo instance</td><td>A separate copy of an app with its own database and sample data. Customers only ever see this.</td></tr>
+    <tr><td>Link (grant)</td><td>A time-limited access ticket for one customer and one product.</td></tr>
+    <tr><td>Gateway</td><td>The doorman that checks a link and passes the customer through to the demo instance.</td></tr>
+    <tr><td>Process</td><td>One running program of an app. Some apps have two, for example an API and a user interface.</td></tr>
+  </table></div>
+</section>
+
+<!-- 2 -->
+<section class="chapter" id="c2">
+  <p class="eyebrow">Chapter 2</p>
+  <h2>The big picture</h2>
+  <p>Everything reads one list of apps, the registry. The supervisor does the starting and stopping. The console and the gateway both use the supervisor and share one database.</p>
+
+  <div class="diagram" role="img" aria-label="Diagram: the registry feeds the supervisor, console and gateway, which control the real apps and the demo instances; the showcase stands apart.">
+    <div class="box main"><strong>Registry · registry/apps.json</strong><small>What exists, where it lives, how to start it, which port it uses</small></div>
+    <div class="arrow">read by ↓</div>
+    <div class="row">
+      <div class="box"><strong>Supervisor</strong><small>Starts, stops and checks apps. Command line.</small></div>
+      <div class="box"><strong>Admin console · port 4100</strong><small>Your web page for status, logs, demo links, activity</small></div>
+      <div class="box"><strong>Demo gateway · port 4300</strong><small>Checks customer links, routes to demo copies</small></div>
+    </div>
+    <div class="arrow">control ↓</div>
+    <div class="row">
+      <div class="box"><strong>Real apps</strong><small>Your data. Never shown to customers.</small></div>
+      <div class="box"><strong>Demo instances</strong><small>Separate copies with sample data. Ports 3111, 5210, …</small></div>
+      <div class="box"><strong>Store · data/dashboard.db</strong><small>Process records, demo links, audit log, admin login</small></div>
+    </div>
+    <div class="box public"><strong>Showcase · port 4200</strong><small>Static public pages built from showcase/products.json. Not connected to anything that runs.</small></div>
+  </div>
+
+  <h3>Ports at a glance</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Part</th><th>Port</th><th>Change with</th></tr>
+    <tr><td>Admin console</td><td>4100</td><td><code>CONSOLE_PORT</code></td></tr>
+    <tr><td>Showcase preview</td><td>4200</td><td><code>SHOWCASE_PORT</code></td></tr>
+    <tr><td>Demo gateway</td><td>4300</td><td><code>GATEWAY_PORT</code></td></tr>
+  </table></div>
+  <p>Port 3000 is reserved because an unrelated process on the PC uses it. The dashboard never starts anything there.</p>
+</section>
+
+<!-- 3 -->
+<section class="chapter" id="c3">
+  <p class="eyebrow">Chapter 3</p>
+  <h2>Getting started</h2>
+  <h3>What you need</h3>
+  <ul>
+    <li>Windows with <strong>Node.js 22 or newer</strong> (the project uses Node's built-in SQLite).</li>
+    <li>The apps in their Desktop folders, as listed in the registry.</li>
+    <li>Docker Desktop, only for the Remote Management System demo (the dashboard starts it for you).</li>
+  </ul>
+
+  <h3>The folders</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Folder</th><th>Holds</th></tr>
+    <tr><td><code>registry/</code></td><td>The list of apps (<code>apps.json</code>) and a hosted example</td></tr>
+    <tr><td><code>supervisor/</code></td><td>Start/stop code, backup and alert commands, demo reset helpers</td></tr>
+    <tr><td><code>admin-console/</code></td><td>The owner web page and its sign-in tools</td></tr>
+    <tr><td><code>demo-gateway/</code></td><td>The proxy, the link manager and the per-customer copy logic</td></tr>
+    <tr><td><code>showcase/</code></td><td>Public page content (<code>site.json</code>, <code>products.json</code>) and the builder</td></tr>
+    <tr><td><code>lib/</code></td><td>Shared code: storage, sign-in, backups, alerts</td></tr>
+    <tr><td><code>deploy/</code></td><td>Docker Compose, Caddy and app recipes for hosting later</td></tr>
+    <tr><td><code>tests/</code>, <code>audits/</code></td><td>Automated tests, and written security and code reviews</td></tr>
+    <tr><td><code>data/</code></td><td>Runtime data: database, logs, demo copies. Ignored by git. Never commit it.</td></tr>
+  </table></div>
+
+  <h3>The four double-click launchers</h3>
+  <p>These are in the project root. Each one starts its service, waits until it truly answers, opens your browser, and refuses to start a second copy.</p>
+  <div class="tablewrap"><table>
+    <tr><th>File</th><th>Starts</th><th>Opens</th></tr>
+    <tr><td><code>start-console.bat</code></td><td>Admin console</td><td>http://127.0.0.1:4100/</td></tr>
+    <tr><td><code>start-showcase.bat</code></td><td>Builds and serves the showcase</td><td>http://127.0.0.1:4200/</td></tr>
+    <tr><td><code>start-crm.bat</code></td><td>Your real CRM</td><td>http://localhost:3101/sign-in</td></tr>
+    <tr><td><code>start-customer-demo.bat</code></td><td>Gateway plus one chosen demo</td><td>A fresh demo link</td></tr>
+  </table></div>
+  <div class="note tip"><b>Good to know</b><p>The console and showcase run in a minimized window; closing that window stops them. The apps and demos keep running when you close the console. Logs are in <code>data\logs\</code>.</p></div>
+  <div class="note warn"><b>One console only</b><p>Never leave a second console running on another port. The launcher writes its output to <code>data\logs\console-launcher.out</code>, and a stray console holding that file makes the launcher wait 60 seconds and fail with no clear error.</p></div>
+</section>
+
+<!-- 4 -->
+<section class="chapter" id="c4">
+  <p class="eyebrow">Chapter 4</p>
+  <h2>The registry</h2>
+  <p>The file <code>registry/apps.json</code> is the single source of truth. To add or change an app you edit this file, nothing else.</p>
+  <h3>What one entry says</h3>
+<pre><code>{
+  "id": "airfinder",
+  "name": "Airfinder",
+  "path": "${APPS_ROOT}\\Airfinder",     // where the app lives
+  "processes": [{
+    "name": "app",
+    "cmd": "python run.py",              // how to start it
+    "port": 5200,                        // the dashboard chooses the port
+    "health": "/",                       // the address that proves it is alive
+    "env": { "PORT": "{port}" }          // settings for this process only
+  }]
+}</code></pre>
+  <ul>
+    <li><code>${APPS_ROOT}</code> becomes the Desktop and <code>${DASHBOARD_ROOT}</code> becomes this project.</li>
+    <li><code>{port}</code>, <code>{url}</code> and <code>{port:NAME}</code> are filled in when the process starts.</li>
+    <li>A process marked <code>optional</code> starts only when you ask for it with <code>--only=</code>.</li>
+    <li>An entry with <code>demoOf</code> is a demo instance. The gateway serves it only when <code>demoReady</code> is <code>true</code>.</li>
+  </ul>
+  <div class="note rule"><b>Rule</b><p>Set <code>demoReady: true</code> only after you have confirmed the demo shares no data with the real app.</p></div>
+
+  <h3>Current entries</h3>
+  <div class="tablewrap"><table>
+    <tr><th>App</th><th>Real ports</th><th>Demo ports</th></tr>
+    <tr><td>CRM</td><td>3101</td><td>3111 (plus rate limiter 3114)</td></tr>
+    <tr><td>ClaudeWorkspace</td><td>web 3102, admin 3103</td><td>3112, 3113</td></tr>
+    <tr><td>Airfinder</td><td>5200</td><td>5210</td></tr>
+    <tr><td>ImageApp</td><td>5400</td><td>5410</td></tr>
+    <tr><td>ClaudeOS</td><td>api 5100, ui 8601</td><td>ui 8611, api 5110</td></tr>
+    <tr><td>Remote Management (RMM)</td><td>api 5300, ui 8701</td><td>ui 8711, api 5310</td></tr>
+  </table></div>
+</section>
+
+<!-- 5 -->
+<section class="chapter" id="c5">
+  <p class="eyebrow">Chapter 5</p>
+  <h2>The supervisor</h2>
+  <p>The supervisor is the command line that controls apps. The console buttons call the same code.</p>
+<pre><code>node supervisor/index.mjs status                    # which apps answer (read-only; also: npm run status)
+node supervisor/index.mjs start   &lt;app&gt; [--only=proc]
+node supervisor/index.mjs stop    &lt;app&gt; [--only=proc]
+node supervisor/index.mjs restart &lt;app&gt; [--only=proc]
+node supervisor/index.mjs reset   &lt;demo&gt;            # put a shared demo back to its sample data</code></pre>
+
+  <h3>Safety built in</h3>
+  <ul>
+    <li>It never reads or writes an app's <code>.env</code> and never writes into an app folder.</li>
+    <li>It refuses to start a process if its port is taken or reserved, and checks every port before starting anything.</li>
+    <li>It records the process ID of everything it starts. <code>stop</code> only ends those, and only if the start time still matches, so a reused ID is never killed. It never kills by port or by name.</li>
+    <li>Settings for an app are given to that process only.</li>
+    <li>Apps that need Docker (the RMM demo) get Docker Desktop started first, with a wait of up to three minutes.</li>
+  </ul>
+  <p>Logs for each process are in <code>data\logs\&lt;app&gt;-&lt;process&gt;.log</code>. This is the first place to look when something will not start.</p>
+</section>
+
+<!-- 6 -->
+<section class="chapter" id="c6">
+  <p class="eyebrow">Chapter 6</p>
+  <h2>The admin console</h2>
+  <p>Your web page at <code>http://127.0.0.1:4100/</code>. It listens on this PC only.</p>
+  <h3>What you see</h3>
+  <ul>
+    <li><strong>App cards.</strong> Each process with its status and buttons: Start, Stop, Restart, Open, Log.</li>
+    <li><strong>Demos panel.</strong> Create and revoke customer links, start the gateway, reset a demo's data.</li>
+    <li><strong>Activity panel.</strong> Read-only feed of sign-ins, changes, demo opens and refusals.</li>
+  </ul>
+  <p>Closing the console never stops the apps.</p>
+
+  <h3>Signing in</h3>
+  <p>The console has two modes. <strong>Token mode</strong> prints a one-time address with <code>?t=…</code> on each launch. <strong>Password mode</strong> is the recommended one and is what this PC uses: a password plus a 6-digit code from an authenticator app.</p>
+<pre><code>npm run console:auth -- set-password     # choose the password
+npm run console:auth -- enable-totp       # add the authenticator code
+npm run console:auth -- status            # see what is set up
+npm run console:auth -- sign-out-all      # end every session
+npm run console:auth -- gen-key           # make an ADMIN_DATA_KEY (see below)
+npm run console:auth -- disable-totp      # also: remove-password</code></pre>
+  <p>Sign-in attempts are limited (8 per address and 40 overall per 15 minutes). Every sign-in, failed sign-in and credential change is written to the audit log.</p>
+
+  <h3>The data key</h3>
+  <p><code>ADMIN_DATA_KEY</code> is a long secret value that locks the stored 2-step secret inside the database. It lives in the console's environment, not in the project and not in backups.</p>
+  <div class="note warn"><b>If the key is lost</b><p>The stored 2-step secret cannot be read. Run <code>disable-totp</code> then <code>enable-totp</code> and scan a new code. Nothing else is lost. Keep a copy of the key in a password manager.</p></div>
+  <p>To reach the console from another machine, <code>ADMIN_BIND</code>, <code>ADMIN_ALLOWED_HOSTS</code> and <code>ADMIN_SCHEME=https</code> must be set. It refuses to listen beyond this PC until a password exists.</p>
+</section>
+
+<!-- 7 -->
+<section class="chapter" id="c7">
+  <p class="eyebrow">Chapter 7</p>
+  <h2>The demo gateway</h2>
+  <p>The gateway lets a customer try one product for a limited time, without ever touching your real apps.</p>
+  <h3>Creating and managing links</h3>
+<pre><code>npm run gateway                                                  # start the gateway (port 4300)
+npm run demo -- create --customer "Acme Ltd" --app crm --hours 48 --max-uses 3 --device-lock
+npm run demo -- list
+npm run demo -- revoke &lt;id&gt;</code></pre>
+  <div class="tablewrap"><table>
+    <tr><th>Option</th><th>Effect</th></tr>
+    <tr><td><code>--hours N</code></td><td>The link stops working after N hours (default 48)</td></tr>
+    <tr><td><code>--max-uses N</code></td><td>The link can be opened N times, then stops</td></tr>
+    <tr><td><code>--device-lock</code></td><td>Pins the link to the first browser that opens it. Deters forwarding, but is not a hard guarantee.</td></tr>
+  </table></div>
+
+  <h3>What happens when a customer opens a link</h3>
+  <ol class="steps">
+    <li>The link is created once and shown once. Only a hash of it is stored, so it cannot be recovered later.</li>
+    <li>Opening the address shows a notice and a button. Just looking at it (for example a mail scanner) does not use up a visit. The button click does.</li>
+    <li>The gateway checks that the link is not expired, not revoked, within its limit, and on the right device if locked.</li>
+    <li>The customer's browser gets a separate random session cookie. The link itself is never reused as a cookie.</li>
+    <li>On every request the session is checked again, so revoking or expiry applies immediately. Open live connections are re-checked every few seconds.</li>
+    <li>Requests go to that product's demo instance only. A link works on its own product address only.</li>
+  </ol>
+
+  <h3>Two kinds of demo</h3>
+  <div class="tablewrap"><table>
+    <tr><th>Kind</th><th>How it works</th><th>Products</th></tr>
+    <tr><td>Private copy per link</td><td>Each opened link gets its own fresh copy and data. The copy is deleted when the link ends or sits unused (default 120 minutes). If all seats are taken, the customer is told so and no use is spent.</td><td>ImageApp (4 seats), Airfinder (4), ClaudeOS (3)</td></tr>
+    <tr><td>Shared demo</td><td>One instance for all customers of that product. It is reset to its sample data once every link opened for it has ended. While it resets, customers see "being prepared".</td><td>CRM, ClaudeWorkspace, Remote Management</td></tr>
+  </table></div>
+  <p>Customers are asked not to enter real personal data in a shared demo. Each private copy uses a few hundred MB of memory, so the seat count should fit the PC.</p>
+
+  <h3>Protections</h3>
+  <ul>
+    <li>Limits on link opens per address and per link, and a temporary ban for repeated bad links.</li>
+    <li>Strict security headers on the gateway's own pages.</li>
+    <li>An audit entry for every create, open, refusal and revoke, including the address and browser. Customer events are kept 90 days, owner sign-ins 365 days.</li>
+  </ul>
+  <p>Links look like <code>crm.localhost:4300</code> today, so they work on this PC only. They become public once hosting is set up (Chapter 12).</p>
+</section>
+
+<!-- 8 -->
+<section class="chapter" id="c8">
+  <p class="eyebrow">Chapter 8</p>
+  <h2>A full example, start to finish</h2>
+  <p>Follow one real scenario from a cold start to a closed demo. The names and the 8-character id are made up for illustration. The commands are the real ones.</p>
+
+  <div class="example">
+    <span class="tag">Worked example</span>
+    <p><strong>The story.</strong> A prospect, Acme Ltd, asked to try the CRM. You want to give them 48 hours and at most 3 visits, check that it works, then close it.</p>
+
+    <div class="step"><div class="n">1</div><div>
+      <h4>Open the console</h4>
+      <p>Double-click <code>start-console.bat</code>. The browser opens at <code>http://127.0.0.1:4100/</code>. Sign in with your password and the 6-digit code. You see a card for each app.</p>
+    </div></div>
+
+    <div class="step"><div class="n">2</div><div>
+      <h4>Make sure the demo copy is running</h4>
+      <p>In the Demos panel, start the gateway and the <strong>CRM demo</strong>. Or from a terminal:</p>
+<pre><code>npm run gateway
+node supervisor/index.mjs start crm-demo</code></pre>
+      <p>The CRM card turns green when its health address answers. Your <em>real</em> CRM (port 3101) is not involved.</p>
+    </div></div>
+
+    <div class="step"><div class="n">3</div><div>
+      <h4>Create Acme's link</h4>
+      <p>In the Demos panel choose the customer name, the product, the hours and the options, or run:</p>
+<pre><code>npm run demo -- create --customer "Acme Ltd" --app crm --hours 48 --max-uses 3 --device-lock
+
+Grant a1b2c3d4 for "Acme Ltd" -> crm, expires 2026-11-12T10:00:00Z
+Send this link (shown once):
+  http://crm.localhost:4300/d/&lt;long-random-token&gt;</code></pre>
+      <p>Copy the link now. It is never shown again. Send it to the customer.</p>
+    </div></div>
+
+    <div class="step"><div class="n">4</div><div>
+      <h4>The customer opens it</h4>
+      <p>They see a short notice that this is a demo with sample data, and a button. They click it, and the CRM demo opens. They sign in with a demo user (<code>admin@crm.test</code>, <code>sales@crm.test</code> or <code>support@crm.test</code>). The shared password is the <code>SEED_USER_PASSWORD</code> value in <code>data/crm-demo.env</code>.</p>
+    </div></div>
+
+    <div class="step"><div class="n">5</div><div>
+      <h4>Watch what happens</h4>
+      <p>Open the Activity panel in the console. You will see "link created", then "demo opened" with the customer's address and browser. A second person using the forwarded link on another browser is refused, and that shows up as a refusal.</p>
+      <pre><code>npm run demo -- list
+a1b2c3d4  crm   Acme Ltd   active   until 2026-11-12T10:00:00Z  used 1/3  device-locked</code></pre>
+    </div></div>
+
+    <div class="step"><div class="n">6</div><div>
+      <h4>Close it early</h4>
+      <p>Acme has finished. Revoke the link in the Demos panel, or:</p>
+<pre><code>npm run demo -- revoke a1b2c3d4</code></pre>
+      <p>Access ends at once, even for a page that is open. Because this CRM demo is shared, the gateway resets it to its sample data after the last open link has ended, so the next customer starts clean. You can also press <strong>Reset data</strong> in the console.</p>
+    </div></div>
+
+    <div class="step"><div class="n">7</div><div>
+      <h4>Stop the demo (optional)</h4>
+      <pre><code>node supervisor/index.mjs stop crm-demo</code></pre>
+      <p>A demo you stop yourself is never reported as a failure by the alerts (Chapter 10).</p>
+    </div></div>
+  </div>
+
+  <div class="note tip"><b>Shortcut</b><p>To look at a demo yourself, double-click <code>start-customer-demo.bat</code>, choose the product from the menu, and it creates an 8-hour link for "Local owner" and opens it.</p></div>
+</section>
+
+<!-- 9 -->
+<section class="chapter" id="c9">
+  <p class="eyebrow">Chapter 9</p>
+  <h2>The public showcase</h2>
+  <p>A small static website with one page per product. It has no scripts and no links to anything that runs, so it is safe to host anywhere.</p>
+  <h3>Changing it</h3>
+  <ol class="steps">
+    <li>Edit <code>showcase/site.json</code> for the brand and contact details.</li>
+    <li>Edit <code>showcase/products.json</code> for each product's text. Set <code>"published": false</code> to keep one off the site.</li>
+    <li>Run <code>npm run showcase</code> (or double-click <code>start-showcase.bat</code>). It builds into <code>showcase/dist/</code> and previews at http://127.0.0.1:4200/.</li>
+  </ol>
+  <div class="note rule"><b>Rule</b><p>Keep ports, folder paths and vendor internals out of the product text, and never put real credentials in it.</p></div>
+  <p>The style sheet is named after a fingerprint of its content (for example <code>style.3fa9c01b2d.css</code>) and cached for a year. Pages are re-checked on every visit, so changes appear straight away.</p>
+</section>
+
+<!-- 10 -->
+<section class="chapter" id="c10">
+  <p class="eyebrow">Chapter 10</p>
+  <h2>Data, backups and alerts</h2>
+  <h3>The database</h3>
+  <p><code>data/dashboard.db</code> (SQLite) holds the process records, customer links, audit log (customer names, addresses, browsers), the admin password hash and the 2-step secret. When hosted, Postgres is used instead (<code>DASHBOARD_DB=postgres</code>).</p>
+
+  <h3>Backups</h3>
+  <p>While the console is running, it backs up the database at start-up if the newest copy is over 20 hours old, and then every 24 hours. The 14 newest copies are kept.</p>
+  <div class="tablewrap"><table>
+    <tr><th>Setting</th><th>Meaning</th></tr>
+    <tr><td><code>DASHBOARD_BACKUP_DIR</code></td><td>Where copies go. On this PC: <code>D:\ProjectsDashboardBackups</code></td></tr>
+    <tr><td><code>DASHBOARD_BACKUP_KEEP</code></td><td>How many to keep (default 14)</td></tr>
+    <tr><td><code>npm run backup</code></td><td>Make one copy right now</td></tr>
+  </table></div>
+  <h3>Restoring</h3>
+  <ol class="steps">
+    <li>Stop the console and the gateway.</li>
+    <li>Copy the chosen backup over <code>data/dashboard.db</code>.</li>
+    <li>Delete <code>data/dashboard.db-wal</code> and <code>data/dashboard.db-shm</code>.</li>
+    <li>Start again. If the 2-step code is rejected, the <code>ADMIN_DATA_KEY</code> is missing or wrong (Chapter 6).</li>
+  </ol>
+
+  <h3>Alerts</h3>
+  <p>If <code>ALERT_WEBHOOK_URL</code> is set, the console checks every minute that the database answers and that every process the supervisor started still responds. After two failed checks in a row it sends a message, repeats it every 6 hours while the problem lasts, and sends another when it recovers.</p>
+  <ul>
+    <li>On this PC the address is a private ntfy topic that sends a push notification to the owner's phone. <strong>Treat it as a secret</strong>, because anyone who knows the topic can read it.</li>
+    <li>Messages name apps only. Never customers, links or addresses.</li>
+    <li><code>npm run alert:test</code> sends a test message.</li>
+    <li>A demo you stopped yourself is not reported. The console must be running to check, so it cannot tell you the console or the PC is off.</li>
+  </ul>
+
+  <h3>Settings on this PC</h3>
+  <p>These three are Windows user environment variables. They are not in the project, and they only reach programs started after they were set.</p>
+  <div class="tablewrap"><table>
+    <tr><th>Variable</th><th>Purpose</th><th>Keep safe?</th></tr>
+    <tr><td><code>ALERT_WEBHOOK_URL</code></td><td>Where alerts are sent</td><td>Yes, secret</td></tr>
+    <tr><td><code>DASHBOARD_BACKUP_DIR</code></td><td>Backup folder on the D: drive</td><td>No</td></tr>
+    <tr><td><code>ADMIN_DATA_KEY</code></td><td>Locks the stored 2-step secret</td><td>Yes. Keep a copy in a password manager.</td></tr>
+  </table></div>
+  <p>After a console restart, <code>data\logs\console-launcher.out</code> should contain <code>alerts are on</code> and, the first time, <code>encrypted a stored 2-step secret</code>.</p>
+</section>
+
+<!-- 11 -->
+<section class="chapter" id="c11">
+  <p class="eyebrow">Chapter 11</p>
+  <h2>Tests and automatic checks</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Command</th><th>What it checks</th></tr>
+    <tr><td><code>npm test</code></td><td>Unit tests: storage, sign-in, gateway, backups, alerts, supervisor</td></tr>
+    <tr><td><code>npm run lint</code></td><td>Code style and common mistakes</td></tr>
+    <tr><td><code>npm run test:browser</code></td><td>Real Chrome: console loads, create a link, a customer opens it, revoke, sign-in and sign-out, desktop and phone layouts, the showcase</td></tr>
+    <tr><td><code>npm run test:e2e</code></td><td>The real demo apps end to end. Needs them running, so this PC only.</td></tr>
+  </table></div>
+  <p>Every push to GitHub runs a CI check with four jobs: Windows (lint, unit and browser tests), Linux (the same against Postgres and Docker builds), a secret scan, and an image scan. All four should be green before you rely on a change.</p>
+  <p>The <code>audits/</code> folder holds the written security and code reviews, with what was found and fixed.</p>
+  <div class="note warn"><b>Known open item</b><p><code>npm audit</code> reports 4 moderate warnings in a development-only tool chain (ESLint). They do not affect the running dashboard. The suggested fix is a downgrade, so it is waiting for an upstream patch.</p></div>
+</section>
+
+<!-- 12 -->
+<section class="chapter" id="c12">
+  <p class="eyebrow">Chapter 12</p>
+  <h2>Hosting later</h2>
+  <p>Hosting is planned for later and is deliberately on hold. Everything works locally on SQLite with no Docker. <code>deploy/README.md</code> holds the full guide. In short:</p>
+  <ul>
+    <li>One Linux server running Docker Compose: Postgres, the console, the gateway, the showcase and Caddy, which gets and renews HTTPS certificates automatically.</li>
+    <li>Three DNS names: the site, an admin name, and a wildcard for demos.</li>
+    <li>The hosted console will not start until a password and 2-step codes are set.</li>
+    <li>Demo apps run in locked-down containers on separate networks, with their own data.</li>
+    <li>Recipes exist for ImageApp, Airfinder, CRM and ClaudeWorkspace. RMM and ClaudeOS are not done yet.</li>
+    <li>Run <code>deploy/reset-demos.sh</code> on a schedule to reset shared demos.</li>
+  </ul>
+  <p>An outside uptime check will then be useful, because the built-in alerts cannot report the PC being off.</p>
+</section>
+
+<!-- 13 -->
+<section class="chapter" id="c13">
+  <p class="eyebrow">Chapter 13</p>
+  <h2>Rules to keep</h2>
+  <ul>
+    <li>Never edit the apps, their <code>.env</code> files, databases or repositories without explicit approval.</li>
+    <li>Never mark a demo <code>demoReady</code> unless it has its own data.</li>
+    <li>Never put real credentials in the registry or the showcase text.</li>
+    <li>Never commit <code>data/</code>, <code>deploy/.env</code> or <code>registry/apps.hosted.json</code>.</li>
+    <li>Keep one console running, on one port.</li>
+    <li>The Desktop folders are the source of truth for each app. Same-named folders inside this project are old, ignored copies.</li>
+    <li>CRM timestamps are stored as UTC without a time zone. When writing to that database directly, use <code>now() at time zone 'UTC'</code>, or sign-ins will be rejected.</li>
+    <li>The ClaudeOS and RMM demos use the owner's Anthropic keys, so AI actions in them cost money.</li>
+  </ul>
+</section>
+
+<!-- 14 -->
+<section class="chapter" id="c14">
+  <p class="eyebrow">Chapter 14</p>
+  <h2>Troubleshooting</h2>
+  <div class="tablewrap"><table>
+    <tr><th>What you see</th><th>Likely cause and fix</th></tr>
+    <tr><td>An app will not start</td><td>Read <code>data\logs\&lt;app&gt;-&lt;process&gt;.log</code>.</td></tr>
+    <tr><td>Launcher says "already running" but the page is wrong</td><td>Another program owns the port. Run <code>node supervisor/index.mjs status</code>.</td></tr>
+    <tr><td><code>start-console.bat</code> hangs at "Waiting for it to respond"</td><td>A stray console is holding the launcher log. Close the extra console window and try again.</td></tr>
+    <tr><td>Demo link says expired or revoked</td><td>Create a new one. Links cannot be recovered.</td></tr>
+    <tr><td>A product is missing from the demo menu</td><td>It is not <code>demoReady</code> in the registry.</td></tr>
+    <tr><td>Customer sees "All demo seats are taken"</td><td>Wait for a copy to free up, revoke an unused link, or raise <code>perLink.max</code> if the PC can cope.</td></tr>
+    <tr><td>Demo CRM says "Invalid email or password"</td><td>Use the demo password from <code>SEED_USER_PASSWORD</code> in <code>data/crm-demo.env</code>.</td></tr>
+    <tr><td>Signs in, then bounces to sign-in</td><td>A password-change time in the database is in the future (the UTC rule in Chapter 13).</td></tr>
+    <tr><td>2-step code rejected after a restore</td><td>The data key is missing or wrong. Set it again, or run <code>disable-totp</code> and <code>enable-totp</code>.</td></tr>
+    <tr><td>No alerts or backups after changing a setting</td><td>Environment variables only reach programs started afterwards. Restart the console.</td></tr>
+    <tr><td>RMM demo is slow to start</td><td>Docker Desktop is starting. Allow up to three minutes.</td></tr>
+  </table></div>
+</section>
+
+<!-- 15 -->
+<section class="chapter" id="c15">
+  <p class="eyebrow">Chapter 15</p>
+  <h2>Handover checklist</h2>
+  <p>Tick these off with the new owner.</p>
+  <ul class="check">
+    <li><span>The new owner can open the GitHub repository and run <code>npm install</code> and <code>npm test</code> successfully.</span></li>
+    <li><span>They have signed in to the console with the password and a 2-step code.</span></li>
+    <li><span>A copy of <code>ADMIN_DATA_KEY</code> is stored in a password manager.</span></li>
+    <li><span>They know the alert topic is a secret, and have received a test message from <code>npm run alert:test</code>.</span></li>
+    <li><span>The backup folder on D: contains a recent file, and they have read the restore steps (Chapter 10).</span></li>
+    <li><span>They have created, opened and revoked a demo link themselves (Chapter 8).</span></li>
+    <li><span>They have read the rules in Chapter 13.</span></li>
+    <li><span>They know where the logs are (<code>data\logs\</code>) and where the written reviews are (<code>audits/</code>).</span></li>
+    <li><span>They know hosting is on hold and where its guide is (<code>deploy/README.md</code>).</span></li>
+    <li><span>Housekeeping: delete the leftover test folders <code>pd-bat-9eea1ed5</code> and <code>pd-bat-17f15806</code> in the Windows temp folder.</span></li>
+  </ul>
+  <h3>Where to read more</h3>
+  <div class="tablewrap"><table>
+    <tr><th>File</th><th>Topic</th></tr>
+    <tr><td><code>README.md</code></td><td>Commands, backups, alerts, tests in short form</td></tr>
+    <tr><td><code>docs/HOW-IT-WORKS.md</code></td><td>The full explanation of how the parts fit</td></tr>
+    <tr><td><code>demo-gateway/README.md</code></td><td>Every gateway setting and behaviour</td></tr>
+    <tr><td><code>deploy/README.md</code></td><td>Hosting with Docker Compose</td></tr>
+  </table></div>
+</section>
+
+<footer>This book describes the project as of 10 November 2026. It contains no passwords, keys or private addresses.</footer>
+</main>
+</div>
+</body>
+</html>
