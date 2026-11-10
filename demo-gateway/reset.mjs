@@ -11,6 +11,7 @@
 import { isActive } from './grants.mjs';
 import { logger } from '../lib/log.mjs';
 import { errMessage } from '../lib/util.mjs';
+import { EVENTS } from '../lib/events.mjs';
 
 export const RESET_STALE_MS = 25 * 60 * 1000;   // a "resetting" flag older than this is a crashed reset, not a running one
 export const RESET_RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
@@ -44,7 +45,7 @@ export async function endReset(store, product, { ok, startedAt, by = 'auto' }) {
   await store.meta.set(resettingKey(product), '');
   if (ok) { await store.meta.set(lastKey(product), startedAt || new Date().toISOString()); await store.meta.set(failKey(product), ''); }
   else await store.meta.set(failKey(product), new Date().toISOString());
-  await store.audit.add({ ev: 'demo-reset', app: product, ok: !!ok, by });
+  await store.audit.add({ ev: EVENTS.demoReset, app: product, ok: !!ok, by });
 }
 
 // Runs `supervisor reset <instance>` and records the outcome. `supervisor(args, timeoutMs)` resolves { ok, output }.

@@ -17,7 +17,7 @@ import { demoApps } from '../lib/registry.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { ports } from '../lib/config.mjs';
 import { cookieOf as readCookie, clientIp, limitKey, safeEq, json } from '../lib/http-util.mjs';
-import { num, fireAndForget, unmapV4 } from '../lib/util.mjs';
+import { num, fireAndForget, unmapV4, MINUTE, HOUR } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { resetSweep } from './reset.mjs';
@@ -46,7 +46,7 @@ export async function createGateway(opts = {}) {
     port: ports.gateway,
     baseHost: process.env.DEMO_BASE_HOST,
     scheme: process.env.DEMO_SCHEME || 'http',
-    upstreamTimeoutMs: num(process.env.GATEWAY_UPSTREAM_TIMEOUT_MS, 60000), // an upstream silent this long gets a 504
+    upstreamTimeoutMs: num(process.env.GATEWAY_UPSTREAM_TIMEOUT_MS, MINUTE), // an upstream silent this long gets a 504
     maxBodyBytes: num(process.env.GATEWAY_MAX_BODY_MB, 50) * 1048576,
     wsRecheckMs: num(process.env.GATEWAY_WS_RECHECK_MS, 5000),
     maxWsPerGrant: num(process.env.GATEWAY_MAX_WS_PER_GRANT, 20),
@@ -74,13 +74,13 @@ export async function createGateway(opts = {}) {
   // An audit failure must never break a customer's request.
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
   // Rate limits live in the database (pruned there, survive restarts).
-  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + limitKey(ip), 60000, o.redeemPerMinute)) > o.redeemPerMinute;
+  const limited = async (ip) => (await store.rateLimit.hit('redeem:' + limitKey(ip), MINUTE, o.redeemPerMinute)) > o.redeemPerMinute;
   // A browser whose link was just revoked keeps retrying (Streamlit reconnects in a loop). Record the first few
   // denials per grant and place, not every retry, so the audit log stays readable.
-  const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, 60000, 3)) <= 3) audit(e); };
+  const auditDenied = async (key, e) => { if ((await store.rateLimit.hit('audit-denied:' + key, MINUTE, 3)) <= 3) audit(e); };
   const uaOf = (req) => String(req.headers['user-agent'] || '').slice(0, 200);
   try { await store.grantSessions.prune(); } catch (err) { logger.warn('session prune failed at startup', { err }); }
-  const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, 3600000);
+  const pruneTimer = setInterval(() => { Promise.resolve(store.grantSessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, HOUR);
   pruneTimer.unref();
   const agent = new http.Agent({ keepAlive: true, maxSockets: 128 });
   // A request with no valid session still costs a database read. Count those per address in memory (no database writes) and
@@ -88,10 +88,10 @@ export async function createGateway(opts = {}) {
   const misses = new Map(); // limitKey(ip) -> { n, t }
   const tooManyMisses = (ip) => {
     const now = Date.now(), key = limitKey(ip), b = misses.get(key); // an IPv6 client counts as its whole /64
-    if (!b || now - b.t > 60000) { misses.set(key, { n: 1, t: now }); return false; }
+    if (!b || now - b.t > MINUTE) { misses.set(key, { n: 1, t: now }); return false; }
     return ++b.n > o.noSessionPerMinute;
   };
-  const missTimer = setInterval(() => { const cut = Date.now() - 60000; for (const [k, v] of misses) if (v.t < cut) misses.delete(k); }, 60000);
+  const missTimer = setInterval(() => { const cut = Date.now() - MINUTE; for (const [k, v] of misses) if (v.t < cut) misses.delete(k); }, MINUTE);
   missTimer.unref();
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();

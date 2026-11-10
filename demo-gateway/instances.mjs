@@ -8,7 +8,8 @@ import { isActive } from './grants.mjs';
 import { instanceDir } from '../lib/instance-app.mjs';
 import { existsSync } from 'node:fs';
 import { logger } from '../lib/log.mjs';
-import { createSerialLock, fireAndForget, errMessage } from '../lib/util.mjs';
+import { EVENTS } from '../lib/events.mjs';
+import { createSerialLock, fireAndForget, errMessage, MINUTE } from '../lib/util.mjs';
 
 export const START_TIMEOUT_MS = 6 * 60 * 1000;   // a copy that has been "starting" longer than this is treated as failed
 export const INSTANCE_RETRY_AFTER_FAIL_MS = 20 * 1000;    // a failed start is retried by the customer's next request, not faster than this
@@ -39,13 +40,13 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
   const touch = (product, slot) => seen.set(`${product}:${slot}`, now());
 
   async function begin(product, app, slot, grantId) {
-    audit({ ev: 'instance-start', app: product, grant: grantId, slot });
+    audit({ ev: EVENTS.instanceStart, app: product, grant: grantId, slot });
     let r;
     try { r = await supervisor(['instance-start', app.id, String(slot)], START_TIMEOUT_MS); }
     catch (err) { r = { ok: false, output: errMessage(err) }; }
     if (!r.ok) {
       logger.error('private demo copy failed to start', { product, slot, output: String(r.output || '').slice(-400) });
-      supervisor(['instance-stop', app.id, String(slot)], 120000).catch(() => {}); // stop whatever half-started and delete its folder
+      supervisor(['instance-stop', app.id, String(slot)], 2 * MINUTE).catch(() => {}); // stop whatever half-started and delete its folder
     }
     await locked(async () => {
       const table = await listInstances(store, product);
@@ -101,11 +102,11 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
       await write(product, table);
     });
     const grant = (await listInstances(store, product))[slot]?.grant;
-    let r; try { r = await supervisor(['instance-stop', app.id, String(slot)], 120000); } catch (err) { r = { ok: false, output: errMessage(err) }; }
+    let r; try { r = await supervisor(['instance-stop', app.id, String(slot)], 2 * MINUTE); } catch (err) { r = { ok: false, output: errMessage(err) }; }
     if (r.ok) {
       await locked(async () => { const table = await listInstances(store, product); delete table[slot]; await write(product, table); });
       seen.delete(`${product}:${slot}`);
-      audit({ ev: 'instance-stop', app: product, grant, slot, why });
+      audit({ ev: EVENTS.instanceStop, app: product, grant, slot, why });
     } else logger.error('private demo copy could not be stopped; the seat stays taken', { product, slot, output: String(r.output || '').slice(-300) });
   }
 
@@ -124,10 +125,10 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
         const g = grants.find((x) => x.id === e.grant);
         let why = null;
         if (!isActive(g)) why = 'link-ended';
-        else if (e.state === 'ready' && t - last > (app.perLink.idleMinutes ?? 120) * 60000) why = 'idle';
+        else if (e.state === 'ready' && t - last > (app.perLink.idleMinutes ?? 120) * MINUTE) why = 'idle';
         else if (e.state === 'failed' && t - e.at > FAILED_KEEP_MS) why = 'failed';
         else if (e.state === 'starting' && t - e.at > START_TIMEOUT_MS) why = 'start-timeout';
-        else if (e.state === 'stopping' && t - e.at > 5 * 60000) why = 'stuck-stopping';
+        else if (e.state === 'stopping' && t - e.at > 5 * MINUTE) why = 'stuck-stopping';
         if (why) { await stopSeat(product, app, Number(slot), why); done.push({ product, slot: Number(slot), why }); }
       }
       if (dirty) await locked(async () => { const cur = await listInstances(store, product); for (const [s, e] of Object.entries(table)) if (cur[s]?.grant === e.grant) cur[s].seen = e.seen; await write(product, cur); });
@@ -146,7 +147,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
       });
       const table = await listInstances(store, product);
       for (let slot = 0; slot < app.perLink.max; slot++) {
-        if (!table[slot] && existsSync(instanceDir(app.id, slot))) supervisor(['instance-stop', app.id, String(slot)], 120000).catch(() => {});
+        if (!table[slot] && existsSync(instanceDir(app.id, slot))) supervisor(['instance-stop', app.id, String(slot)], 2 * MINUTE).catch(() => {});
       }
     }
   }

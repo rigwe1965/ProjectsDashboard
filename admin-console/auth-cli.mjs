@@ -14,6 +14,7 @@ import readline from 'node:readline';
 import { resolve } from 'node:path';
 import { Writable } from 'node:stream';
 import { getStore, closeStore } from '../lib/store/index.mjs';
+import { EVENTS } from '../lib/events.mjs';
 import { ADMIN_KEYS, passwordProblem, hashPassword, newTotpSecret, verifyTotp, otpauthUrl, seal, unseal, isSealed, dataKey, newDataKey } from '../lib/auth.mjs';
 
 const out = process.stdout;
@@ -61,7 +62,7 @@ try {
     }
     await store.meta.set(ADMIN_KEYS.passwordHash, await hashPassword(a));
     await store.sessions.clear();
-    await audit('admin-password-set');
+    await audit(EVENTS.adminPasswordSet);
     console.log('Password saved. All signed-in sessions were ended. Restart the console, then sign in at its address.');
     if (!(await store.meta.get(ADMIN_KEYS.totpSecret))) console.log('Next: "npm run console:auth -- enable-totp" adds a 2-step code (recommended).');
   } else if (cmd === 'enable-totp') {
@@ -109,22 +110,22 @@ try {
         await store.meta.set(ADMIN_KEYS.totpPendingFile, '');
       }
       await store.sessions.clear();
-      await audit('admin-totp-enabled');
+      await audit(EVENTS.adminTotpEnabled);
       console.log('2-step codes are on. All signed-in sessions were ended.');
       if (!dataKey()) console.log('Note: the secret is stored unencrypted. Set ADMIN_DATA_KEY (npm run console:auth -- gen-key) for the console to encrypt it.');
     }
   } else if (cmd === 'disable-totp') {
     await store.meta.set(ADMIN_KEYS.totpSecret, ''); await store.meta.set(ADMIN_KEYS.totpLastStep, '-1');
-    await audit('admin-totp-disabled'); console.log('2-step codes are off.');
+    await audit(EVENTS.adminTotpDisabled); console.log('2-step codes are off.');
   } else if (cmd === 'remove-password') {
     await store.meta.set(ADMIN_KEYS.passwordHash, ''); await store.meta.set(ADMIN_KEYS.totpSecret, '');
-    await store.sessions.clear(); await audit('admin-password-removed');
+    await store.sessions.clear(); await audit(EVENTS.adminPasswordRemoved);
     console.log('Password and 2-step codes removed. The console uses the launch-token URL again (localhost only).');
   } else if (cmd === 'gen-key') {
     console.log(newDataKey());
     console.error('Keep this value outside the dashboard folder (for example in your service or container environment) as ADMIN_DATA_KEY. If it is lost, run disable-totp and enable-totp again.');
   } else if (cmd === 'sign-out-all') {
-    await store.sessions.clear(); await audit('admin-sessions-cleared'); console.log('All sessions ended.');
+    await store.sessions.clear(); await audit(EVENTS.adminSessionsCleared); console.log('All sessions ended.');
   } else {
     console.log('Usage: npm run console:auth -- status | set-password | enable-totp | disable-totp | remove-password | sign-out-all | gen-key');
     code = cmd ? 1 : 0;

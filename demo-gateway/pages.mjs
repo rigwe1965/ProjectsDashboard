@@ -1,5 +1,6 @@
 // The gateway's own pages (not the demo apps' pages): the notices before entry, error pages, and the audit record of a refusal.
 import { BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
+import { EVENTS } from '../lib/events.mjs';
 
 // What a customer is told before entering: a private copy of the demo, or a shared one.
 export const PRIVATE_NOTICE = 'This is your own private copy of the demonstration, filled with sample data. It is started for you when you open it and deleted when your link ends, so nobody else can see what you enter.<br><br><strong>Please still avoid entering real personal, customer or confidential information.</strong>';
@@ -19,5 +20,5 @@ const tooMany = (res, seconds) => page(res, 429, 'Too many attempts', `Please wa
 return { page, tooMany };
 };
 // The audit record of a refused request. `grant` is the grant's id when the request got as far as one; extra fields (why, via) follow.
-export const deniedRecord = (grant, app, ip, ua, extra = {}) => ({ ev: 'denied', ...(grant ? { grant } : {}), app, ip, ua, ...extra });
+export const deniedRecord = (grant, app, ip, ua, extra = {}) => ({ ev: EVENTS.denied, ...(grant ? { grant } : {}), app, ip, ua, ...extra });
 

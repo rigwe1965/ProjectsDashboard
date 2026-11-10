@@ -21,7 +21,8 @@ import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, limitKey, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
-import { num, createSerialLock, fireAndForget, maskSecrets } from '../lib/util.mjs';
+import { EVENTS } from '../lib/events.mjs';
+import { num, createSerialLock, fireAndForget, maskSecrets, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
@@ -31,8 +32,9 @@ import { ADMIN_KEYS, verifyPassword, needsRehash, hashPassword, verifyTotp, unse
 const here = dirname(fileURLToPath(import.meta.url));
 const COOKIE_BASE = 'pd_session';
 // Things the owner did (sign-ins, start/stop, creating and revoking customer links), as opposed to what customers did.
-const isAdminEvent = (ev) => ev.startsWith('admin-') || ev === 'grant-created' || ev === 'grant-revoked';
+const isAdminEvent = (ev) => ev.startsWith('admin-') || ev === EVENTS.grantCreated || ev === EVENTS.grantRevoked;
 const isPlainObject = (b) => !!b && typeof b === 'object' && !Array.isArray(b);
+const LOGIN_WINDOW_MS = 15 * MINUTE; // the window for counting sign-in attempts
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
 const defaultSupervisor = runSupervisor;
@@ -40,7 +42,7 @@ const defaultSupervisor = runSupervisor;
 // Private demo copies of one product, for the console: how many are running, which are stuck (could not be stopped or never came up), and each copy's state.
 function copySummary(table) {
   const now = Date.now();
-  const copyList = Object.entries(table).map(([slot, e]) => ({ slot: Number(slot), state: e.state, minutes: Math.max(0, Math.round((now - (Number(e.seen) || Number(e.at) || now)) / 60000)) }));
+  const copyList = Object.entries(table).map(([slot, e]) => ({ slot: Number(slot), state: e.state, minutes: Math.max(0, Math.round((now - (Number(e.seen) || Number(e.at) || now)) / MINUTE)) }));
   return {
     copies: copyList.filter((c) => c.state === 'ready' || c.state === 'starting').length,
     stuck: copyList.filter((c) => c.state === 'stopping' || c.state === 'failed').length,
@@ -125,8 +127,8 @@ export async function createConsole(opts = {}) {
     // 8 tries per IP per 15 minutes (hard limit). Failed tries overall are also counted: past the cap, wrong guesses are
     // refused with 429 but a correct password + code still signs in, so a flood of bad guesses from many addresses
     // cannot lock the real owner out.
-    const overall = (await store.rateLimit.count('login-fail:all', 900000)) >= o.loginMaxTotal;
-    if ((await store.rateLimit.hit('login:' + limitKey(ip), 900000, o.loginMaxPerIp)) > o.loginMaxPerIp) {
+    const overall = (await store.rateLimit.count('login-fail:all', LOGIN_WINDOW_MS)) >= o.loginMaxTotal;
+    if ((await store.rateLimit.hit('login:' + limitKey(ip), LOGIN_WINDOW_MS, o.loginMaxPerIp)) > o.loginMaxPerIp) {
       return json(res, 429, { error: 'Too many attempts. Wait 15 minutes and try again.' }, { 'retry-after': '900' });
     }
     let b; try { b = JSON.parse((await readBody(req)) || '{}'); } catch (e) { return json(res, e.status === 413 ? 413 : 400, { error: 'bad request' }); }
@@ -152,8 +154,8 @@ export async function createConsole(opts = {}) {
       return s;
     });
     if (!pwOk || step === null) {
-      audit({ ev: 'admin-login-failed', ip, ua });
-      await store.rateLimit.hit('login-fail:all', 900000);
+      audit({ ev: EVENTS.adminLoginFailed, ip, ua });
+      await store.rateLimit.hit('login-fail:all', LOGIN_WINDOW_MS);
       if (overall) {
         // The cap does not lock the owner out (a correct password still signs in), so slow the guessers instead: each wrong
         // guess now takes longer to answer, which limits how many a distributed attacker can have in flight.
@@ -164,7 +166,7 @@ export async function createConsole(opts = {}) {
     }
     const id = newSessionId(), maxAge = Math.round(o.sessionHours * 3600);
     await store.sessions.create(hashSessionId(id), new Date(Date.now() + maxAge * 1000).toISOString());
-    audit({ ev: 'admin-login', ip, ua });
+    audit({ ev: EVENTS.adminLogin, ip, ua });
     // the password was right: if its hash was made with an older, cheaper setting, replace it with a current one
     if (needsRehash(hash)) { try { await store.meta.set(ADMIN_KEYS.passwordHash, await hashPassword(String(b.password))); } catch (err) { logger.warn('could not upgrade the password hash', { err }); } }
     res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=${id}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${secure}`, ...securityHeaders });
@@ -190,7 +192,7 @@ export async function createConsole(opts = {}) {
       if (url.pathname === '/logout' && req.method === 'POST') {
         if (badOrigin(req, res)) return;
         const id = readCookie(req, COOKIE); if (id) await store.sessions.delete(hashSessionId(id));
-        audit({ ev: 'admin-logout', ip: clientIp(req, trusted) });
+        audit({ ev: EVENTS.adminLogout, ip: clientIp(req, trusted) });
         res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`, ...securityHeaders });
         return res.end('{"ok":true}');
       }
@@ -217,7 +219,7 @@ export async function createConsole(opts = {}) {
         all: () => true,
         admin: (e) => isAdminEvent(e.ev),
         demos: (e) => !isAdminEvent(e.ev),
-        problems: (e) => e.ev === 'admin-login-failed' || e.ev === 'denied' || e.ev === 'admin-action-refused',
+        problems: (e) => e.ev === EVENTS.adminLoginFailed || e.ev === EVENTS.denied || e.ev === EVENTS.adminActionRefused,
       }[kind];
       if (!keep) return json(res, 400, { error: 'unknown filter' });
       const rows = (await store.audit.list(1000)).filter((e) => keep(e)).slice(0, limit)
@@ -245,17 +247,17 @@ export async function createConsole(opts = {}) {
     }
 
     if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/apps\/([\w-]+)\/(start|stop|restart)$/))) {
-      if (!originOk(req)) { audit({ ev: 'admin-action-refused', app: m[1], why: 'bad-origin', ip: clientIp(req, trusted) }); return json(res, 403, { error: 'bad origin' }); }
+      if (!originOk(req)) { audit({ ev: EVENTS.adminActionRefused, app: m[1], why: 'bad-origin', ip: clientIp(req, trusted) }); return json(res, 403, { error: 'bad origin' }); }
       const app = registry.apps.find((a) => a.id === m[1]);
       if (!app) return json(res, 404, { error: 'unknown app' });
       const only = url.searchParams.get('proc');
       if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
-      if (busy.has(app.id)) { audit({ ev: 'admin-action-refused', app: app.id, why: 'busy', ip: clientIp(req, trusted) }); return json(res, 409, { error: `${app.id} is busy with another action` }); }
+      if (busy.has(app.id)) { audit({ ev: EVENTS.adminActionRefused, app: app.id, why: 'busy', ip: clientIp(req, trusted) }); return json(res, 409, { error: `${app.id} is busy with another action` }); }
       busy.add(app.id);
       audit({ ev: 'admin-app-' + m[2], app: app.id, ip: clientIp(req, trusted), ...(only ? { proc: only } : {}) });
       try {
         // start/restart can legitimately wait up to 60 s per process for the app to answer
-        const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])], m[2] === 'stop' ? 120000 : 300000);
+        const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])], m[2] === 'stop' ? 2 * MINUTE : 5 * MINUTE);
         if (!r.ok) logger.warn('supervisor command failed', { action: m[2], app: app.id, timedOut: !!r.timedOut });
         return json(res, r.ok ? 200 : 502, r);
       } finally { busy.delete(app.id); dropStatus(); }
@@ -290,7 +292,7 @@ export async function createConsole(opts = {}) {
       const b = JSON.parse((await readBody(req)) || '{}');
       const inUse = productState(await loadGrants(), product).busy;
       if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });
-      audit({ ev: 'demo-reset-requested', app: product, forced: !!inUse, ip: clientIp(req, trusted) });
+      audit({ ev: EVENTS.demoResetRequested, app: product, forced: !!inUse, ip: clientIp(req, trusted) });
       const r = await runReset({ store, product, app, supervisor: o.supervisor, by: 'admin' });
       dropStatus();
       return json(res, r.busy ? 409 : r.ok ? 200 : 502, r.busy ? { error: r.output } : r);
@@ -308,7 +310,7 @@ export async function createConsole(opts = {}) {
       if (isActive(g)) throw new HttpError(409, 'Revoke the link first; it is still active');
       const removed = await store.audit.deleteForGrant(m[1]);
       await store.grants.anonymize(m[1]); // the name on the grant goes too
-      audit({ ev: 'grant-forgotten', ip: clientIp(req, trusted), removed }); // deliberately without the grant id
+      audit({ ev: EVENTS.grantForgotten, ip: clientIp(req, trusted), removed }); // deliberately without the grant id
       return json(res, 200, { ok: true, removed });
     }
 
@@ -349,7 +351,7 @@ export async function createConsole(opts = {}) {
       json(res, status, body);
     });
   });
-  const pruneTimer = setInterval(() => { Promise.resolve(store.sessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, 3600000);
+  const pruneTimer = setInterval(() => { Promise.resolve(store.sessions.prune()).catch((err) => logger.warn('session prune failed', { err })); }, HOUR);
   pruneTimer.unref();
 
   return {

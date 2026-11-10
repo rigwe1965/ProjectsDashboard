@@ -3,6 +3,7 @@
 import net from 'node:net';
 import { isActive } from './grants.mjs';
 import { clientIp } from '../lib/http-util.mjs';
+import { EVENTS } from '../lib/events.mjs';
 import { logger } from '../lib/log.mjs';
 import { deniedRecord } from './pages.mjs';
 import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort } from './proxy-headers.mjs';
@@ -48,7 +49,7 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
       clearInterval(timer); wsClosers.delete(close);
       releaseWs(g.id);
       socket.destroy(); upstream.destroy();
-      if (why) audit({ ev: 'ws-closed', grant: g.id, app: slug, ip, why });
+      if (why) audit({ ev: EVENTS.wsClosed, grant: g.id, app: slug, ip, why });
     };
     wsClosers.add(close);
     // Revocation and expiry apply to sockets that are already open: look the grant up again every few seconds.
@@ -89,7 +90,7 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
       if (head?.length) upstream.write(head);
       socket.pipe(upstream); upstream.pipe(socket);
       metrics.inc('pd_gateway_websockets_total');
-      audit({ ev: 'ws-open', grant: g.id, app: slug, ip });
+      audit({ ev: EVENTS.wsOpen, grant: g.id, app: slug, ip });
     });
   }
   return upgrade;

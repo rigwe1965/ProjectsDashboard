@@ -4,6 +4,8 @@ import { randomBytes } from 'node:crypto';
 import { isActive } from './grants.mjs';
 import { isResetting } from './reset.mjs';
 import { cookieOf as readCookie, limitKey } from '../lib/http-util.mjs';
+import { MINUTE } from '../lib/util.mjs';
+import { EVENTS } from '../lib/events.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
 import { PRIVATE_NOTICE, SHARED_NOTICE, deniedRecord } from './pages.mjs';
 
@@ -15,7 +17,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
   // `m` is the match of the path pattern (m[1] is the token); `ip` the client address.
   return async function redeem(req, res, { m, slug, target, ip }) {
       const ua = uaOf(req);
-      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), 60000, 30)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return tooMany(res, 60); }
+      if (await limited(ip) || (await store.rateLimit.hit('redeem-link:' + m[1].slice(0, 12), MINUTE, 30)) > 30) { metrics.inc('pd_gateway_redeem_total', { result: 'limited' }); return tooMany(res, 60); }
       const g = await findGrant(m[1]);
       if (!isActive(g) || g.app !== slug) {
         audit(deniedRecord(null, slug, ip, ua, { why: !g ? 'unknown' : g.revoked ? 'revoked' : g.app !== slug ? 'wrong-app' : 'expired' }));
@@ -48,7 +50,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
           : 'This link has already been used the maximum number of times. Please contact us for a new one.');
       }
       metrics.inc('pd_gateway_redeem_total', { result: 'ok' });
-      audit({ ev: 'enter', grant: g.id, app: slug, ip, ua });
+      audit({ ev: EVENTS.enter, grant: g.id, app: slug, ip, ua });
       const maxAge = Math.max(1, Math.floor((Date.parse(g.expiresAt) - Date.now()) / 1000));
       const sid = newSessionId(); // only its hash is stored
       await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);

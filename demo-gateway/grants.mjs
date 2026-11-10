@@ -4,6 +4,7 @@ import { sha256 } from '../lib/auth.mjs';
 import { demoApps } from '../lib/registry.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { HttpError } from '../lib/errors.mjs';
+import { EVENTS } from '../lib/events.mjs';
 
 export { demoApps }; // lives in lib/registry.mjs; still importable from here
 export const MAX_HOURS = 720;
@@ -26,13 +27,13 @@ async function createGrantIn(store, { customer, app, hours = 48, maxUses = null,
   const grant = { id: randomBytes(4).toString('hex'), tokenHash: hashToken(token), customer, app, createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + hours * 3600e3).toISOString(), revoked: false, uses: 0, maxUses, deviceLock: !!deviceLock, lastUsedAt: null };
   await store.grants.insert(grant);
-  await store.audit.add({ ev: 'grant-created', grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock, ...who });
+  await store.audit.add({ ev: EVENTS.grantCreated, grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock, ...who });
   return { grant, link: demoLink(app, token) };
 }
 async function revokeGrantIn(store, id, who = {}) {
   const t = await store.grants.revoke(id);
   if (!t) throw new HttpError(404, 'No such grant');
-  await store.audit.add({ ev: 'grant-revoked', grant: t.id, app: t.app, ...who });
+  await store.audit.add({ ev: EVENTS.grantRevoked, grant: t.id, app: t.app, ...who });
   return t;
 }
 
