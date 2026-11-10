@@ -77,7 +77,7 @@ curl.exe -s -o NUL -m 5 "%DURL%" || ( echo [demo] ERROR: %APP%-demo is not respo
 
 echo [demo] Creating a demo link...
 set "LINK="
-for /f "tokens=*" %%L in ('node demo-gatewaygrants-cli.mjs create --customer "Local owner" --app %APP% --hours 8 ^| findstr /b /c:"  http"') do set "LINK=%%L"
+for /f "tokens=*" %%L in ('node demo-gateway\grants-cli.mjs create --customer "Local owner" --app %APP% --hours 8 ^| findstr /b /c:"  http"') do set "LINK=%%L"
 if not defined LINK ( echo [demo] ERROR: could not create a demo link. Is "%APP%" demo-ready in registry\apps.json? & goto :fail )
 
 echo [demo] Opening %LINK%
