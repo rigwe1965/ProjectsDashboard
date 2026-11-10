@@ -39,6 +39,14 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
     return !!(rec && up && ((rec.startTime && timeOf(rec.pid) === rec.startTime) || (rec.listenPid && timeOf(rec.listenPid) === rec.listenStartTime)));
   }
 
+  // A demo whose database lives in Docker needs the engine up first (start and reset both do; this waits longer than an app's own 60 s).
+  async function needDocker(app) {
+    if (!app.requiresDocker) return;
+    const d = await ensureEngine({ log: (m) => console.log(m) });
+    if (!d.ok) die(d.message);
+    if (d.started) console.log('Docker is running.');
+  }
+
   async function status(json) {
     const state = await store.processState.all();
     // All recorded PIDs are looked up in one call, and every process is probed at the same time: a status check used to take as long
@@ -68,12 +76,7 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
     if (app.build?.produces && !existsSync(resolve(app.path, app.build.cwd ?? '.', app.build.produces))) {
       die(`${app.id} has not been built yet. Run: node supervisor/index.mjs build ${app.id}`);
     }
-    // a demo whose database lives in Docker needs the engine up first (this waits longer than an app's own 60 s)
-    if (app.requiresDocker) {
-      const d = await ensureEngine({ log: (m) => console.log(m) });
-      if (!d.ok) die(d.message);
-      if (d.started) console.log('Docker is running.');
-    }
+    await needDocker(app);
     // Start is safe to press again: a process we already started and that is answering is left alone, so a partly running app
     // (one process up, one down) gets only its missing process started. Anything else holding the port is still refused below.
     const state = await store.processState.all();
@@ -200,6 +203,7 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
   // instance is still started so the demo stays available (possibly with old data); the exit code says it failed.
   async function reset(app) {
     if (!app.reset) { console.error(`${app.id} has no "reset" in the registry.`); failed = true; return; }
+    await needDocker(app); // before anything is stopped: with Docker unavailable the running demo is left as it was
     let wasRunning = false; // answering on its port counts; a stale record of a process that is gone does not
     for (const p of app.processes) if (!p.optional && await httpUp(p.port, p.health, p.host)) wasRunning = true;
     await stop(app);

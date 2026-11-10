@@ -58,3 +58,13 @@ test('the pieces are separate: createSupervisor takes its parts, and Exit carrie
   assert.deepEqual(calls, []);
   rmSync(logDir, { recursive: true, force: true });
 });
+
+test('reset of a demo that needs Docker checks the engine first, and stops nothing when Docker cannot start', async () => {
+  const reg = { apps: [{ id: 'dk', name: 'Dk', path: '.', requiresDocker: true, processes: [{ name: 'app', cmd: 'x', port: 1, health: '/' }], reset: { steps: [{ cmd: 'x' }] } }] };
+  const stopped = [];
+  const d = { ensureEngine: async () => ({ ok: false, message: 'Docker did not start' }), containerRunning: async () => false, startContainer: async () => {}, stopContainer: async (n) => { stopped.push(n); } };
+  const sup = createSupervisor({ registry: reg, store, driver, docker: d, logDir });
+  await assert.rejects(() => sup.reset(sup.getApp('dk')), (e) => e instanceof Exit && e.code === 1);
+  assert.deepEqual(calls, [], 'no step ran and nothing was spawned');
+  assert.deepEqual(stopped, []);
+});
