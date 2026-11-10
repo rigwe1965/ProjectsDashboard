@@ -4,7 +4,7 @@ Orchestration and showcase layer for independent apps. It references the apps by
 
 **Source of truth for each app is its Desktop folder** (`C:\Users\rigwe\Desktop\<App>`). The same-named folders inside this directory are stale copies, git-ignored and not used.
 
-Full explanation of how everything fits together: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md). New owner? Start with the handover book: [docs/HANDOVER-BOOK.html](docs/HANDOVER-BOOK.html) (open it in a browser).
+Full explanation of how everything fits together: [docs/HOW-IT-WORKS.md](docs/HOW-IT-WORKS.md). New owner? Start with the handover book: [docs/HANDOVER-BOOK.md](docs/HANDOVER-BOOK.md) (also as a formatted page: download [docs/HANDOVER-BOOK.html](docs/HANDOVER-BOOK.html) and open it in a browser).
 
 ## Layout
 - `registry/apps.json`: one entry per app (path, start command, proposed port, health URL, demo support)
