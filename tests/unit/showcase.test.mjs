@@ -5,6 +5,7 @@ import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { freePort } from '../helpers.mjs';
 
 const get = (port, path) => new Promise((resolve) => {
   const r = http.request({ host: '127.0.0.1', port, path, method: 'GET' }, (res) => { res.resume(); res.on('end', () => resolve(res.statusCode)); });
@@ -12,7 +13,7 @@ const get = (port, path) => new Promise((resolve) => {
 });
 
 test('showcase server: a malformed URL gets 400 and the server keeps running', async () => {
-  const port = 41000 + Math.floor(Math.random() * 2000);
+  const port = await freePort();
   const child = spawn(process.execPath, [fileURLToPath(new URL('../../showcase/serve.mjs', import.meta.url))], { env: { ...process.env, SHOWCASE_PORT: String(port) }, stdio: 'ignore' });
   try {
     for (let i = 0; i < 30 && !(await get(port, '/x')); i++) await new Promise((r) => setTimeout(r, 100));
@@ -24,7 +25,7 @@ test('showcase server: a malformed URL gets 400 and the server keeps running', a
 
 test('showcase caching: the stylesheet is named by its content hash and cached for a year; pages are always re-checked', async () => {
   execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
-  const port = 43000 + Math.floor(Math.random() * 2000);
+  const port = await freePort();
   const child = spawn(process.execPath, [fileURLToPath(new URL('../../showcase/serve.mjs', import.meta.url))], { env: { ...process.env, SHOWCASE_PORT: String(port) }, stdio: 'ignore' });
   const fetchFull = (path) => new Promise((resolve) => {
     const r = http.request({ host: '127.0.0.1', port, path, method: 'GET' }, (res) => { let b = ''; res.setEncoding('utf8'); res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b })); });

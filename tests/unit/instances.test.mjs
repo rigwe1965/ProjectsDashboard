@@ -9,7 +9,20 @@ import { join } from 'node:path';
 import { httpRequest, freePort } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-inst-'));
-const portBase = 30000 + Math.floor(Math.random() * 20000);
+// The two copies listen on portBase and portBase + 10. Windows reserves blocks of ports in this range (Hyper-V, Docker), where listening
+// fails with EACCES, so pick a base where both ports can really be bound instead of trusting a random number.
+const canListen = (port) => new Promise((resolve) => {
+  const s = http.createServer();
+  s.once('error', () => resolve(false));
+  s.listen(port, '127.0.0.1', () => s.close(() => resolve(true)));
+});
+async function pickPortBase() {
+  for (;;) {
+    const base = 30000 + Math.floor(Math.random() * 20000);
+    if ((await Promise.all([base, base + 10].map(canListen))).every(Boolean)) return base;
+  }
+}
+const portBase = await pickPortBase();
 
 const reg = { apps: [
   { id: 'pl', name: 'PL', path: '.', processes: [{ name: 'app', cmd: 'x', port: 19960 }] },
