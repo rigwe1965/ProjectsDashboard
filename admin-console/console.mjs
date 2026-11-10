@@ -24,6 +24,7 @@ import { logger } from '../lib/log.mjs';
 import { EVENTS } from '../lib/events.mjs';
 import { num, createSerialLock, fireAndForget, maskSecrets, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
+import { createStatusCache } from './status-cache.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
 import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
@@ -81,6 +82,8 @@ export async function createConsole(opts = {}) {
   const trusted = new Set(o.trustedProxies);
   const launchToken = randomBytes(24).toString('hex');
   const busy = new Set();
+  const status = createStatusCache({ supervisor: o.supervisor, reuseMs: o.statusReuseMs });
+  const statusRows = status.get, dropStatus = status.drop;
   const withTotpLock = createSerialLock(); // serialises the TOTP check-and-record (one console process)
   const secure = o.scheme === 'https' ? '; Secure' : '';
   const COOKIE = (o.scheme === 'https' ? '__Host-' : '') + COOKIE_BASE; // __Host-: browsers only accept it if Secure, host-only and Path=/
@@ -363,30 +366,6 @@ export async function createConsole(opts = {}) {
     const known = url.pathname === '/' || /^\/api\/(session|audit|apps|demos)(\/|$)/.test(url.pathname) || url.pathname === '/login' || url.pathname === '/logout';
     if (known && req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST' }); return res.end('Method not allowed'); }
     res.writeHead(404); res.end('Not found');
-  }
-
-  // Process status as rows. A failed or unreadable status check is reported, never silently shown as "everything stopped".
-  // Each status check starts a supervisor process and probes every app, so concurrent requests (the page asks for apps and demos at
-  // the same time, from every open tab) share ONE check, and its answer is reused for a couple of seconds. An action that changes
-  // what is running (start, stop, restart, reset) drops the saved answer, so the next request sees the new state.
-  let statusSaved = null, statusRun = null, statusGen = 0;
-  const dropStatus = () => { statusGen++; statusSaved = null; };
-  function statusRows() {
-    if (statusSaved && Date.now() - statusSaved.t < o.statusReuseMs) return Promise.resolve(statusSaved.v);
-    if (!statusRun) {
-      const gen = statusGen;
-      statusRun = (async () => {
-        const { ok, output } = await o.supervisor(['status', '--json'], 30000);
-        let v;
-        try { v = { rows: JSON.parse(output), statusError: null }; } catch {
-          logger.warn('supervisor status unreadable', { ok, output: String(output).slice(0, 300) });
-          v = { rows: [], statusError: ok ? 'unreadable' : 'failed' };
-        }
-        if (gen === statusGen && !v.statusError) statusSaved = { t: Date.now(), v };
-        return v;
-      })().finally(() => { statusRun = null; });
-    }
-    return statusRun;
   }
 
   const server = http.createServer((req, res) => {
