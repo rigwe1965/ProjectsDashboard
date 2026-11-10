@@ -10,7 +10,6 @@
 // The parts: pages.mjs (own pages), redeem.mjs (opening a link), proxy-headers.mjs (what goes to the demo app and what comes back),
 // websocket.mjs (upgrades), instances.mjs (private copies), reset.mjs (shared demos). This file wires them to the server.
 import http from 'node:http';
-import { pipeline } from 'node:stream';
 import { randomBytes } from 'node:crypto';
 import { createGrants, isActive } from './grants.mjs';
 import { demoApps } from '../lib/registry.mjs';
@@ -22,10 +21,10 @@ import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { resetSweep } from './reset.mjs';
 import { createInstances } from './instances.mjs';
-import { makePages, deniedRecord, HSTS } from './pages.mjs';
+import { makePages, deniedRecord } from './pages.mjs';
 import { createRedeemHandler } from './redeem.mjs';
 import { createUpgradeHandler } from './websocket.mjs';
-import { upstreamPort, requestHeaders, responseHeaders } from './proxy-headers.mjs';
+import { createProxy } from './proxy.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { hashSessionId } from '../lib/auth.mjs';
 
@@ -144,6 +143,7 @@ export async function createGateway(opts = {}) {
     const target = slug && !slug.includes('.') ? demoApps()[slug] : null;
     return { hostHdr, slug, target };
   }
+  const { readyCopy, forward } = createProxy({ o, trusted, agent, metrics, instances, page, https });
   const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, page, tooMany, uaOf, COOKIE, DEV_COOKIE, https });
   const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, wsCounts, wsClosers, releaseWs, audit, metrics });
 
@@ -170,49 +170,11 @@ export async function createGateway(opts = {}) {
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
     let slot = null;
     if (target.perLink) {
-      let inst = await instances.lookup(slug, g.id);
-      if (inst?.state !== 'ready') inst = await instances.ensure(slug, target, g.id).then((r) => ({ ...r, state: r.status }));
-      if (inst.state !== 'ready') {
-        if (inst.state === 'full') return page(res, 503, 'All demo seats are taken', 'Every private demo seat is in use right now. Please try again in a few minutes.', { 'retry-after': '60' });
-        if (inst.state === 'failed') return page(res, 503, 'Demo could not start', 'Your private demo did not start. Please wait a moment and refresh this page to try again.', { 'retry-after': '20' });
-        // starting: a page that checks again by itself
-        return page(res, 503, 'Preparing your demo', 'Your private copy is being set up. This page refreshes by itself and takes up to a minute.', { 'retry-after': '3' }, '<meta http-equiv=refresh content=3>');
-      }
-      slot = inst.slot; instances.touch(slug, slot);
+      const copy = await readyCopy(res, slug, target, g);
+      if (!copy) return; // a page saying why the copy is not ready has been sent
+      slot = copy.slot;
     }
-    const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
-    const headers = requestHeaders(req, { upHost, port, hostHdr, scheme: o.scheme, trusted });
-    const up = http.request({ host: upHost, port, method: req.method, path: req.url, headers, agent }, (ur) => {
-      const out = responseHeaders(ur.headers, { upHost, port, hostHdr, scheme: o.scheme, https, hsts: HSTS });
-      res.writeHead(ur.statusCode, out);
-      // pipeline() keeps pipe()'s backpressure (a slow browser slows the upstream) and also ends the browser's response
-      // when the upstream dies mid-body, instead of leaving it hanging
-      pipeline(ur, res, (err) => { if (err && err.code !== 'ERR_STREAM_PREMATURE_CLOSE') logger.debug('proxy stream ended early', { err }); });
-    });
-    // An upstream that accepts the connection but never answers must not hold the customer's request open forever.
-    up.setTimeout(o.upstreamTimeoutMs, () => up.destroy(Object.assign(new Error('upstream timeout'), { code: 'ETIMEOUT' })));
-    up.on('error', (e) => {
-      if (res.headersSent) return res.destroy();
-      metrics.inc('pd_gateway_upstream_errors_total', { kind: e.code === 'ETIMEOUT' ? 'timeout' : 'unreachable' });
-      // Only a refused connection means the copy's process is gone. A browser that cancels a request also ends here (a reset or
-      // hang-up), and treating that as a crash would restart the copy and throw away the customer's data.
-      if (slot !== null && e.code === 'ECONNREFUSED') instances.markDown(slug, slot, g.id).catch(() => {});
-      if (e.code === 'ETIMEOUT') page(res, 504, 'Demo is taking too long', 'The demo did not answer in time. Please try again.');
-      else page(res, 503, 'Demo unavailable', 'The demo is not running right now. Please try again shortly.');
-    });
-    // If the browser goes away mid-request, stop working for it.
-    res.on('close', () => { if (!res.writableFinished) up.destroy(); });
-    req.on('error', () => up.destroy()); // the browser dropped mid-upload
-    let seen = 0;
-    req.on('data', (c) => {
-      seen += c.length;
-      if (seen > o.maxBodyBytes) { // no content-length, or it lied
-        req.unpipe(up); up.destroy();
-        if (!res.headersSent) page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
-        res.once('finish', () => req.destroy());
-      }
-    });
-    req.pipe(up);
+    return forward(req, res, { url, slug, slot, g, target, hostHdr });
   }
 
   const server = http.createServer({ maxHeaderSize: 16384, headersTimeout: 20000 }, (req, res) => {
