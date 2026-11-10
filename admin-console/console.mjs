@@ -173,6 +173,179 @@ export async function createConsole(opts = {}) {
     res.end(JSON.stringify({ ok: true }));
   }
 
+  const ipOf = (req) => clientIp(req, trusted);
+  const findApp = (id) => registry.apps.find((a) => a.id === id);
+
+  // Decides whether this request is the owner's. Returns true to carry on; otherwise the answer (login page, redirect, 401, 403)
+  // has already been sent.
+  async function authenticate(req, res, url, pw) {
+    if (pw) {
+      if (url.pathname === '/login' && req.method === 'GET') {
+        if (await sessionOk(req)) { res.writeHead(302, { location: '/' }); res.end(); return false; }
+        html(res, 200, readFileSync(join(here, 'login.html')));
+        return false;
+      }
+      if (url.pathname === '/login' && req.method === 'POST') { await login(req, res); return false; }
+      if (url.pathname === '/logout' && req.method === 'POST') {
+        if (badOrigin(req, res)) return false;
+        const id = readCookie(req, COOKIE); if (id) await store.sessions.delete(hashSessionId(id));
+        audit({ ev: EVENTS.adminLogout, ip: ipOf(req) });
+        res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`, ...securityHeaders });
+        res.end('{"ok":true}');
+        return false;
+      }
+      if (!(await sessionOk(req))) {
+        if (url.pathname.startsWith('/api/')) json(res, 401, { error: 'sign in required' });
+        else { res.writeHead(302, { location: '/login' }); res.end(); }
+        return false;
+      }
+      return true;
+    }
+    if (url.pathname === '/' && url.searchParams.get('t')) {
+      if (!safeEq(url.searchParams.get('t'), launchToken)) { res.writeHead(403); res.end('Invalid token'); return false; }
+      res.writeHead(302, { 'set-cookie': `${COOKIE}=${launchToken}; HttpOnly; SameSite=Strict; Path=/${secure}`, location: '/' });
+      res.end();
+      return false;
+    }
+    if (!safeEq(readCookie(req, COOKIE), launchToken)) {
+      res.writeHead(401, { 'content-type': 'text/plain' }); res.end('Unauthorized. Open the full URL printed in the terminal where the console was started.');
+      return false;
+    }
+    return true;
+  }
+
+  // ---- The routes. Each handler gets { req, res, url, m, pw }: `m` is the regex match for a pattern route. ----
+
+  // Read-only activity feed. Only a fixed set of fields leaves the server (never a token, hash or session id), and the
+  // page shows them as plain text because address, browser and customer name can come from outside.
+  async function apiAudit({ res, url }) {
+    const kind = url.searchParams.get('kind') || 'all';
+    const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 300);
+    const keep = {
+      all: () => true,
+      admin: (e) => isAdminEvent(e.ev),
+      demos: (e) => !isAdminEvent(e.ev),
+      problems: (e) => e.ev === EVENTS.adminLoginFailed || e.ev === EVENTS.denied || e.ev === EVENTS.adminActionRefused,
+    }[kind];
+    if (!keep) return json(res, 400, { error: 'unknown filter' });
+    const rows = (await store.audit.list(1000)).filter((e) => keep(e)).slice(0, limit)
+      .map((e) => ({ t: e.t, ev: e.ev, app: e.app, grant: e.grant, ip: e.ip, ua: typeof e.ua === 'string' ? e.ua.slice(0, 120) : undefined,
+        why: e.why, via: e.via, by: e.by, customer: e.customer }));
+    return json(res, 200, { events: rows });
+  }
+
+  async function apiApps({ res }) {
+    const { rows, statusError } = await statusRows();
+    return json(res, 200, registry.apps.filter((a) => !a.hidden).map((a) => ({
+      id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note,
+      processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional,
+        ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
+    })), statusError ? { 'x-status-error': statusError } : {});
+  }
+
+  function appLogs({ res, url, m }) {
+    const app = findApp(m[1]);
+    const proc = app?.processes.find((p) => p.name === url.searchParams.get('proc'));
+    if (!proc) return json(res, 404, { error: 'unknown app/process' });
+    return json(res, 200, { log: maskSecrets(tail(join(dataDir, 'logs', `${app.id}-${proc.name}.log`))) });
+  }
+
+  async function appAction({ req, res, url, m }) {
+    const action = m[2];
+    if (!originOk(req)) { audit({ ev: EVENTS.adminActionRefused, app: m[1], why: 'bad-origin', ip: ipOf(req) }); return json(res, 403, { error: 'bad origin' }); }
+    const app = findApp(m[1]);
+    if (!app) return json(res, 404, { error: 'unknown app' });
+    const only = url.searchParams.get('proc');
+    if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
+    if (busy.has(app.id)) { audit({ ev: EVENTS.adminActionRefused, app: app.id, why: 'busy', ip: ipOf(req) }); return json(res, 409, { error: `${app.id} is busy with another action` }); }
+    busy.add(app.id);
+    audit({ ev: 'admin-app-' + action, app: app.id, ip: ipOf(req), ...(only ? { proc: only } : {}) });
+    try {
+      // start/restart can legitimately wait up to 60 s per process for the app to answer
+      const r = await o.supervisor([action, app.id, ...(only ? [`--only=${only}`] : [])], action === 'stop' ? 2 * MINUTE : 5 * MINUTE);
+      if (!r.ok) logger.warn('supervisor command failed', { action, app: app.id, timedOut: !!r.timedOut });
+      return json(res, r.ok ? 200 : 502, r);
+    } finally { busy.delete(app.id); dropStatus(); }
+  }
+
+  async function demosList({ res }) {
+    const gatewayUp = await portInUse(o.gatewayPort);
+    const { rows } = await statusRows();
+    const grantList = await loadGrants();
+    const products = await Promise.all(Object.entries(demoApps()).map(async ([product, a]) => ({
+      product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed),
+      canReset: !!a.reset && !a.perLink, resetting: !!a.reset && !a.perLink && await isResetting(store, product), lastReset: a.reset && !a.perLink ? await lastResetAt(store, product) : null,
+      perLink: !!a.perLink, seats: a.perLink?.max ?? 0,
+      ...(a.perLink ? copySummary(await listInstances(store, product)) : { copies: 0, stuck: 0, copyList: [] }),
+      inUse: a.reset && !a.perLink ? productState(grantList, product).busy : 0, // opened links that have not ended
+      accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
+    })));
+    const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
+    return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
+  }
+
+  async function demoCreate({ req, res }) {
+    if (badOrigin(req, res)) return;
+    const b = JSON.parse((await readBody(req)) || '{}'); // SyntaxError -> 400, too large -> 413 (see toResponse)
+    if (!isPlainObject(b)) throw new HttpError(400, 'Expected a JSON object');
+    const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock }, { ip: ipOf(req), by: 'console' });
+    return json(res, 200, { grant: publicGrant(grant), link });
+  }
+
+  async function demoReset({ req, res, m }) {
+    if (badOrigin(req, res)) return;
+    const product = m[1], app = demoApps()[product];
+    if (!app?.reset || app.perLink) throw new HttpError(404, 'That demo cannot be reset');
+    const b = JSON.parse((await readBody(req)) || '{}');
+    const inUse = productState(await loadGrants(), product).busy;
+    if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });
+    audit({ ev: EVENTS.demoResetRequested, app: product, forced: !!inUse, ip: ipOf(req) });
+    const r = await runReset({ store, product, app, supervisor: o.supervisor, by: 'admin' });
+    dropStatus();
+    return json(res, r.busy ? 409 : r.ok ? 200 : 502, r.busy ? { error: r.output } : r);
+  }
+
+  async function demoRevoke({ req, res, m }) {
+    if (badOrigin(req, res)) return;
+    await revokeGrant(m[1], { ip: ipOf(req), by: 'console' }); // throws a 404 HttpError when there is no such grant; a database failure is a real 500
+    return json(res, 200, { ok: true });
+  }
+
+  // Remove every audit event (address, browser) recorded for one customer's link.
+  async function demoForget({ req, res, m }) {
+    if (badOrigin(req, res)) return;
+    const g = await store.grants.findById(m[1]);
+    if (!g) throw new HttpError(404, 'No such demo link');
+    if (isActive(g)) throw new HttpError(409, 'Revoke the link first; it is still active');
+    const removed = await store.audit.deleteForGrant(m[1]);
+    await store.grants.anonymize(m[1]); // the name on the grant goes too
+    audit({ ev: EVENTS.grantForgotten, ip: ipOf(req), removed }); // deliberately without the grant id
+    return json(res, 200, { ok: true, removed });
+  }
+
+  // method + path (an exact string or a pattern) -> handler. First match wins.
+  const routes = [
+    ['GET', '/api/session', ({ res, pw }) => json(res, 200, { passwordMode: pw })],
+    ['GET', '/api/audit', apiAudit],
+    ['GET', '/', ({ res }) => html(res, 200, readFileSync(join(here, 'index.html')))],
+    ['GET', '/api/apps', apiApps],
+    ['GET', /^\/api\/apps\/([\w-]+)\/logs$/, appLogs],
+    ['POST', /^\/api\/apps\/([\w-]+)\/(start|stop|restart)$/, appAction],
+    ['GET', '/api/demos', demosList],
+    ['POST', '/api/demos', demoCreate],
+    ['POST', /^\/api\/demos\/([\w-]+)\/reset$/, demoReset],
+    ['POST', /^\/api\/demos\/([a-f0-9]{8})\/revoke$/, demoRevoke],
+    ['POST', /^\/api\/demos\/([a-f0-9]{8})\/forget$/, demoForget],
+  ];
+  const matchRoute = (method, pathname) => {
+    for (const [verb, path, handler] of routes) {
+      if (verb !== method) continue;
+      const m = typeof path === 'string' ? (pathname === path ? [] : null) : pathname.match(path);
+      if (m) return { handler, m };
+    }
+    return null;
+  };
+
   async function handle(req, res) {
     const host = (req.headers.host || '').split(':')[0].toLowerCase();
     if (!o.allowedHosts.includes(host)) { res.writeHead(403); return res.end('Forbidden'); }
@@ -182,137 +355,10 @@ export async function createConsole(opts = {}) {
       try { await store.meta.get('health-check'); return json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); return json(res, 503, { ok: false }); }
     }
     const pw = await passwordMode();
+    if (!(await authenticate(req, res, url, pw))) return;
 
-    if (pw) {
-      if (url.pathname === '/login' && req.method === 'GET') {
-        if (await sessionOk(req)) { res.writeHead(302, { location: '/' }); return res.end(); }
-        return html(res, 200, readFileSync(join(here, 'login.html')));
-      }
-      if (url.pathname === '/login' && req.method === 'POST') return login(req, res);
-      if (url.pathname === '/logout' && req.method === 'POST') {
-        if (badOrigin(req, res)) return;
-        const id = readCookie(req, COOKIE); if (id) await store.sessions.delete(hashSessionId(id));
-        audit({ ev: EVENTS.adminLogout, ip: clientIp(req, trusted) });
-        res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': `${COOKIE}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0${secure}`, ...securityHeaders });
-        return res.end('{"ok":true}');
-      }
-      if (!(await sessionOk(req))) {
-        if (url.pathname.startsWith('/api/')) return json(res, 401, { error: 'sign in required' });
-        res.writeHead(302, { location: '/login' }); return res.end();
-      }
-    } else {
-      if (url.pathname === '/' && url.searchParams.get('t')) {
-        if (!safeEq(url.searchParams.get('t'), launchToken)) { res.writeHead(403); return res.end('Invalid token'); }
-        res.writeHead(302, { 'set-cookie': `${COOKIE}=${launchToken}; HttpOnly; SameSite=Strict; Path=/${secure}`, location: '/' });
-        return res.end();
-      }
-      if (!safeEq(readCookie(req, COOKIE), launchToken)) { res.writeHead(401, { 'content-type': 'text/plain' }); return res.end('Unauthorized. Open the full URL printed in the terminal where the console was started.'); }
-    }
-
-    if (req.method === 'GET' && url.pathname === '/api/session') return json(res, 200, { passwordMode: pw });
-    // Read-only activity feed. Only a fixed set of fields leaves the server (never a token, hash or session id), and the
-    // page shows them as plain text because address, browser and customer name can come from outside.
-    if (req.method === 'GET' && url.pathname === '/api/audit') {
-      const kind = url.searchParams.get('kind') || 'all';
-      const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 300);
-      const keep = {
-        all: () => true,
-        admin: (e) => isAdminEvent(e.ev),
-        demos: (e) => !isAdminEvent(e.ev),
-        problems: (e) => e.ev === EVENTS.adminLoginFailed || e.ev === EVENTS.denied || e.ev === EVENTS.adminActionRefused,
-      }[kind];
-      if (!keep) return json(res, 400, { error: 'unknown filter' });
-      const rows = (await store.audit.list(1000)).filter((e) => keep(e)).slice(0, limit)
-        .map((e) => ({ t: e.t, ev: e.ev, app: e.app, grant: e.grant, ip: e.ip, ua: typeof e.ua === 'string' ? e.ua.slice(0, 120) : undefined,
-          why: e.why, via: e.via, by: e.by, customer: e.customer }));
-      return json(res, 200, { events: rows });
-    }
-    if (req.method === 'GET' && url.pathname === '/') return html(res, 200, readFileSync(join(here, 'index.html')));
-
-    if (req.method === 'GET' && url.pathname === '/api/apps') {
-      const { rows, statusError } = await statusRows();
-      return json(res, 200, registry.apps.filter((a) => !a.hidden).map((a) => ({
-        id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note,
-        processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional,
-          ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
-      })), statusError ? { 'x-status-error': statusError } : {});
-    }
-
-    let m;
-    if (req.method === 'GET' && (m = url.pathname.match(/^\/api\/apps\/([\w-]+)\/logs$/))) {
-      const app = registry.apps.find((a) => a.id === m[1]);
-      const proc = app?.processes.find((p) => p.name === url.searchParams.get('proc'));
-      if (!proc) return json(res, 404, { error: 'unknown app/process' });
-      return json(res, 200, { log: maskSecrets(tail(join(dataDir, 'logs', `${app.id}-${proc.name}.log`))) });
-    }
-
-    if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/apps\/([\w-]+)\/(start|stop|restart)$/))) {
-      if (!originOk(req)) { audit({ ev: EVENTS.adminActionRefused, app: m[1], why: 'bad-origin', ip: clientIp(req, trusted) }); return json(res, 403, { error: 'bad origin' }); }
-      const app = registry.apps.find((a) => a.id === m[1]);
-      if (!app) return json(res, 404, { error: 'unknown app' });
-      const only = url.searchParams.get('proc');
-      if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
-      if (busy.has(app.id)) { audit({ ev: EVENTS.adminActionRefused, app: app.id, why: 'busy', ip: clientIp(req, trusted) }); return json(res, 409, { error: `${app.id} is busy with another action` }); }
-      busy.add(app.id);
-      audit({ ev: 'admin-app-' + m[2], app: app.id, ip: clientIp(req, trusted), ...(only ? { proc: only } : {}) });
-      try {
-        // start/restart can legitimately wait up to 60 s per process for the app to answer
-        const r = await o.supervisor([m[2], app.id, ...(only ? [`--only=${only}`] : [])], m[2] === 'stop' ? 2 * MINUTE : 5 * MINUTE);
-        if (!r.ok) logger.warn('supervisor command failed', { action: m[2], app: app.id, timedOut: !!r.timedOut });
-        return json(res, r.ok ? 200 : 502, r);
-      } finally { busy.delete(app.id); dropStatus(); }
-    }
-
-    if (req.method === 'GET' && url.pathname === '/api/demos') {
-      const gatewayUp = await portInUse(o.gatewayPort);
-      const { rows } = await statusRows();
-      const grantList = await loadGrants();
-      const products = await Promise.all(Object.entries(demoApps()).map(async ([product, a]) => ({
-        product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed),
-        canReset: !!a.reset && !a.perLink, resetting: !!a.reset && !a.perLink && await isResetting(store, product), lastReset: a.reset && !a.perLink ? await lastResetAt(store, product) : null,
-        perLink: !!a.perLink, seats: a.perLink?.max ?? 0,
-        ...(a.perLink ? copySummary(await listInstances(store, product)) : { copies: 0, stuck: 0, copyList: [] }),
-        inUse: a.reset && !a.perLink ? productState(grantList, product).busy : 0, // opened links that have not ended
-        accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
-      })));
-      const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
-      return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
-    }
-    if (req.method === 'POST' && url.pathname === '/api/demos') {
-      if (badOrigin(req, res)) return;
-      const b = JSON.parse((await readBody(req)) || '{}'); // SyntaxError -> 400, too large -> 413 (see toResponse)
-      if (!isPlainObject(b)) throw new HttpError(400, 'Expected a JSON object');
-      const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock }, { ip: clientIp(req, trusted), by: 'console' });
-      return json(res, 200, { grant: publicGrant(grant), link });
-    }
-    if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([\w-]+)\/reset$/))) {
-      if (badOrigin(req, res)) return;
-      const product = m[1], app = demoApps()[product];
-      if (!app?.reset || app.perLink) throw new HttpError(404, 'That demo cannot be reset');
-      const b = JSON.parse((await readBody(req)) || '{}');
-      const inUse = productState(await loadGrants(), product).busy;
-      if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });
-      audit({ ev: EVENTS.demoResetRequested, app: product, forced: !!inUse, ip: clientIp(req, trusted) });
-      const r = await runReset({ store, product, app, supervisor: o.supervisor, by: 'admin' });
-      dropStatus();
-      return json(res, r.busy ? 409 : r.ok ? 200 : 502, r.busy ? { error: r.output } : r);
-    }
-    if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/revoke$/))) {
-      if (badOrigin(req, res)) return;
-      await revokeGrant(m[1], { ip: clientIp(req, trusted), by: 'console' }); // throws a 404 HttpError when there is no such grant; a database failure is a real 500
-      return json(res, 200, { ok: true });
-    }
-
-    if (req.method === 'POST' && (m = url.pathname.match(/^\/api\/demos\/([a-f0-9]{8})\/forget$/))) { // remove every audit event (address, browser) recorded for one customer's link
-      if (badOrigin(req, res)) return;
-      const g = await store.grants.findById(m[1]);
-      if (!g) throw new HttpError(404, 'No such demo link');
-      if (isActive(g)) throw new HttpError(409, 'Revoke the link first; it is still active');
-      const removed = await store.audit.deleteForGrant(m[1]);
-      await store.grants.anonymize(m[1]); // the name on the grant goes too
-      audit({ ev: EVENTS.grantForgotten, ip: clientIp(req, trusted), removed }); // deliberately without the grant id
-      return json(res, 200, { ok: true, removed });
-    }
+    const hit = matchRoute(req.method, url.pathname);
+    if (hit) return hit.handler({ req, res, url, m: hit.m, pw });
 
     const known = url.pathname === '/' || /^\/api\/(session|audit|apps|demos)(\/|$)/.test(url.pathname) || url.pathname === '/login' || url.pathname === '/logout';
     if (known && req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST' }); return res.end('Method not allowed'); }
