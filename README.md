@@ -47,7 +47,7 @@ The console backs up `data/dashboard.db` (links, audit log, admin password hash 
 See `deploy/README.md`: Docker Compose with Postgres, Caddy (automatic HTTPS) and optional app containers. Locally it still runs on SQLite with no Docker needed.
 
 ## Tests
-`npm test` (unit tests), `npm run lint`, `npm run test:e2e` (customer journeys; needs the demo instances running). With `TEST_DATABASE_URL=postgres://...` set, the same store tests also run against Postgres. CI runs everything on Windows and Linux.
+`npm test` (unit tests), `npm run lint`, `npm run test:browser` (real Chrome: console loads, create a link, a customer opens it, revoke; uses a stand-in demo app, runs in CI), `npm run test:e2e` (the real demo apps; needs them running, owner's PC only). With `TEST_DATABASE_URL=postgres://...` set, the same store tests also run against Postgres. CI runs everything on Windows and Linux.
 
 ## Demo gateway
 See `demo-gateway/README.md`. Ready now: `imageapp`, `airfinder`, `crm`, `claudeworkspace`, `claudeos`, `rmm` (each runs as its own isolated demo instance).
