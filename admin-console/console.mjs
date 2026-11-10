@@ -25,6 +25,7 @@ import { EVENTS } from '../lib/events.mjs';
 import { num, createSerialLock, fireAndForget, maskSecrets, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { createStatusCache } from './status-cache.mjs';
+import { assertSafeToListen } from './listen-safety.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
 import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
@@ -36,7 +37,6 @@ const COOKIE_BASE = 'pd_session';
 const isAdminEvent = (ev) => ev.startsWith('admin-') || ev === EVENTS.grantCreated || ev === EVENTS.grantRevoked;
 const isPlainObject = (b) => !!b && typeof b === 'object' && !Array.isArray(b);
 const LOGIN_WINDOW_MS = 15 * MINUTE; // the window for counting sign-in attempts
-const LOOPBACK = new Set(['127.0.0.1', 'localhost', '::1']);
 
 const defaultSupervisor = runSupervisor;
 
@@ -90,18 +90,7 @@ export async function createConsole(opts = {}) {
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
 
   const passwordMode = async () => !!(await store.meta.get(ADMIN_KEYS.passwordHash));
-  if (!LOOPBACK.has(o.bindHost) && !(await passwordMode())) {
-    throw new Error(`Refusing to listen on ${o.bindHost} without a password. Run "npm run console:auth set-password" first.`);
-  }
-  // The hosted setup sets ADMIN_REQUIRE_TOTP=1: a password alone is not enough for a console on the internet.
-  if (!LOOPBACK.has(o.bindHost) && process.env.ADMIN_REQUIRE_TOTP === '1' && !(await store.meta.get(ADMIN_KEYS.totpSecret))) {
-    throw new Error(`Refusing to listen on ${o.bindHost} without 2-step codes. Run "npm run console:auth enable-totp" first (or unset ADMIN_REQUIRE_TOTP for a test).`);
-  }
-  // Beyond this machine the password and session cookie would cross the network: require HTTPS (a proxy in front terminates
-  // it), unless the operator explicitly accepts plain HTTP for a test on one machine.
-  if (!LOOPBACK.has(o.bindHost) && o.scheme !== 'https' && !o.allowHttp) {
-    throw new Error(`Refusing to serve the console over plain HTTP on ${o.bindHost}. Put it behind HTTPS (ADMIN_SCHEME=https), or set ADMIN_ALLOW_HTTP=1 for a test on one machine.`);
-  }
+  await assertSafeToListen(o, store);
 
   // Scripts run only if they carry this response's random nonce, so injected markup cannot execute. (Styles stay inline: far lower risk.)
   const csp = (script) => `default-src 'self'; img-src 'self' data:; style-src 'unsafe-inline'; script-src ${script}; frame-ancestors 'none'; form-action 'self'; base-uri 'none'`;
