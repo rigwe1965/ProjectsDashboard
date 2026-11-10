@@ -2,7 +2,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const get = (port, path) => new Promise((resolve) => {
@@ -18,5 +19,31 @@ test('showcase server: a malformed URL gets 400 and the server keeps running', a
     assert.equal(await get(port, '/%E0%A4%A'), 400);
     assert.equal(await get(port, '/nope.html'), 404);
     assert.equal(await get(port, '/../package.json'), 404);
+  } finally { child.kill(); }
+});
+
+test('showcase caching: the stylesheet is named by its content hash and cached for a year; pages are always re-checked', async () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
+  const port = 43000 + Math.floor(Math.random() * 2000);
+  const child = spawn(process.execPath, [fileURLToPath(new URL('../../showcase/serve.mjs', import.meta.url))], { env: { ...process.env, SHOWCASE_PORT: String(port) }, stdio: 'ignore' });
+  const fetchFull = (path) => new Promise((resolve) => {
+    const r = http.request({ host: '127.0.0.1', port, path, method: 'GET' }, (res) => { let b = ''; res.setEncoding('utf8'); res.on('data', (c) => { b += c; }); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: b })); });
+    r.on('error', () => resolve({ status: 0, headers: {}, body: '' })); r.end();
+  });
+  try {
+    for (let i = 0; i < 30 && !(await get(port, '/x')); i++) await new Promise((r) => setTimeout(r, 100));
+    for (const page of ['/', '/crm/']) {
+      const html = await fetchFull(page);
+      assert.equal(html.status, 200);
+      assert.equal(html.headers['cache-control'], 'no-cache', 'a page is checked every time');
+      const name = html.body.match(/href="(?:\.\.\/|\/)?(style\.[0-9a-f]{10}\.css)"/)?.[1];
+      assert.ok(name, `${page} links a hashed stylesheet`);
+      const css = await fetchFull('/' + name);
+      assert.equal(css.status, 200);
+      assert.equal(css.headers['cache-control'], 'public, max-age=31536000, immutable');
+      assert.match(css.headers['content-type'], /text\/css/);
+      assert.equal(name, `style.${createHash('sha256').update(css.body).digest('hex').slice(0, 10)}.css`, 'the name is the hash of the content');
+    }
+    assert.equal(await get(port, '/style.css'), 404, 'there is no unhashed stylesheet to go stale');
   } finally { child.kill(); }
 });

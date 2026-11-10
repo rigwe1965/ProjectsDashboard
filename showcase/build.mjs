@@ -1,6 +1,7 @@
 // Static site generator: reads site.json + products.json, writes showcase/dist/.
 // Output is plain HTML/CSS (inline SVG, no scripts) and has no links to any running app.
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -259,7 +260,7 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}">
-<link rel="icon" href="data:,"><link rel="stylesheet" href="${root}style.css"><style>:root{--accent:${esc(accent)}}</style></head>
+<link rel="icon" href="data:,"><link rel="stylesheet" href="${root}${cssFile}"><style>:root{--accent:${esc(accent)}}</style></head>
 <body><div class="wrap">
 <div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}">Request a demo</a></div>
 ${body}
@@ -268,9 +269,12 @@ ${body}
 
 const contactBlock = () => `<section id="contact"><h2>Get in touch</h2><p class="who">${site.contactEmail ? `Email <a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a> and tell us which product you're interested in.` : 'Contact details coming soon.'}</p></section>`;
 
+const cssFile = `style.${createHash('sha256').update(css).digest('hex').slice(0, 10)}.css`;
 rmSync(dist, { recursive: true, force: true });
 mkdirSync(dist, { recursive: true });
-writeFileSync(join(dist, 'style.css'), css);
+// The stylesheet's name carries a hash of its content, so it can be cached for a year (immutable): an edit changes the name, and the pages
+// (which are not cached without checking) point visitors at the new one. See showcase/serve.mjs and deploy/Caddyfile for the headers.
+writeFileSync(join(dist, cssFile), css);
 
 // Home: the tagline, then one colour panel per product. The panel under the pointer opens to show its pitch.
 writeFileSync(join(dist, 'index.html'), shell(`${site.brand}: ${site.tagline}`, site.intro, '#2b4acb', `

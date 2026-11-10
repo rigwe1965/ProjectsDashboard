@@ -2,7 +2,7 @@
 import http from 'node:http';
 import { readFileSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, normalize, extname, sep } from 'node:path';
+import { dirname, join, normalize, extname, sep, basename } from 'node:path';
 import { ports } from '../lib/config.mjs';
 
 const dist = join(dirname(fileURLToPath(import.meta.url)), 'dist');
@@ -21,7 +21,9 @@ function serve(req, res) {
   } catch { res.writeHead(404); return res.end('Not found'); }
   // The built site is plain HTML and CSS with no scripts, so a strict policy costs nothing. When the site is
   // hosted elsewhere, set the same headers at the web server (see deploy/ in Stage 4).
-  res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'x-content-type-options': 'nosniff',
+  // The stylesheet's name has a hash of its content (showcase/build.mjs), so it is cached for a year; everything else is checked every time.
+  const cache = /^style\.[0-9a-f]{10}\.css$/.test(basename(file)) ? 'public, max-age=31536000, immutable' : 'no-cache';
+  res.writeHead(200, { 'content-type': types[extname(file)] || 'application/octet-stream', 'x-content-type-options': 'nosniff', 'cache-control': cache,
     'content-security-policy': "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
     'x-frame-options': 'DENY', 'referrer-policy': 'strict-origin-when-cross-origin', 'permissions-policy': 'camera=(), microphone=(), geolocation=()' });
   res.end(body);
