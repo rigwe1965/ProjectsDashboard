@@ -7,6 +7,8 @@ import { logger, installProcessHandlers } from '../lib/log.mjs';
 import { writeFileSync } from 'node:fs';
 import { skipIfRunning } from '../lib/util.mjs';
 import { runBackup, newestBackupAge } from '../lib/backup.mjs';
+import { makeWebhookSender, createAlerter, runChecks } from '../lib/alerts.mjs';
+import { runSupervisor } from '../lib/run-supervisor.mjs';
 
 // 2-step secret at rest: encrypt it when ADMIN_DATA_KEY is set; say so when it is not.
 if (process.env.ADMIN_DATA_KEY && !dataKey()) { logger.error('ADMIN_DATA_KEY must be 64 hex characters (npm run console:auth -- gen-key)'); process.exit(1); }
@@ -46,6 +48,23 @@ const backupNow = skipIfRunning(async () => {
 }, (err) => logger.error('database backup failed', { err }));
 if (newestBackupAge() > 20 * 3600e3) backupNow();
 setInterval(backupNow, 24 * 3600e3).unref();
+
+// Alerts (only when ALERT_WEBHOOK_URL is set): every minute, check that the database answers and that every process the supervisor
+// started still responds; message the webhook after two failed checks in a row, and again when it is back.
+if (process.env.ALERT_WEBHOOK_URL) {
+  let send;
+  try { send = makeWebhookSender(process.env.ALERT_WEBHOOK_URL); } catch (err) { logger.error('alerts are off', { err }); }
+  if (send) {
+    const alerter = createAlerter({ send, failAfter: Number(process.env.ALERT_FAIL_AFTER) || 2 });
+    const st = await getStore();
+    const check = skipIfRunning(() => runChecks({
+      alerter, records: () => st.processState.all(), dbCheck: () => st.meta.get('alert_probe'),
+      status: async () => { const r = await runSupervisor(['status', '--json'], 30000); return JSON.parse(r.output); },
+    }), (err) => logger.warn('alert check failed', { err }));
+    setInterval(check, Math.max(15, Number(process.env.ALERT_CHECK_SECONDS) || 60) * 1000).unref();
+    logger.info('alerts are on', { webhookHost: send.host });
+  }
+}
 
 let stopping = false;
 async function shutdown(sig) {
