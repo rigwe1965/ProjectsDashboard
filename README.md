@@ -37,6 +37,9 @@ Logs go to `data/logs/`; PIDs are tracked in the database (`data/dashboard.db`, 
 
 It shows each app's processes with status, Start/Stop/Restart, Open and Log buttons. Closing the console never stops the apps.
 
+## Backup
+The console backs up `data/dashboard.db` (links, audit log, admin password hash and 2-step secret) at start-up when the newest copy is over 20 hours old, and then every 24 hours, into `data/backups/` (14 newest kept). `npm run backup` makes one now. Set `DASHBOARD_BACKUP_DIR` to a folder on another drive or a synced folder, and `DASHBOARD_BACKUP_KEEP` to change how many are kept. To restore: stop the console and gateway, copy a backup over `data/dashboard.db`, delete `data/dashboard.db-wal` and `data/dashboard.db-shm`, start again. The backup does not include `ADMIN_DATA_KEY` (it lives in the console's environment): keep that value somewhere safe too, or the stored 2-step secret cannot be decrypted after a restore (then run `disable-totp` and `enable-totp`). With Postgres, back up with `pg_dump` or your provider's tools.
+
 ## Showcase
 `npm run showcase` builds the static public site from `showcase/products.json` and previews it at http://127.0.0.1:4200/.
 
