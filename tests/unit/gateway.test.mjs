@@ -551,6 +551,18 @@ test("a real WebSocket answer passes, minus the gateway's cookie names and any D
   assert.deepEqual(headers['set-cookie'], ['theme=dark; Path=/', 'plain=1; Path=/']);
 });
 
+test('a signed-in link is limited to requestsPerMinute, and another link is not affected (audit F-03)', async () => {
+  const lim = await createGateway({ port: 0, baseHost: 'localhost', requestsPerMinute: 3, redeemPerMinute: 1000 });
+  const port = await lim.listen();
+  try {
+    const a = await newGrant(), b = await newGrant();
+    const codes = [];
+    for (let i = 0; i < 5; i++) codes.push((await request({ port, path: '/', headers: { cookie: a.cookie } })).status);
+    assert.deepEqual(codes, [200, 200, 200, 429, 429]);
+    assert.equal((await request({ port, path: '/', headers: { cookie: b.cookie } })).status, 200, 'a different link has its own count');
+  } finally { await lim.close(); }
+});
+
 test('requests with no valid session are limited per address; a valid session is never counted', async () => {
   const lim = await createGateway({ port: 0, baseHost: 'localhost', noSessionPerMinute: 3, redeemPerMinute: 1000 });
   const port = await lim.listen();

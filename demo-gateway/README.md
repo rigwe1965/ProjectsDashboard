@@ -32,6 +32,7 @@ npm run demo -- revoke <id>
 | `GATEWAY_MAX_BODY_MB` | 50 | largest upload accepted (413 above it) |
 | `GATEWAY_WS_RECHECK_MS` | 5000 | how often open WebSockets are re-validated |
 | `GATEWAY_MAX_WS_PER_GRANT` | 20 | open WebSockets allowed per demo link |
+| `GATEWAY_REQUESTS_PER_MINUTE` | 600 | requests per demo link per minute before a 429 (0 = no limit); caps how fast a link can drive an app that calls a paid API |
 | `GATEWAY_REDEEM_PER_MINUTE` | 20 | link opens allowed per IP per minute |
 | `GATEWAY_REDEEM_FAIL_LIMIT` | 10 | bad links per IP per 10 minutes before it is refused |
 | `AUDIT_RETENTION_DAYS` | 90 | how long customer audit events are kept |

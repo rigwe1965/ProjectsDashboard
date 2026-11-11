@@ -53,6 +53,7 @@ export async function createGateway(opts = {}) {
     redeemPerMinute: num(process.env.GATEWAY_REDEEM_PER_MINUTE, 20), // link opens per IP per minute
     redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
     noSessionPerMinute: num(process.env.GATEWAY_NO_SESSION_PER_MINUTE, 120), // requests per IP per minute without a valid session before a 429
+    requestsPerMinute: num(process.env.GATEWAY_REQUESTS_PER_MINUTE, 600), // requests per link per minute (0 = no limit); a page load is often 50-150
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     store: null, // the store to use; null = the process-wide one (lib/store/index.mjs)
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
@@ -92,6 +93,17 @@ export async function createGateway(opts = {}) {
   };
   const missTimer = setInterval(() => { const cut = Date.now() - MINUTE; for (const [k, v] of misses) if (v.t < cut) misses.delete(k); }, MINUTE);
   missTimer.unref();
+  // A signed-in customer's requests per minute, per link (in memory). Demo apps may call a paid API on the owner's account (audit F-03),
+  // and nothing else limits how fast a valid link can be used. 0 turns the limit off.
+  const used = new Map(); // grant id -> { n, t }
+  const tooManyRequests = (id) => {
+    if (!o.requestsPerMinute) return false;
+    const now = Date.now(), b = used.get(id);
+    if (!b || now - b.t > MINUTE) { used.set(id, { n: 1, t: now }); return false; }
+    return ++b.n > o.requestsPerMinute;
+  };
+  const usedTimer = setInterval(() => { const cut = Date.now() - MINUTE; for (const [k, v] of used) if (v.t < cut) used.delete(k); }, MINUTE);
+  usedTimer.unref();
   const wsCounts = new Map(); // grant id -> open sockets
   const wsClosers = new Set();
   const releaseWs = (id) => { const left = (wsCounts.get(id) || 1) - 1; if (left > 0) wsCounts.set(id, left); else wsCounts.delete(id); };
@@ -166,6 +178,7 @@ export async function createGateway(opts = {}) {
     }
 
     // 3. Proxy to the demo instance (never forward the gateway cookie)
+    if (tooManyRequests(g.id)) return tooMany(res, 60);
     if (DEV_ONLY_PATH.test(url.pathname)) return page(res, 404, 'Not found', 'That page does not exist.');
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
     let slot = null;
@@ -210,7 +223,7 @@ export async function createGateway(opts = {}) {
       server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
     }),
     close: async () => {
-      clearInterval(pruneTimer); clearInterval(missTimer);
+      clearInterval(pruneTimer); clearInterval(missTimer); clearInterval(usedTimer);
       for (const c of [...wsClosers]) c();
       agent.destroy();
       await new Promise((r) => { server.close(r); server.closeAllConnections?.(); });
