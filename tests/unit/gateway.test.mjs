@@ -513,6 +513,7 @@ test('/_pd/tls-ask approves only real demo addresses, and only for direct (unpro
   assert.equal(await ask('toy.evil.example'), 404, 'wrong base host');
   assert.equal(await ask('localhost'), 404, 'the bare base host');
   assert.equal(await ask(''), 404);
+  for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) assert.equal(await ask(name + '.localhost'), 404, name + ' is not a product (audit F-13)');
   assert.equal(await ask('toy.localhost', { 'x-forwarded-for': '9.9.9.9' }), 404, 'a public request that came through the proxy');
 });
 

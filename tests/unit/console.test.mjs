@@ -99,6 +99,7 @@ test('demo links: created with limits through the API, listed with use counts', 
   assert.match(made.link, /\/d\/[a-f0-9]{48}$/);
   const bad = await post(port, '/api/demos', { customer: 'Acme', app: 'toy', maxUses: 0 }, { cookie });
   assert.equal(bad.status, 400);
+  for (const name of ['constructor', '__proto__', 'toString']) assert.equal((await post(port, '/api/demos', { customer: 'Acme', app: name, hours: 1 }, { cookie })).status, 400, name + ' is not a product (audit F-13)');
   const list = JSON.parse((await req(port, { path: '/api/demos', headers: { cookie } })).body);
   assert.equal(list.grants.find((g) => g.id === made.grant.id).uses, 0);
 });

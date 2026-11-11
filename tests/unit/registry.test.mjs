@@ -48,3 +48,11 @@ test('the real registry never runs `python -m <module>` with the machine\'s bare
   const bare = loadRegistry().apps.flatMap((a) => a.processes.map((p) => ({ id: `${a.id}/${p.name}`, cmd: String(p.cmd || '') }))).filter((x) => /^python(\.exe)?\s+-m\s/.test(x.cmd));
   assert.deepEqual(bare.map((x) => x.id), [], 'use the app\'s own venv interpreter, e.g. the dashboard folder venv python.exe -m streamlit ...');
 });
+
+test('demoApps() has no prototype, so names like constructor and __proto__ are not products (audit F-13)', async () => {
+  const { demoApps } = await import('../../lib/registry.mjs');
+  const apps = demoApps();
+  assert.equal(Object.getPrototypeOf(apps), null);
+  for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) assert.equal(apps[name], undefined, name);
+  assert.ok(Object.keys(apps).length > 0, 'the real products are still there');
+});
