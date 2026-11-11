@@ -11,7 +11,7 @@ import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort, upgradeRespo
 // ctx: o (options), trusted (proxy addresses), resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, audit, metrics, and
 // `ws`, the gateway's record of open sockets: { counts (grant id -> open sockets), closers (a set of functions that close each socket),
 // release(grant id) (give back one slot) }. Returns the handler for the server's 'upgrade' event.
-export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws, audit, metrics }) {
+export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws, audit, metrics, activity }) {
   const { counts: wsCounts, closers: wsClosers, release: releaseWs } = ws;
   const rejectUpgrade = (socket, code, text) => { socket.end(`HTTP/1.1 ${code} ${text}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`); };
 
@@ -46,11 +46,12 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
     }
     const { host: upHost, port } = upstreamPort(target, path, slot);
     const upstream = net.connect({ host: upHost, port });
-    let connected = false, closed = false;
+    let connected = false, closed = false, openedAt = 0;
     const close = (why) => {
       if (closed) return; closed = true;
       clearInterval(timer); wsClosers.delete(close);
       releaseWs(g.id);
+      if (openedAt) activity?.socketClosed(g.id, Date.now() - openedAt); // how long this socket was open, for the link's activity
       socket.destroy(); upstream.destroy();
       if (why) audit({ ev: EVENTS.wsClosed, grant: g.id, app: slug, ip, why });
     };
@@ -63,6 +64,7 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
         const cur = await grantFor(req); fails = 0;
         if (slot !== null) instances.touch(slug, slot); // an open socket counts as use
         if (!isActive(cur) || cur.app !== slug) close('grant-ended');
+        else if (openedAt) activity?.touch(g.id); // an open socket is the customer still being there
       } catch (err) {
         logger.warn('ws grant re-check failed', { grant: g.id, fails: fails + 1, err });
         if (++fails >= 3) close('recheck-failed');
@@ -108,6 +110,7 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
         if (buf.length > end + 4) socket.write(buf.subarray(end + 4));
         socket.pipe(upstream); upstream.pipe(socket); upstream.resume();
         metrics.inc('pd_gateway_websockets_total');
+        openedAt = Date.now();
         audit({ ev: EVENTS.wsOpen, grant: g.id, app: slug, ip });
       };
       upstream.on('data', onData);

@@ -613,3 +613,32 @@ test('requests with no valid session are limited per address; a valid session is
     assert.notEqual(opened.status, 429, 'link redemption has its own limits and is not counted here');
   } finally { await lim.close(); }
 });
+
+// ---- per-link activity (analytics plan step 2)
+test('a link\'s forwarded requests are counted per page; refused ones, assets and the link opening are not; the query string is never kept', async () => {
+  const g = await newGrant();
+  await request({ path: '/crm/contacts/42?email=a@b.example', headers: { cookie: g.cookie } });
+  await request({ path: '/crm/contacts', headers: { cookie: g.cookie } });
+  await request({ path: '/static/app.js', headers: { cookie: g.cookie } });
+  await request({ path: '/crm/contacts' }); // no session: refused, not counted
+  await request({ host: 'hosty.localhost', path: '/x', headers: { cookie: g.cookie } }); // another product: refused, not counted
+  await gw.activity.flush();
+  const rows = await gw.store.activity.forGrant(g.id);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].requests, 2);
+  assert.deepEqual(rows[0].topPaths, [{ path: '/crm/contacts', count: 2 }]);
+  assert.doesNotMatch(JSON.stringify(rows), /a@b\.example|email/);
+});
+
+test('an open WebSocket shows up as activity on its link', async () => {
+  const g = await newGrant();
+  const { ws } = await wsOpen({ cookie: g.cookie });
+  await new Promise((r) => setTimeout(r, 350)); // a few re-checks (wsRecheckMs is 100)
+  ws.close(); await waitClose(ws);
+  await new Promise((r) => setTimeout(r, 100));
+  await gw.activity.flush();
+  const rows = await gw.store.activity.forGrant(g.id);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].requests, 0, 'a socket is activity, not a page view');
+  assert.ok(rows[0].lastAt, 'it has a last-seen time');
+});

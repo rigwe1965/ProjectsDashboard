@@ -26,6 +26,7 @@ import { createRedeemHandler } from './redeem.mjs';
 import { createUpgradeHandler } from './websocket.mjs';
 import { createProxy } from './proxy.mjs';
 import { requestPath } from './proxy-headers.mjs';
+import { createActivity } from './activity.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { hashSessionId } from '../lib/auth.mjs';
 
@@ -56,6 +57,7 @@ export async function createGateway(opts = {}) {
     noSessionPerMinute: num(process.env.GATEWAY_NO_SESSION_PER_MINUTE, 120), // requests per IP per minute without a valid session before a 429
     requestsPerMinute: num(process.env.GATEWAY_REQUESTS_PER_MINUTE, 600), // requests per link per minute (0 = no limit); a page load is often 50-150
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
+    activityFlushMs: num(process.env.GATEWAY_ACTIVITY_FLUSH_SECONDS, 30) * 1000, // how often the per-link activity counts are written
     store: null, // the store to use; null = the process-wide one (lib/store/index.mjs)
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
     ...opts,
@@ -157,9 +159,11 @@ export async function createGateway(opts = {}) {
     const target = slug && !slug.includes('.') ? demoApps()[slug] : null;
     return { hostHdr, slug, target };
   }
+  const activity = createActivity({ store, flushMs: o.activityFlushMs }); // what each link did, written in batches (activity.mjs)
+  activity.start();
   const { readyCopy, forward } = createProxy({ o, trusted, agent, metrics, instances, page, https });
   const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages: { page, tooMany }, cookies: { COOKIE, DEV_COOKIE, https } });
-  const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws: { counts: wsCounts, closers: wsClosers, release: releaseWs }, audit, metrics });
+  const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws: { counts: wsCounts, closers: wsClosers, release: releaseWs }, audit, metrics, activity });
 
   async function handle(req, res) {
     const { hostHdr, slug, target } = resolveRequest(req);
@@ -191,6 +195,7 @@ export async function createGateway(opts = {}) {
       if (!copy) return; // a page saying why the copy is not ready has been sent
       slot = copy.slot;
     }
+    activity.record(g.id, path); // only requests that really go to the demo are counted (memory only, no waiting)
     return forward(req, res, { path, slug, slot, g, target, hostHdr });
   }
 
@@ -215,7 +220,7 @@ export async function createGateway(opts = {}) {
   });
 
   return {
-    server, baseHost, store, metrics,
+    server, baseHost, store, metrics, activity,
     // One pass of the automatic reset: demos nobody can still be using go back to their seeded state (server.mjs runs it on a timer).
     resetSweep: () => resetSweep({ store, apps: demoApps(), supervisor: o.supervisor }),
     // Private copies (one per link): stop those whose link ended or that sit unused; remove leftovers after a restart (server.mjs runs these).
@@ -228,7 +233,8 @@ export async function createGateway(opts = {}) {
     }),
     close: async () => {
       clearInterval(pruneTimer); clearInterval(missTimer); clearInterval(usedTimer);
-      for (const c of [...wsClosers]) c();
+      for (const c of [...wsClosers]) c(); // open sockets report their time here
+      await activity.stop(); // the last batch is written before the store is closed
       agent.destroy();
       await new Promise((r) => { server.close(r); server.closeAllConnections?.(); });
     },
