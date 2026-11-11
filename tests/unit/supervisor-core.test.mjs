@@ -68,3 +68,18 @@ test('reset of a demo that needs Docker checks the engine first, and stops nothi
   assert.deepEqual(calls, [], 'no step ran and nothing was spawned');
   assert.deepEqual(stopped, []);
 });
+
+test('reset: when the demo could not be stopped, no reset step runs (audit F-14)', async () => {
+  const ran = [];
+  const reg = { apps: [{ id: 'rs', name: 'Rs', path: '.', processes: [{ name: 'app', cmd: 'x', port: 1, health: '/' }], reset: { steps: [{ cmd: 'node -e "process.exit(0)"' }] } }] };
+  const stuck = { name: 'fake', startTime: () => 'T', startTimes: () => new Map(), listenerPid: () => 77, spawnApp: () => { ran.push('spawn'); return { exited: true }; }, killTree: async () => { ran.push('kill'); return false; } };
+  const recs = { rs: { app: { pid: 77, startTime: 'T', listenPid: 77, listenStartTime: 'T', port: 1 } } };
+  const st = { processState: { all: async () => structuredClone(recs), set: async () => {}, remove: async () => {} } };
+  const sup = createSupervisor({ registry: reg, store: st, driver: stuck, docker: {}, logDir });
+  const out = [], log = console.log; console.log = (...a) => out.push(a.join(' '));
+  try { await sup.reset(sup.getApp('rs')); } finally { console.log = log; }
+  assert.equal(sup.failed(), true);
+  assert.match(out.join('\n'), /could not be stopped, so the reset steps were not run/);
+  assert.ok(!out.join('\n').includes('Reset rs step'), 'no step started');
+  assert.ok(!ran.includes('spawn'), 'and the demo was not started again on top of it');
+});

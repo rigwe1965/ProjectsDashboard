@@ -200,3 +200,17 @@ test('supervisor/demo-reset-state.mjs: exit codes the host script relies on', as
   assert.equal(run('end', 'cli', 'maybe').status, 2);
   assert.equal(run('due', '../etc').status, 2, 'a product name is validated');
 });
+
+test('two resets of one demo cannot both begin, even when started at the same moment (audit F-14)', async () => {
+  const { beginReset, endReset } = await import('../../demo-gateway/reset.mjs');
+  for (const x of await store.grants.list()) if (x.app === 'rst' && !x.revoked) await grants.revokeGrant(x.id);
+  const starts = await Promise.all([beginReset(store, 'rst'), beginReset(store, 'rst'), beginReset(store, 'rst')]);
+  assert.equal(starts.filter(Boolean).length, 1, 'exactly one reset got the flag');
+  await endReset(store, 'rst', { ok: true, startedAt: starts.find(Boolean) });
+  assert.ok(await beginReset(store, 'rst'), 'once it ended, the next one can begin');
+  await endReset(store, 'rst', { ok: true });
+  // a flag left by a crashed reset (older than the stale limit) is taken over
+  await store.meta.set('demo_resetting:rst', new Date(Date.now() - 26 * 60 * 1000).toISOString());
+  assert.ok(await beginReset(store, 'rst'), 'a crashed reset does not block for ever');
+  await endReset(store, 'rst', { ok: true });
+});

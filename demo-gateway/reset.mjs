@@ -48,10 +48,11 @@ export function productState(grants, product, lastResetMs = 0) {
 // The two halves of a reset, shared by runReset (the supervisor runs the steps) and by the host-side script for container
 // deployments (deploy/reset-demos.sh does the steps with docker and calls these through supervisor/demo-reset-state.mjs).
 export async function beginReset(store, product) {
-  if (await isResetting(store, product)) return null;
+  // One statement claims the flag: the gateway's sweep and the console's Reset button are separate processes, and a read followed by a
+  // write would let both start the same reset (audit F-14). A flag older than RESET_STALE_MS is a crashed reset and can be taken over.
   const startedAt = new Date().toISOString();
-  await store.meta.set(resettingKey(product), startedAt);
-  return startedAt;
+  const claimed = await store.meta.claim(resettingKey(product), startedAt, new Date(Date.now() - RESET_STALE_MS).toISOString());
+  return claimed ? startedAt : null;
 }
 export async function endReset(store, product, { ok, startedAt, by = 'auto' }) {
   await store.meta.set(resettingKey(product), '');

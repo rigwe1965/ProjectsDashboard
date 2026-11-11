@@ -213,6 +213,8 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
     let wasRunning = false; // answering on its port counts; a stale record of a process that is gone does not
     for (const p of app.processes) if (!p.optional && await httpUp(p.port, p.health, p.host)) wasRunning = true;
     await stop(app);
+    // A process that could not be stopped is still using the data the steps are about to delete or replace: do not run them (audit F-14).
+    if (failed) { console.log(`${app.id}: it could not be stopped, so the reset steps were not run.`); return; }
     const fillStep = portRefs(app);
     let ok = true;
     for (const [i, st] of app.reset.steps.entries()) {

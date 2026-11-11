@@ -124,6 +124,19 @@ for (const f of factories) {
       await s.meta.set('k', 'one'); await s.meta.set('k', 'two'); await s.meta.set('n', 5);
       assert.equal(await s.meta.get('k'), 'two'); assert.equal(await s.meta.get('n'), '5');
     });
+
+    test('meta.claim takes a key only when it is absent, empty or older than the cutoff, and only one of several claims wins (audit F-14)', async () => {
+      const t = (n) => new Date(Date.UTC(2026, 0, 1, 0, n)).toISOString();
+      assert.equal(await s.meta.claim('c1', t(10), t(0)), true, 'absent: taken');
+      assert.equal(await s.meta.get('c1'), t(10));
+      assert.equal(await s.meta.claim('c1', t(11), t(0)), false, 'held and not stale: refused');
+      assert.equal(await s.meta.get('c1'), t(10), 'and the holder is unchanged');
+      assert.equal(await s.meta.claim('c1', t(12), t(10) + 'x'), true, 'older than the cutoff: taken over');
+      await s.meta.set('c1', '');
+      assert.equal(await s.meta.claim('c1', t(13), t(0)), true, 'empty (released): taken');
+      const results = await Promise.all([1, 2, 3, 4, 5].map((i) => s.meta.claim('c2', t(20 + i), t(0))));
+      assert.equal(results.filter(Boolean).length, 1, 'of several simultaneous claims exactly one wins');
+    });
   });
 }
 
