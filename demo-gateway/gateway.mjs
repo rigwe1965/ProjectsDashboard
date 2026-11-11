@@ -25,6 +25,7 @@ import { makePages, deniedRecord } from './pages.mjs';
 import { createRedeemHandler } from './redeem.mjs';
 import { createUpgradeHandler } from './websocket.mjs';
 import { createProxy } from './proxy.mjs';
+import { requestPath } from './proxy-headers.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { hashSessionId } from '../lib/auth.mjs';
 
@@ -162,6 +163,8 @@ export async function createGateway(opts = {}) {
   async function handle(req, res) {
     const { hostHdr, slug, target } = resolveRequest(req);
     if (!target) return page(res, 404, 'Not found', 'This demo address does not exist.');
+    const path = requestPath(req.url); // refuses "//x", "/\x" and bad %-escapes: what is checked is what the demo app would read
+    if (path === null) return page(res, 400, 'Bad request', 'That address is not valid.');
     const ip = clientIp(req, trusted);
     const url = new URL(req.url, `${o.scheme}://${hostHdr}`);
 
@@ -179,7 +182,7 @@ export async function createGateway(opts = {}) {
 
     // 3. Proxy to the demo instance (never forward the gateway cookie)
     if (tooManyRequests(g.id)) return tooMany(res, 60);
-    if (DEV_ONLY_PATH.test(url.pathname)) return page(res, 404, 'Not found', 'That page does not exist.');
+    if (DEV_ONLY_PATH.test(path)) return page(res, 404, 'Not found', 'That page does not exist.');
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
     let slot = null;
     if (target.perLink) {
@@ -187,7 +190,7 @@ export async function createGateway(opts = {}) {
       if (!copy) return; // a page saying why the copy is not ready has been sent
       slot = copy.slot;
     }
-    return forward(req, res, { url, slug, slot, g, target, hostHdr });
+    return forward(req, res, { path, slug, slot, g, target, hostHdr });
   }
 
   const server = http.createServer({ maxHeaderSize: 16384, headersTimeout: 20000 }, (req, res) => {

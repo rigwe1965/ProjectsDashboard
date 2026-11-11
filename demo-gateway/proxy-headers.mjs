@@ -9,6 +9,16 @@ export const OURS = /^\s*(__Host-)?pd_(demo|dev)=/i;
 export const SPOOFABLE = new Set(['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip', 'x-cluster-client-ip', 'fastly-client-ip', 'x-original-forwarded-for']);
 export const HOP = new Set(['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailers', 'transfer-encoding', 'upgrade']);
 
+// The path of a request target, decoded and with dot segments resolved, or null when the target is not one the gateway will forward (audit F-12).
+// It must be origin-form: exactly one leading "/". A target like "//__nextjs_x" reads as a host name to the URL parser (so a path check passes)
+// while the demo app receives the raw string; a backslash is read as "/" by the parser and not by the app. The block lists and the demoRoutes
+// choice work on this decoded path, so "/%5F_nextjs_x" and "/a/../__nextjs_x" are treated as the pages they are.
+export function requestPath(rawUrl) {
+  const raw = String(rawUrl ?? '');
+  if (!/^\/(?![/\\])/.test(raw) || raw.includes('\\')) return null;
+  try { return decodeURIComponent(new URL(raw, 'http://x').pathname); } catch { return null; }
+}
+
 // A demo instance may have several processes (e.g. customer site + admin portal); registry demoRoutes maps path prefixes to them.
 // Returns { host, port }: the demo instance is on this machine by default, or on another host (a container) when the
 // registry process has a "host".

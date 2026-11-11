@@ -6,7 +6,7 @@ import { clientIp } from '../lib/http-util.mjs';
 import { EVENTS } from '../lib/events.mjs';
 import { logger } from '../lib/log.mjs';
 import { deniedRecord } from './pages.mjs';
-import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort, upgradeResponseHead } from './proxy-headers.mjs';
+import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort, upgradeResponseHead, requestPath } from './proxy-headers.mjs';
 
 // ctx: o (options), trusted (proxy addresses), resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, audit, metrics, and
 // `ws`, the gateway's record of open sockets: { counts (grant id -> open sockets), closers (a set of functions that close each socket),
@@ -19,6 +19,8 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
     socket.on('error', () => {});
     const { hostHdr, slug, target } = resolveRequest(req);
     if (!target) return rejectUpgrade(socket, 404, 'Not Found');
+    const path = requestPath(req.url);
+    if (path === null) return rejectUpgrade(socket, 400, 'Bad Request');
     // Only WebSocket is proxied. Any other Upgrade (h2c, ...) would become an unfiltered raw byte pipe to the demo app.
     if (String(req.headers.upgrade || '').toLowerCase() !== 'websocket') return rejectUpgrade(socket, 400, 'Bad Request');
     const ip = clientIp(req, trusted);
@@ -35,7 +37,6 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
     if ((wsCounts.get(g.id) || 0) >= o.maxWsPerGrant) return rejectUpgrade(socket, 429, 'Too Many Requests');
     wsCounts.set(g.id, (wsCounts.get(g.id) || 0) + 1);
 
-    const url = new URL(req.url, `${o.scheme}://${hostHdr}`);
     let slot = null;
     if (target.perLink) {
       // The socket was counted above; a refusal here never reaches close(), so it must give the count back itself.
@@ -43,7 +44,7 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
       if (inst?.state !== 'ready') { releaseWs(g.id); return rejectUpgrade(socket, 503, 'Service Unavailable'); }
       slot = inst.slot; instances.touch(slug, slot);
     }
-    const { host: upHost, port } = upstreamPort(target, url.pathname, slot);
+    const { host: upHost, port } = upstreamPort(target, path, slot);
     const upstream = net.connect({ host: upHost, port });
     let connected = false, closed = false;
     const close = (why) => {

@@ -127,6 +127,42 @@ test('Next.js dev-only helper routes (source excerpts, open-in-editor) are answe
   assert.equal((await request({ path: '/_next/static/x.js', headers: { cookie: g.cookie } })).status, 200, 'ordinary paths still pass');
 });
 
+test('request targets that hide a dev route or another process are refused or read the way the demo app reads them (audit F-12)', async () => {
+  const g = await newGrant();
+  // not origin-form: "//x" reads as a host name to the URL parser, a backslash as "/", a bad %-escape cannot be decoded
+  for (const p of ['//__nextjs_original-stack-frame', '//other/page', '/\\__nextjs_original-stack-frame', '/%zz']) {
+    const r = await request({ path: p, headers: { cookie: g.cookie } });
+    assert.equal(r.status, 400, p);
+    assert.doesNotMatch(r.body, /"url"|second:/, 'the upstream was not reached: ' + p);
+  }
+  // encoded and dot-segment forms of a dev route are the dev route
+  for (const p of ['/%5F_nextjs_original-stack-frame', '/%5f%5fnextjs_source-map?x=1', '/a/../__nextjs_launch-editor', '/a/%2e%2e/__nextjs_launch-editor']) {
+    const r = await request({ path: p, headers: { cookie: g.cookie } });
+    assert.equal(r.status, 404, p);
+    assert.doesNotMatch(r.body, /"url"/, 'the upstream was not reached: ' + p);
+  }
+  // an encoded prefix goes to the same process the app would pick
+  assert.equal((await request({ path: '/%6Fther/page', headers: { cookie: g.cookie } })).body, 'second:/%6Fther/page');
+  // ordinary paths, including ones that merely contain a double slash later on, still pass
+  assert.equal((await request({ path: '/a//b?x=//y', headers: { cookie: g.cookie } })).status, 200);
+});
+
+test('a WebSocket upgrade with a non-origin-form target is refused before anything else (audit F-12)', async () => {
+  const net = await import('node:net');
+  const answer = await new Promise((resolve) => {
+    const sock = net.connect(gwPort, '127.0.0.1', () => sock.write(`GET //ws HTTP/1.1
+Host: toy.localhost:${gwPort}
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==
+Sec-WebSocket-Version: 13
+
+`));
+    let data = ''; sock.on('data', (d) => { data += d; }); sock.on('close', () => resolve(data)); setTimeout(() => { sock.destroy(); }, 1500);
+  });
+  assert.match(answer, /^HTTP\/1\.1 400/);
+});
+
 test('refuses requests without a valid grant, for unknown hosts, and after revocation', async () => {
   assert.equal((await request({})).status, 401);
   assert.equal((await request({ host: 'nope.localhost' })).status, 404);
