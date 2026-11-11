@@ -4,6 +4,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn } from 'node:child_process';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir, EOL } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMMON_CASES, PRODUCT_CASES, casesFor, knownProducts } from '../guide-eval/cases.mjs';
 import { grade, estimateRun, runEval, report, systemFor, summarise } from '../guide-eval/eval.mjs';
@@ -77,9 +80,10 @@ test('the estimate is positive, grows with the guide and the number of questions
   assert.throws(() => estimateRun({ system: 'x', cases, model: 'not-a-model' }), /no price/);
 });
 
-test('the shipped draft guides cannot be checked unless --allow-draft is given, and then the TODO lines are left out', () => {
-  assert.throws(() => systemFor('crm', { dir: GUIDES_DIR }), /--allow-draft/);
-  const r = systemFor('crm', { dir: GUIDES_DIR, allowDraft: true, productName: 'CRM' });
+test('a draft guide cannot be checked unless --allow-draft is given, and then the TODO lines are left out', () => {
+  const DRAFT_DIR = mkdtempSync(join(tmpdir(), 'guide-draft-')); writeFileSync(join(DRAFT_DIR, 'crm.md'), readFileSync(join(GUIDES_DIR, 'crm.md'), 'utf8') + EOL + 'TODO(owner): check this.' + EOL);
+  assert.throws(() => systemFor('crm', { dir: DRAFT_DIR }), /--allow-draft/);
+  const r = systemFor('crm', { dir: DRAFT_DIR, allowDraft: true, productName: 'CRM' });
   assert.equal(r.draft, true);
   assert.ok(!r.system.includes('TODO(owner)'));
   assert.match(r.system, /demo guide for CRM/); assert.match(r.system, /<guide>/);
@@ -98,7 +102,9 @@ test('the command spends nothing without --yes, refuses without a key, and never
   assert.equal(dry.code, 0); assert.match(dry.out, /Estimated cost at most \$0\.\d+/); assert.match(dry.out, /Nothing was sent/);
   const nokey = await run(['crm', '--allow-draft', '--yes'], { ANTHROPIC_API_KEY: undefined });
   assert.equal(nokey.code, 1); assert.match(nokey.out, /ANTHROPIC_API_KEY is not set/);
-  const draft = await run(['crm', '--yes'], { ANTHROPIC_API_KEY: 'sk-secret-not-real' });
+  // A draft is made from a copy of the real guide with the owner's marker added, so this does not depend on which real guides are finished.
+  const draftDir = mkdtempSync(join(tmpdir(), 'guide-draft-')); writeFileSync(join(draftDir, 'crm.md'), readFileSync(join(GUIDES_DIR, 'crm.md'), 'utf8') + EOL + 'TODO(owner): check this.' + EOL);
+  const draft = await run(['crm', '--yes', '--dir', draftDir], { ANTHROPIC_API_KEY: 'sk-secret-not-real', ANTHROPIC_BASE_URL: 'http://127.0.0.1:9' });
   assert.equal(draft.code, 1); assert.match(draft.out, /draft/); assert.ok(!draft.out.includes('sk-secret'), 'the key is never printed');
   const bad = await run(['nothing'], {}); assert.equal(bad.code, 1); assert.match(bad.out, /Usage/);
   const pricey = await run(['crm', '--allow-draft', '--max-usd', '0.0001'], {}); assert.equal(pricey.code, 1); assert.match(pricey.out, /above the limit/);

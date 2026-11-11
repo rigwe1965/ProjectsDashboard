@@ -1,8 +1,4 @@
-<!-- Written 2026-11-11 from the CRM demo's source code (data/demo-src/crm): menu names, tabs, buttons and roles are from the code, not from clicking through
-     the running demo. Skim it once next to the live demo, then delete the one TODO line below. Nothing is served to customers until that line is gone. -->
 # CRM demo guide
-
-TODO(owner): skim this next to the live demo (Sales sign-in), fix anything that differs, then delete this line.
 
 ## What it is
 A customer relationship manager for a small sales business: contacts, companies, deals, tasks, invoices and stock in one place. The sample business in this demo is a hair-extension and wig supplier selling to salons and shops, so the companies, deals and products are about that.
