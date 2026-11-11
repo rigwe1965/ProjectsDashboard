@@ -46,7 +46,9 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
     catch (err) { r = { ok: false, output: errMessage(err) }; }
     if (!r.ok) {
       logger.error('private demo copy failed to start', { product, slot, output: String(r.output || '').slice(-400) });
-      supervisor(['instance-stop', app.id, String(slot)], 2 * MINUTE).catch(() => {}); // stop whatever half-started and delete its folder
+      // Stop whatever half-started and delete its folder, and wait for that: the seat is only marked failed below, after the clean-up is
+      // over, so a retry cannot start the copy again while the folder is still being deleted (audit F-11).
+      await supervisor(['instance-stop', app.id, String(slot)], 2 * MINUTE).catch(() => {});
     }
     await locked(async () => {
       const table = await listInstances(store, product);

@@ -43,6 +43,7 @@ const { closeStore } = await import('../../lib/store/index.mjs');
 const running = new Map(); // slot -> server
 const calls = [];
 let failNextStart = false;
+let stopGate = null; // a promise the next instance-stop waits for, to hold the clean-up of a failed start open
 let startGate = null; // a promise the next instance-start waits for, to hold a copy in the "starting" state
 async function supervisor(args) {
   calls.push(args.join(' '));
@@ -56,6 +57,7 @@ async function supervisor(args) {
     return { ok: true, output: '' };
   }
   if (cmd === 'instance-stop') {
+    if (stopGate) await stopGate;
     const srv = running.get(slot); running.delete(slot);
     if (srv) await new Promise((r) => { srv.close(r); srv.closeAllConnections?.(); });
     return { ok: true, output: '' };
@@ -131,6 +133,25 @@ test('a copy that is still starting shows a self-refreshing page; a failed start
   try { await request({ headers: { cookie: d.cookie } }); } finally { Date.now = realNow; }
   const ok = await ready(d);
   assert.match(ok.body, /^copy \d/);
+});
+
+test('a failed start is only marked failed after its clean-up is over, so a retry cannot overlap the clean-up (audit F-11)', async () => {
+  for (const g of await grants.loadGrants()) await grants.revokeGrant(g.id).catch(() => {});
+  await gw.instanceSweep();
+  let release; stopGate = new Promise((r) => { release = r; });
+  failNextStart = true;
+  try {
+    const f = await open('F');
+    assert.equal(f.status, 302);
+    for (let i = 0; i < 100 && !calls.at(-1)?.startsWith('instance-stop'); i++) await new Promise((x) => setTimeout(x, 20));
+    assert.ok(calls.at(-1).startsWith('instance-stop'), 'the clean-up of the failed start began');
+    const during = Object.values(await gw.instances.list('pl')).find((e) => e.state === 'starting' || e.state === 'failed');
+    assert.equal(during.state, 'starting', 'still "starting" while the clean-up is running: not yet failed, not yet retryable');
+    release(); stopGate = null;
+    let after;
+    for (let i = 0; i < 100; i++) { after = Object.values(await gw.instances.list('pl')).find((e) => e.state === 'failed'); if (after) break; await new Promise((x) => setTimeout(x, 20)); }
+    assert.ok(after, 'marked failed once the clean-up finished');
+  } finally { stopGate = null; release(); }
 });
 
 test('the sweep stops a copy when its link ends and when it sits unused, and frees the seat', async () => {

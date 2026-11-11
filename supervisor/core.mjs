@@ -168,6 +168,10 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
   };
   async function instanceStart(base, slotArg) {
     const app = perLinkApp(base, slotArg);
+    // Whatever is still running on this copy (one of two processes that crashed, a start that was cut short) holds files in the folder
+    // that is about to be deleted. Stop it first; if it cannot be stopped, leave the folder alone and say so (audit F-11).
+    await stop(app);
+    if (failed) { console.log(`${app.id}: something from an earlier start could not be stopped, so the copy was not started.`); return; }
     freshInstanceDir(base.id, app.slot);
     const fillStep = (v) => fill(v, { port: '' }, app);
     const steps = base.perLink.prepare ?? [];
