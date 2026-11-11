@@ -1,0 +1,68 @@
+{
+  "_note": "The public Security page (showcase/build.mjs writes dist/security/index.html from this). Every item says only what the software really does; `source` names the file that backs the claim and is NOT shown on the page (a test checks the file exists). When a feature changes, change the item and `updated`. Do not add claims (certifications, tests, promises) that the software or the owner cannot back up.",
+  "updated": "2026-11-11",
+  "title": "How we keep your demo safe",
+  "intro": "A demo is a way to try our software without risk. This page says plainly how demo links work, what we record about your visit, and what we do and do not yet have in place.",
+  "sections": [
+    {
+      "title": "Your demo link",
+      "items": [
+        { "label": "Made for you, for one product", "text": "Each link is created for one customer and opens one product's demo only. It does not work on any other product.", "source": "demo-gateway/gateway.mjs" },
+        { "label": "It expires, and we can end it at once", "text": "A link works for a set time, never longer than 30 days. We can switch it off at any moment, and connections you already have open are closed within seconds.", "source": "demo-gateway/grants.mjs" },
+        { "label": "Not guessable, and not readable by us", "text": "The link contains a long random code. We store only a one-way scrambled copy of it, so our own records cannot be used to recover your link.", "source": "demo-gateway/grants.mjs" },
+        { "label": "Previews do not open it", "text": "Mail programs and chat apps often fetch links to show a preview. That does not open your demo or use up the link: you press a button to start.", "source": "demo-gateway/redeem.mjs" },
+        { "label": "Limits when needed", "text": "A link can be set to open only a certain number of times, or to work only in the first browser that opens it.", "source": "demo-gateway/grants.mjs" }
+      ]
+    },
+    {
+      "title": "The data in a demo",
+      "items": [
+        { "label": "Sample data only", "text": "Demos run on made-up sample data, in copies that are kept apart from our real applications and their databases.", "source": "docs/HOW-IT-WORKS.md" },
+        { "label": "Private or shared, and we tell you which", "text": "For products that support it, you get your own private copy, started when you open the link and deleted when it ends. Other demos are shared: other visitors may be in them, and they are put back to their starting data afterwards. Before you enter, the page tells you which kind it is.", "source": "demo-gateway/pages.mjs" },
+        { "label": "Please keep it fictional", "text": "Do not type real personal, customer or confidential information into a demo. We say this on the page before you open it.", "source": "demo-gateway/pages.mjs" }
+      ]
+    },
+    {
+      "title": "What we record about your visit",
+      "items": [
+        { "label": "When you open the link", "text": "We note the time, your network address and your browser type when a link is opened or refused. These records are deleted after 90 days.", "source": "demo-gateway/server.mjs" },
+        { "label": "How the demo is used", "text": "Per day we count how many requests were made, how long you were active, and which pages were used most (the first part of the address only). So we can see whether the demo helped, not what you did in it.", "source": "demo-gateway/activity.mjs" },
+        { "label": "What we do not record here", "text": "Anything you type, passwords, search words or other details that follow a page address, and the files and images a page loads.", "source": "demo-gateway/activity.mjs" },
+        { "label": "You are told first", "text": "The page you see before opening a demo says what is recorded.", "source": "demo-gateway/pages.mjs" },
+        { "label": "Deletion on request", "text": "Ask us and we delete the records of your link and remove your name from it.", "source": "admin-console/console.mjs" }
+      ]
+    },
+    {
+      "title": "Protection of the service",
+      "items": [
+        { "label": "Your session is separate from the link", "text": "After you open the link your browser gets a different random code, kept out of reach of page scripts. The link itself is never used again, so it cannot be copied out of your browser's cookies.", "source": "demo-gateway/redeem.mjs" },
+        { "label": "Guessing and flooding are slowed down", "text": "Repeated wrong links, or far too many requests from one address, are blocked for a while.", "source": "demo-gateway/gateway.mjs" },
+        { "label": "Secure connections", "text": "The demo service is built to run over HTTPS: its cookies are marked secure and browsers are told to always use HTTPS for it. Its own pages cannot be shown inside other websites.", "source": "demo-gateway/pages.mjs" },
+        { "label": "Switched-off access stays off", "text": "Every request is checked against your link again, so an expired or ended link stops working immediately, not at the next sign-in.", "source": "demo-gateway/gateway.mjs" }
+      ]
+    },
+    {
+      "title": "Our side",
+      "items": [
+        { "label": "Owner-only console", "text": "Links are created and ended in a console that only we can reach. It is protected by a password and a second code from an authenticator app, limits sign-in attempts, and signs us out after 12 hours.", "source": "admin-console/console.mjs" },
+        { "label": "Every change is logged", "text": "Sign-ins, failed sign-ins and the creation and ending of links are written to an activity log.", "source": "lib/events.mjs" },
+        { "label": "Backups", "text": "The database that holds links and records is copied automatically about once a day, and recent copies are kept.", "source": "lib/backup.mjs" }
+      ]
+    },
+    {
+      "title": "Checking our work",
+      "items": [
+        { "label": "Automated tests", "text": "A large set of automated tests runs on every change to the code.", "source": ".github/workflows/ci.yml" },
+        { "label": "Written reviews", "text": "We review our own code for security problems in writing, keep each finding, and fix them. The reviews and fixes are kept in the project's history.", "source": "audits/fable-review.md" }
+      ]
+    }
+  ],
+  "notYet": {
+    "title": "What we do not have yet",
+    "text": "We have not had an independent penetration test, and we hold no formal certification such as SOC 2 or ISO 27001. If your purchasing process needs either, tell us."
+  },
+  "report": {
+    "title": "Found a problem, or have a question?",
+    "text": "Tell us what you saw and how to reproduce it. We read every message."
+  }
+}

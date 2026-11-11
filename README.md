@@ -66,6 +66,8 @@ The console backs up `data/dashboard.db` (links, audit log, admin password hash 
 Set `ALERT_WEBHOOK_URL` in the console's environment and the console checks every minute (`ALERT_CHECK_SECONDS`) that the database answers and that every process the supervisor started still responds. After two failed checks in a row (`ALERT_FAIL_AFTER`) it posts a message, repeats it every 6 hours while the problem lasts, and posts again when it is back. A demo you stopped yourself is never reported. The URL can be an [ntfy.sh](https://ntfy.sh) topic (free push notifications to your phone; pick a long random topic name, because anyone who knows it can read it), a Discord or Slack webhook, or any HTTPS URL that accepts a POST. Messages name apps only, never customers, links or addresses. `npm run alert:test` sends a test message. The console has to be running to check, so it does not report the console or the PC being off; for that use an outside uptime check once hosting is set up. A gateway started outside the supervisor is not watched.
 
 ## Showcase
+The public site also has a Security page (`showcase/security.json`): how demo links work, what is recorded, and what is not yet in place, written only from what the software really does.
+
 `npm run showcase` builds the static public site from `showcase/products.json` and previews it at http://127.0.0.1:4200/.
 
 ## Hosting it online

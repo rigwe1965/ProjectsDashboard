@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { freePort } from '../helpers.mjs';
 
@@ -47,4 +48,20 @@ test('showcase caching: the stylesheet is named by its content hash and cached f
     }
     assert.equal(await get(port, '/style.css'), 404, 'there is no unhashed stylesheet to go stale');
   } finally { child.kill(); }
+});
+
+test('the Security page is built from security.json: plain HTML with no scripts, linked from every page, with the contact address and the honest "not yet" note', () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
+  const dist = fileURLToPath(new URL('../../showcase/dist/', import.meta.url));
+  const read = (p) => readFileSync(dist + p, 'utf8');
+  const page = read('security/index.html');
+  assert.match(page, /<title>Security \| /); assert.match(page, /How we keep your demo safe/);
+  assert.doesNotMatch(page, /<script|onclick=|javascript:/i);
+  assert.match(page, /We have not had an independent penetration test/);
+  assert.match(page, /mailto:[^"]+\?subject=Security%20question/);
+  assert.match(page, /Last reviewed \d{4}-\d\d-\d\d/);
+  const sec = JSON.parse(readFileSync(fileURLToPath(new URL('../../showcase/security.json', import.meta.url)), 'utf8'));
+  for (const i of sec.sections.flatMap((s) => s.items)) assert.ok(page.includes(i.label.replaceAll("'", '&#39;')), 'shown: ' + i.label);
+  assert.doesNotMatch(page, /demo-gateway\/|\.mjs/, 'the internal source names are not published');
+  for (const [p, href] of [['index.html', 'security/index.html'], ['crm/index.html', '../security/index.html'], ['security/index.html', '../security/index.html']]) assert.ok(read(p).includes(`href="${href}"`), `${p} links to Security`);
 });

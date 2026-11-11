@@ -1,6 +1,6 @@
 // Static site generator: reads site.json + products.json, writes showcase/dist/.
 // Output is plain HTML/CSS (inline SVG, no scripts) and has no links to any running app.
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -9,6 +9,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const site = JSON.parse(readFileSync(join(here, 'site.json'), 'utf8'));
 const products = JSON.parse(readFileSync(join(here, 'products.json'), 'utf8')).products.filter((p) => p.published);
 const dist = join(here, 'dist');
+// The public Security page is written from security.json when that file exists (see its _note).
+const security = existsSync(join(here, 'security.json')) ? JSON.parse(readFileSync(join(here, 'security.json'), 'utf8')) : null;
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const mail = (subject) => (site.contactEmail ? `mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent(subject)}` : null);
@@ -264,10 +266,10 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <body><div class="wrap">
 <div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}">Request a demo</a></div>
 ${body}
-<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span><span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
+<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span>${security ? `<a href="${root}security/index.html">Security</a>` : ''}<span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
 </div></body></html>`;
 
-const contactBlock = () => `<section id="contact"><h2>Get in touch</h2><p class="who">${site.contactEmail ? `Email <a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a> and tell us which product you're interested in.` : 'Contact details coming soon.'}</p></section>`;
+const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2><p class="who">${site.contactEmail ? `Email <a href="mailto:${esc(site.contactEmail)}">${esc(site.contactEmail)}</a> and tell us which product you're interested in.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
 
 const cssFile = `style.${createHash('sha256').update(css).digest('hex').slice(0, 10)}.css`;
 rmSync(dist, { recursive: true, force: true });
@@ -296,6 +298,18 @@ for (const p of products) {
 <section class="sec"><h2>Why teams choose it</h2><div class="benefits">${p.benefits.map((b) => `<div>${esc(b)}</div>`).join('')}</div></section>
 <section class="cta"><div><h2>See ${esc(p.name)} in action</h2><p>We'll set up a private demo with sample data, so you can explore it without any risk.</p></div><a class="btn light" href="${demoLink(`Demo request: ${p.name}`)}">Request a demo</a></section>
 <section class="more-from"><h2>More from ${esc(site.brand)}</h2><div class="pills">${others.map((o) => `<a class="pill" style="--dot:${esc(o.accent)}" href="../${o.id}/index.html">${esc(o.name)}</a>`).join('')}</div></section>
-${contactBlock()}`, '../'));
+${contactBlock('../')}`, '../'));
 }
-console.log(`Built ${products.length + 1} pages into ${dist}`);
+// Security: how demo links work, what is recorded, what is and is not in place. Plain text from security.json; nothing here is a script.
+if (security) {
+  mkdirSync(join(dist, 'security'), { recursive: true });
+  const sections = security.sections.map((sec) => `
+<section class="sec"><h2>${esc(sec.title)}</h2><ul class="sheet">${sec.items.map((i) => `<li><h3>${esc(i.label)}</h3><p>${esc(i.text)}</p></li>`).join('')}</ul></section>`).join('');
+  writeFileSync(join(dist, 'security', 'index.html'), shell(`Security | ${site.brand}`, security.intro, '#2b4acb', `
+<header class="home"><h1>${esc(security.title)}</h1><p>${esc(security.intro)}</p></header>${sections}
+<section class="sec"><h2>${esc(security.notYet.title)}</h2><p class="lead">${esc(security.notYet.text)}</p></section>
+<section class="cta ink"><div><h2>${esc(security.report.title)}</h2><p>${esc(security.report.text)}</p></div><a class="btn light" href="${demoLink('Security question')}">Email us</a></section>
+<p class="updated" style="margin:28px 0 0;color:var(--mute);font-size:14px">Last reviewed ${esc(security.updated)}.</p>
+${contactBlock('../')}`, '../'));
+}
+console.log(`Built ${products.length + 1 + (security ? 1 : 0)} pages into ${dist}`);

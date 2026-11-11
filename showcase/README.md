@@ -1,2 +1,5 @@
 # Showcase
 Public product pages. Edit `site.json` (brand, contact) and `products.json` (copy), then `npm run showcase` to build and preview at http://127.0.0.1:4200/. Output is static HTML in `dist/` and can be hosted anywhere. It contains no scripts and no links to running apps.
+
+## Security page
+`security.json` is the text of the public Security page (`dist/security/index.html`, linked from the footer and the "Get in touch" block of every page): how demo links work, what is recorded about a visit, how the service and the owner's console are protected, and an honest "what we do not have yet" note. Every item names the source file that backs it (`source`, not published), and `tests/unit/security-page.test.mjs` checks that those files exist and that the numbers quoted (30 days, 90 days, 12 hours, a few seconds) match the code. When a feature changes, change the item and `updated`; do not add certifications, test counts or promises the software or you cannot back up. Delete the file to build the site without the page.
