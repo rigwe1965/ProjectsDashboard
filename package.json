@@ -15,6 +15,7 @@
     "test": "node --test \"tests/unit/*.test.mjs\"",
     "lint": "eslint .",
     "test:browser": "node tests/browser.mjs && node tests/browser-ui.mjs && node tests/browser-guide.mjs",
+    "eval:guide": "node tests/guide-eval/run.mjs",
     "test:browser:guide": "node tests/browser-guide.mjs",
     "test:browser:ui": "node tests/browser-ui.mjs",
     "test:e2e": "node tests/journeys.mjs",
