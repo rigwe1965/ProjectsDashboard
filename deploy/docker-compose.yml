@@ -348,6 +348,7 @@ services:
     image: projects-dashboard
     command: ["node", "supervisor/reset-supabase-demo.mjs", "--env", "--yes"]
     environment:
+      DEMO_PROJECT_REF: ${CW_DEMO_PROJECT_REF:-}
       NEXT_PUBLIC_SUPABASE_URL: ${CW_SUPABASE_URL:-}
       SUPABASE_SERVICE_ROLE_KEY: ${CW_SUPABASE_SERVICE_ROLE_KEY:-}
       ADMIN_EMAIL: ${CW_DEMO_ADMIN_EMAIL:-}

@@ -71,3 +71,29 @@ test('maskSecrets hides passwords in URLs and values after secret-looking names,
   assert.equal(maskSecrets('api_key: sk-abcdefgh'), 'api_key: ***');
   for (const plain of ['http://localhost:3101/sign-in ready', 'Started app (pid 123) on :5200 UP', 'SUPABASE_SERVICE_ROLE_KEY missing', '']) assert.equal(maskSecrets(plain), plain);
 });
+
+test('demoProjectRefProblem: the reset script must be told which project it may empty, and it must be the one the URL points at (audit F-05)', async () => {
+  const { demoProjectRefProblem: check } = await import('../../lib/util.mjs');
+  const url = 'https://demoref.supabase.co';
+  assert.match(check({ NEXT_PUBLIC_SUPABASE_URL: url }), /DEMO_PROJECT_REF is not set/);
+  assert.match(check({ NEXT_PUBLIC_SUPABASE_URL: url, DEMO_PROJECT_REF: 'REPLACE_ME' }), /not set/);
+  assert.match(check({ NEXT_PUBLIC_SUPABASE_URL: 'https://realref.supabase.co', DEMO_PROJECT_REF: 'demoref' }), /refusing/);
+  assert.match(check({ NEXT_PUBLIC_SUPABASE_URL: 'nonsense', DEMO_PROJECT_REF: 'demoref' }), /not a valid URL/);
+  assert.equal(check({ NEXT_PUBLIC_SUPABASE_URL: url, DEMO_PROJECT_REF: ' DemoRef ' }), null);
+  assert.match(check({ NEXT_PUBLIC_SUPABASE_URL: 'https://demoref.evil.example', DEMO_PROJECT_REF: 'evil' }), /refusing/);
+});
+
+test('reset-supabase-demo.mjs stops before touching anything when the project ref is missing or wrong (audit F-05)', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const run = (extra) => spawnSync(process.execPath, ['supervisor/reset-supabase-demo.mjs', '--env', '--yes'], {
+    encoding: 'utf8', timeout: 20000,
+    // port 9 on localhost refuses at once, so if the guard failed the script would print table lines instead of stopping
+    env: { PATH: process.env.PATH, NEXT_PUBLIC_SUPABASE_URL: 'http://demoref.localhost:9', SUPABASE_SERVICE_ROLE_KEY: 'k', ADMIN_EMAIL: 'a@x.test', ADMIN_PASSWORD: 'p', CUSTOMER_EMAIL: 'c@x.test', CUSTOMER_PASSWORD: 'p', ...extra },
+  });
+  const none = run({});
+  assert.equal(none.status, 1); assert.match(none.stderr, /missing DEMO_PROJECT_REF/); assert.equal(none.stdout, '');
+  const wrong = run({ DEMO_PROJECT_REF: 'other' });
+  assert.equal(wrong.status, 1); assert.match(wrong.stderr, /refusing/); assert.equal(wrong.stdout, '');
+  const right = run({ DEMO_PROJECT_REF: 'demoref' }); // passes the guard, then fails only because nothing answers on that port
+  assert.doesNotMatch(right.stderr, /refusing|missing DEMO_PROJECT_REF/);
+});

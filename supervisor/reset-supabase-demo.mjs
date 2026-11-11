@@ -7,20 +7,23 @@
 // What it removes: bookings and everything attached to them, payments, e-mail log, AI conversations, licence checks,
 // loyalty accounts, maintenance alerts, the admin audit log and every sign-in account EXCEPT the two demo accounts
 // (ADMIN_EMAIL, CUSTOMER_EMAIL). It sets those two accounts' passwords back to ADMIN_PASSWORD / CUSTOMER_PASSWORD.
+// It refuses to run unless DEMO_PROJECT_REF (set next to the URL) names the project the URL points at (audit F-05); a dry run checks it too.
 // It only talks to the project named in the env file, which is the dashboard's own demo env (never the app's real .env).
 // Keys are never printed.
 import { readFileSync } from 'node:fs';
-import { parseEnvText, missingKeys } from '../lib/util.mjs';
+import { parseEnvText, missingKeys, demoProjectRefProblem } from '../lib/util.mjs';
 
 const args = process.argv.slice(2);
 const fromEnv = args[0] === '--env';
 const envFile = fromEnv ? null : args[0];
 if (!fromEnv && !envFile) { console.error('Usage: reset-supabase-demo.mjs <envfile> [--yes]  |  --env [--yes]'); process.exit(2); }
 const apply = args.includes('--yes');
-const KEYS = ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD'];
+const KEYS = ['DEMO_PROJECT_REF', 'NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'CUSTOMER_EMAIL', 'CUSTOMER_PASSWORD'];
 const env = fromEnv ? Object.fromEntries(KEYS.map((k) => [k, (process.env[k] || '').trim()])) : parseEnvText(readFileSync(envFile, 'utf8'), { trimValues: true });
 const missing = missingKeys(env, KEYS);
 if (missing.length) { console.error('STOP: missing ' + missing[0]); process.exit(1); }
+const wrongProject = demoProjectRefProblem(env);
+if (wrongProject) { console.error('STOP: ' + wrongProject); process.exit(1); }
 
 const base = env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
 const h = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY, 'content-type': 'application/json' };
