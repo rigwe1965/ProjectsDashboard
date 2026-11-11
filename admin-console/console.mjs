@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createGrants, publicGrant, isActive } from '../demo-gateway/grants.mjs';
+import { activityView, mergeTopPages } from '../lib/engagement.mjs';
 import { demoApps } from '../lib/registry.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
@@ -226,7 +227,18 @@ export async function createConsole(opts = {}) {
       accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
     })));
     const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
-    return json(res, 200, { gatewayUp, gatewayManaged, appControl: o.appControl, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
+    // What each link's customer did with it (counted by the gateway): one query for all links.
+    const sums = new Map((await store.activity.summary()).map((s) => [s.grantId, s]));
+    const links = (await loadGrants()).map((g) => ({ ...publicGrant(g), activity: activityView(g, sums.get(g.id)) })).reverse();
+    return json(res, 200, { gatewayUp, gatewayManaged, appControl: o.appControl, gatewayPort: o.gatewayPort, products, grants: links });
+  }
+
+  // One link's activity day by day, and its busiest pages (the owner's detail view).
+  async function demoActivity({ res, m }) {
+    const g = await store.grants.findById(m[1]);
+    if (!g) throw new HttpError(404, 'No such demo link');
+    const days = await store.activity.forGrant(g.id);
+    return json(res, 200, { days: days.map(({ day, requests, firstAt, lastAt, activeSeconds, wsSeconds }) => ({ day, requests, firstAt, lastAt, activeSeconds, wsSeconds })), topPages: mergeTopPages(days) });
   }
 
   async function demoCreate({ req, res }) {
@@ -277,6 +289,7 @@ export async function createConsole(opts = {}) {
     ['POST', /^\/api\/apps\/([\w-]+)\/(start|stop|restart)$/, appAction],
     ['GET', '/api/demos', demosList],
     ['POST', '/api/demos', demoCreate],
+    ['GET', /^\/api\/demos\/([a-f0-9]{8,16})\/activity$/, demoActivity],
     ['POST', /^\/api\/demos\/([\w-]+)\/reset$/, demoReset],
     ['POST', /^\/api\/demos\/([a-f0-9]{8,16})\/revoke$/, demoRevoke],
     ['POST', /^\/api\/demos\/([a-f0-9]{8,16})\/forget$/, demoForget],

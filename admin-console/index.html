@@ -120,6 +120,7 @@ th{color:var(--mute);font-weight:600;font-size:13px;border-top:0;padding-top:0}
 td.when{white-space:nowrap;color:var(--mute);font-variant-numeric:tabular-nums}
 td.empty{color:var(--mute);padding:22px 10px;text-align:center}
 .pill{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;padding:2px 10px 2px 8px;border-radius:999px;background:var(--offbg);color:var(--mute);font-weight:600}
+.linkbtn{background:none;border:0;padding:0;margin-top:2px;color:var(--mute);text-decoration:underline;cursor:pointer;font:inherit;font-size:12.5px}
 .pill.ok{background:var(--runbg);color:var(--run)}.pill.bad{background:var(--badbg);color:var(--bad)}.pill .dot{width:7px;height:7px;box-shadow:none}
 .prod{display:inline-flex;align-items:center;gap:8px}.prod i{width:9px;height:9px;border-radius:50%;background:var(--c,var(--off))}
 
@@ -297,6 +298,23 @@ async function load(){
 }
 
 const demoBusy = new Set();
+// What each link's customer did (counted by the gateway). Details are fetched when a row is opened and kept until the page reloads.
+const ENGAGEMENT = { none: ['', 'Not opened'], opened: ['', 'Opened'], engaged: ['ok', 'Engaged'], returned: ['ok', 'Came back'] };
+const detailOpen = new Set(), detailData = new Map();
+const minutesText = (sec) => sec < 60 ? (sec ? '<1 min' : '0 min') : Math.round(sec / 60) + ' min';
+async function toggleDetail(id){
+  if (detailOpen.has(id)) detailOpen.delete(id);
+  else { detailOpen.add(id); try { const j = await api('/api/demos/' + id + '/activity'); detailData.set(id, j.error ? { error: j.error } : j); } catch (e) { detailData.set(id, { error: 'Could not load' }); } }
+  loadDemos();
+}
+function detailRow(g){
+  const d = detailData.get(g.id);
+  const body = !d ? el('div', { class: 'wait' }, 'Loading…') : d.error ? el('div', { class: 'empty' }, d.error)
+    : !d.days.length ? el('div', { class: 'empty' }, 'Nothing counted for this link yet. Activity appears within a minute of the customer using the demo.')
+    : el('div', {}, el('div', { class: 'demo' }, 'Days: ' + d.days.map(x => x.day + ' (' + x.requests + ' requests, ' + minutesText(Math.max(x.activeSeconds, x.wsSeconds)) + ')').join(' · ')),
+        el('div', { class: 'demo' }, 'Busiest pages: ' + (d.topPages.length ? d.topPages.map(p => p.path + ' x' + p.count).join(' · ') : 'none')));
+  return el('tr', {}, el('td', { colspan: '7' }, body));
+}
 let demoPanelLoaded = false;
 async function demoAct(id, action, label){
   if (action === 'stop' && !confirm('Stop ' + label + '? Customers using it will lose access until it is started again.')) return;
@@ -366,10 +384,13 @@ async function loadDemos(){
     return f;
   })();
   const stateKind = (g) => g.state === 'active' ? 'ok' : g.state === 'revoked' ? 'bad' : '';
-  const table = el('table', {}, el('thead', {}, el('tr', {}, ['Customer', 'Product', 'Expires', 'Opens', 'State', ''].map(t => el('th', {}, t)))),
-    el('tbody', {}, d.grants.length ? d.grants.map(g => el('tr', {},
+  const table = el('table', {}, el('thead', {}, el('tr', {}, ['Customer', 'Product', 'Expires', 'Opens', 'Activity', 'State', ''].map(t => el('th', {}, t)))),
+    el('tbody', {}, d.grants.length ? d.grants.map(g => [el('tr', {},
       el('td', {}, g.customer), el('td', {}, el('span', { class: 'prod', style: colorStyle(g.app) }, el('i', {}), g.app)), el('td', {}, new Date(g.expiresAt).toLocaleString()),
       el('td', { title: g.lastUsedAt ? 'Last opened ' + new Date(g.lastUsedAt).toLocaleString() : 'Not opened yet' }, g.uses + (g.maxUses ? ' of ' + g.maxUses : '') + (g.deviceLock ? ', locked' : '')),
+      el('td', {}, (() => { const a = g.activity, [kind, word] = ENGAGEMENT[a.engagement] || ['', a.engagement];
+        return [el('span', { class: 'pill ' + kind }, word), el('div', { class: 'demo' }, a.engagement === 'none' ? '' : minutesText(a.activeMinutes * 60) + ' active, ' + a.activeDays + (a.activeDays === 1 ? ' day' : ' days') + (a.lastActiveAt ? ', last ' + new Date(a.lastActiveAt).toLocaleString() : '')),
+          g.uses > 0 || a.requests ? el('button', { class: 'linkbtn', onclick: () => toggleDetail(g.id) }, detailOpen.has(g.id) ? 'Hide details' : 'Details') : null]; })()),
       el('td', {}, el('span', { class: 'pill ' + stateKind(g) }, dot(g.state === 'active' ? 'run' : g.state === 'revoked' ? 'bad' : ''), g.state)),
       el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => {
         if (!confirm('Revoke the demo link for ' + g.customer + '?')) return;
@@ -379,8 +400,8 @@ async function loadDemos(){
         if (!confirm('Forget ' + g.customer + '? Their address and browser records and name are deleted. This cannot be undone.')) return;
         try { const j = await api('/api/demos/' + g.id + '/forget', { method: 'POST' }); say(j.error ? 'Forget FAILED: ' + j.error : 'Removed ' + j.removed + ' records'); }
         catch (e) { if (e.message !== 'signed out') say('Forget FAILED: request did not complete'); }
-        loadDemos(); } }, 'Forget'))))
-      : [el('tr', {}, el('td', { colspan: '6', class: 'empty' }, 'No demo links yet. Create one above, then send it to your customer.'))]));
+        loadDemos(); } }, 'Forget'))), ...(detailOpen.has(g.id) ? [detailRow(g)] : [])])
+      : [el('tr', {}, el('td', { colspan: '7', class: 'empty' }, 'No demo links yet. Create one above, then send it to your customer.'))]));
   panel.replaceChildren(services, el('div', { class: 'group' }, el('h3', {}, 'New demo link'), form, ...(keepLink ? [keepLink] : [])), ...(accounts ? [accounts] : []), el('div', { class: 'group' }, el('h3', {}, 'Links you have sent'), el('div', { class: 'tablewrap' }, table)));
 }
 const EVENT_LABELS = {

@@ -656,3 +656,25 @@ test('the public health check asks the database once per window, however often i
   for (let i = 0; i < 8; i++) assert.equal((await req(port, { path: '/_pd/healthz' })).status, 200);
   assert.equal(hits.length, 1, 'eight calls, one database read');
 });
+
+// ---------- per-link activity (analytics plan step 3)
+test('demo links show what the customer did: engagement in the list, day-by-day detail on request, sign-in required, status-only mode too', async () => {
+  const { c, port } = await start({ appControl: false });
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const made = JSON.parse((await post(port, '/api/demos', { customer: 'Activity Co', app: 'toy', hours: 2 }, { cookie })).body);
+  const id = made.grant.id;
+  const row = async () => JSON.parse((await req(port, { path: '/api/demos', headers: { cookie } })).body).grants.find((g) => g.id === id);
+  assert.equal((await row()).activity.engagement, 'none');
+  await store.grants.redeem(id, 'dev'); // the customer opens it
+  assert.equal((await row()).activity.engagement, 'opened');
+  await store.activity.add(id, '2026-03-05', { requests: 4, firstAt: '2026-03-05T10:00:00.000Z', lastAt: '2026-03-05T10:05:00.000Z', activeSeconds: 300, paths: { '/crm/contacts': 3, '/crm': 1 } });
+  await store.activity.add(id, '2026-03-06', { requests: 1, activeSeconds: 20, paths: { '/crm': 1 } });
+  const a = (await row()).activity;
+  assert.deepEqual([a.engagement, a.requests, a.activeMinutes, a.activeDays], ['returned', 5, 5, 2]);
+  const detail = JSON.parse((await req(port, { path: `/api/demos/${id}/activity`, headers: { cookie } })).body);
+  assert.deepEqual(detail.days.map((d) => d.day), ['2026-03-05', '2026-03-06']);
+  assert.deepEqual(detail.topPages, [{ path: '/crm/contacts', count: 3 }, { path: '/crm', count: 2 }]);
+  assert.equal((await req(port, { path: `/api/demos/${id}/activity` })).status, 401, 'signed-in owner only');
+  assert.equal((await req(port, { path: '/api/demos/0123456789abcdef/activity', headers: { cookie } })).status, 404);
+  assert.equal((await req(port, { path: '/api/demos/zz/activity', headers: { cookie } })).status, 404, 'not a link id');
+});
