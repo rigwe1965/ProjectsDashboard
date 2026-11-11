@@ -611,3 +611,20 @@ test('forget refuses a request that is not signed in, not same-origin or not a P
   assert.equal((await store.grants.findById(id)).customer, 'Keep Me', 'the name was not removed');
   assert.equal((await post(port, path, {}, { cookie })).status, 200, 'a proper request still works');
 });
+
+test('a request body that is not JSON, or not an object, is the client\'s mistake (400); damaged stored data is not (audit F-15)', async () => {
+  const prevHash = await store.meta.get('admin_password_hash');
+  await store.meta.set('admin_password_hash', '');
+  const { c, port } = await start({ supervisor: async () => ({ ok: true, output: '[]' }) });
+  try {
+    const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+    const raw = (path, body) => req(port, { method: 'POST', path, body, headers: { cookie, 'content-type': 'application/json', origin: `http://127.0.0.1:${port}` } });
+    for (const path of ['/api/demos', '/api/demos/toy/reset']) {
+      assert.equal((await raw(path, '{nope')).status, 400, path + ': not JSON');
+      assert.equal((await raw(path, 'null')).status, 400, path + ': JSON null is not an object (it used to be a 500)');
+      assert.equal((await raw(path, '[1]')).status, 400, path + ': an array is not an object');
+    }
+    const { toResponse } = await import('../../lib/errors.mjs');
+    assert.equal(toResponse(new SyntaxError('Unexpected token in stored data')).status, 500, 'a SyntaxError from anywhere else is a server fault');
+  } finally { await c.close(); await store.meta.set('admin_password_hash', prevHash ?? ''); }
+});

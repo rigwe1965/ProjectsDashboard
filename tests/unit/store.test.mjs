@@ -163,3 +163,27 @@ test('retryWhileLocked: retries a locked database, passes other errors straight 
   assert.throws(() => retryWhileLocked(() => { n++; throw new Error('database is locked'); }, { ...noWait, tries: 4 }), /locked/);
   assert.equal(n, 4);
 });
+
+test('damaged stored JSON is skipped and logged, not turned into a failed list (audit F-15)', async () => {
+  const { dir, store, done } = fresh();
+  try {
+    store.audit.add({ ev: 'good-before', app: 'crm' });
+    store.processState.set('crm', 'app', { pid: 1 });
+    // damage rows behind the store's back, the way a half-written file or a manual edit would
+    const raw = new DatabaseSync(join(dir, 'db.sqlite'));
+    raw.prepare('INSERT INTO audit (t, ev, grant_id, app, ip, data) VALUES (?,?,?,?,?,?)').run('2026-01-01T00:00:00.000Z', 'damaged', null, 'crm', null, '{not json');
+    raw.prepare('INSERT INTO process_state (app, proc, rec) VALUES (?,?,?)').run('af', 'app', '{also not json');
+    raw.close();
+    const logged = [], write = process.stderr.write.bind(process.stderr);
+    process.stderr.write = (s) => { logged.push(String(s)); return true; };
+    let events, procs;
+    try { events = store.audit.list(10); procs = store.processState.all(); } finally { process.stderr.write = write; }
+    assert.ok(events.some((e) => e.ev === 'good-before'), 'the good rows are still listed');
+    const bad = events.find((e) => e.ev === 'damaged');
+    assert.ok(bad && bad.dataDamaged === true, 'the damaged audit row is shown, marked as damaged');
+    assert.deepEqual(procs, { crm: { app: { pid: 1 } } }, 'a damaged process record is left out');
+    const text = logged.join('');
+    assert.match(text, /damaged stored data skipped/);
+    assert.match(text, /audit row/); assert.match(text, /process record af\/app/);
+  } finally { done(); }
+});

@@ -22,14 +22,14 @@ import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURIT
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
 import { EVENTS } from '../lib/events.mjs';
-import { num, fireAndForget, maskSecrets, isPlainObject, MINUTE, HOUR } from '../lib/util.mjs';
+import { num, fireAndForget, maskSecrets, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { createStatusCache } from './status-cache.mjs';
 import { assertSafeToListen } from './listen-safety.mjs';
 import { createLogin } from './login.mjs';
 import { runReset, productState, isResetting, lastResetAt } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
-import { HttpError, toResponse, tooLarge } from '../lib/errors.mjs';
+import { HttpError, toResponse, tooLarge, parseJsonObject } from '../lib/errors.mjs';
 import { ADMIN_KEYS, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -225,8 +225,7 @@ export async function createConsole(opts = {}) {
 
   async function demoCreate({ req, res }) {
     if (badOrigin(req, res)) return;
-    const b = JSON.parse((await readBody(req)) || '{}'); // SyntaxError -> 400, too large -> 413 (see toResponse)
-    if (!isPlainObject(b)) throw new HttpError(400, 'Expected a JSON object');
+    const b = parseJsonObject(await readBody(req)); // not JSON / not an object -> 400, too large -> 413
     const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock }, { ip: ipOf(req), by: 'console' });
     return json(res, 200, { grant: publicGrant(grant), link });
   }
@@ -235,7 +234,7 @@ export async function createConsole(opts = {}) {
     if (badOrigin(req, res)) return;
     const product = m[1], app = demoApps()[product];
     if (!app?.reset || app.perLink) throw new HttpError(404, 'That demo cannot be reset');
-    const b = JSON.parse((await readBody(req)) || '{}');
+    const b = parseJsonObject(await readBody(req));
     const inUse = productState(await loadGrants(), product).busy;
     if (inUse && !b.force) return json(res, 409, { error: `${inUse} customer link${inUse === 1 ? ' is' : 's are'} still active for this demo. Resetting now wipes what they are working on.`, inUse });
     audit({ ev: EVENTS.demoResetRequested, app: product, forced: !!inUse, ip: ipOf(req) });
