@@ -18,6 +18,7 @@ COPY admin-console admin-console
 COPY demo-gateway demo-gateway
 COPY supervisor supervisor
 COPY registry registry
+COPY guides guides
 COPY showcase showcase
 COPY tests/linux tests/linux
 

@@ -12,7 +12,7 @@ export const PRICES = {
   'claude-sonnet-5-5': { in: 2, out: 10 },
   'claude-opus-5-5': { in: 4, out: 20 },
 };
-export const GUIDE_DEFAULTS = { model: 'claude-haiku-5-5', allowance: 20, perMinute: 6, dailyCapUsd: 2, maxInputTokens: 8000, maxOutputTokens: 600 };
+export const GUIDE_DEFAULTS = { model: 'claude-haiku-5-5', allowance: 20, perMinute: 6, dailyCapUsd: 2, maxInputTokens: 8000, maxOutputTokens: 1500 }; // the API counts the model's thinking in this too, so it is more than the visible answer needs
 const CACHE_READ = 0.1, CACHE_WRITE = 1.25; // as multiples of the input price
 
 const whole = (n) => (Number.isFinite(Number(n)) && Number(n) > 0 ? Math.floor(Number(n)) : 0);

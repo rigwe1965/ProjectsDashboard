@@ -1,6 +1,6 @@
 # Plan: an AI guide inside the demos
 
-Status: decided 2026-11-11 by the owner: Haiku 5.5 first, split view, opt-in per link (the other decisions take the recommendations below until changed). Step 1 built. Written 2026-11-11 (HEAD 97eccac). Prices are from the Claude API model table as cached on 2026-11-03; confirm with `count_tokens` and real `usage` before relying on them.
+Status: decided 2026-11-11 by the owner: Haiku 5.5 first, split view, opt-in per link (the other decisions take the recommendations below until changed). Steps 1-3 built. Written 2026-11-11 (HEAD 97eccac). Prices are from the Claude API model table as cached on 2026-11-03; confirm with `count_tokens` and real `usage` before relying on them.
 
 ## What it is, and what it is not
 
@@ -40,7 +40,7 @@ Why it is worth building: it is the "agentic demo" idea from the research (the d
 
 ### The model call
 - System prompt: fixed rules + the product guide, placed first and marked for prompt caching so repeated messages read it from cache (about 0.1x price). Check `usage.cache_read_input_tokens` > 0; if the guide is below the model's minimum cacheable size it silently will not cache, so measure.
-- `max_tokens` 600, `output_config.effort: "low"`, streaming. No tools, no web, no thinking shown.
+- `max_tokens` 1500 (Haiku 5.5 thinks by default and thinking counts toward it, so 600 could leave an empty answer), `output_config.effort: "low"`, streaming. No tools, no web, no thinking shown.
 - Handle `stop_reason: "refusal"` with a friendly line; `max_tokens` ends with "ask us for more".
 - Usage (`input_tokens`, `cache_read_input_tokens`, `output_tokens`) is recorded per link per day, plus an estimated cost from a price table in config.
 
