@@ -628,3 +628,31 @@ test('a request body that is not JSON, or not an object, is the client\'s mistak
     assert.equal(toResponse(new SyntaxError('Unexpected token in stored data')).status, 500, 'a SyntaxError from anywhere else is a server fault');
   } finally { await c.close(); await store.meta.set('admin_password_hash', prevHash ?? ''); }
 });
+
+test('ADMIN_APP_CONTROL=off: the console shows status only; start, stop and logs are refused and the page is told (audit F-19)', async () => {
+  const prevHash = await store.meta.get('admin_password_hash');
+  await store.meta.set('admin_password_hash', '');
+  const on = await start({}), off = await start({ appControl: false });
+  try {
+    const cookieOn = cookieFrom(await req(on.port, { path: '/?t=' + on.c.launchToken }));
+    const cookieOff = cookieFrom(await req(off.port, { path: '/?t=' + off.c.launchToken }));
+    const apps = async (p, cookie) => JSON.parse((await req(p, { path: '/api/apps', headers: { cookie } })).body);
+    assert.ok((await apps(on.port, cookieOn)).every((a) => a.controls === true), 'by default the buttons work');
+    assert.ok((await apps(off.port, cookieOff)).every((a) => a.controls === false), 'switched off: the page is told to hide them');
+    const demos = async (p, cookie) => JSON.parse((await req(p, { path: '/api/demos', headers: { cookie } })).body);
+    assert.equal((await demos(on.port, cookieOn)).appControl, true);
+    assert.equal((await demos(off.port, cookieOff)).appControl, false);
+    const startToy = (p, cookie) => post(p, '/api/apps/toy/start', {}, { cookie });
+    assert.equal((await startToy(off.port, cookieOff)).status, 403, 'and a hand-made request is refused too');
+    assert.notEqual((await startToy(on.port, cookieOn)).status, 403);
+    assert.equal((await req(off.port, { path: '/api/apps/toy/logs?proc=app', headers: { cookie: cookieOff } })).status, 403);
+  } finally { await store.meta.set('admin_password_hash', prevHash ?? ''); }
+});
+
+test('the public health check asks the database once per window, however often it is called (audit F-19)', async () => {
+  const hits = []; const real = store.meta.get;
+  const spyStore = { ...store, meta: { ...store.meta, get: async (k) => { if (k === 'health-check') hits.push(k); return real.call(store.meta, k); } } };
+  const { c, port } = await start({ store: spyStore });
+  for (let i = 0; i < 8; i++) assert.equal((await req(port, { path: '/_pd/healthz' })).status, 200);
+  assert.equal(hits.length, 1, 'eight calls, one database read');
+});

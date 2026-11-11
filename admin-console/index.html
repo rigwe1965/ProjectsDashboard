@@ -262,11 +262,11 @@ function card(app, compact){
         p.up && p.managed && !p.optional ? null : el('span', { class: 'state' }, word + (p.optional ? ', optional' : '')),
         el('span', { class: 'sp' }),
         p.up ? el('a', { class: 'btn', href: `http://127.0.0.1:${p.port}/`, target: '_blank', rel: 'noopener' }, 'Open') : null,
-        p.optional && !p.up ? el('button', { onclick: () => act(app, 'start', p.name), disabled: pb || busy ? '' : null }, 'Start') : null,
-        p.managed ? el('button', { class: 'stop', onclick: () => act(app, 'stop', p.name), disabled: pb || busy ? '' : null }, 'Stop') : null,
-        el('button', { class: 'quiet', onclick: () => showLog(app, p.name), 'aria-label': 'View log of ' + p.name }, 'Log'));
+        app.controls !== false && p.optional && !p.up ? el('button', { onclick: () => act(app, 'start', p.name), disabled: pb || busy ? '' : null }, 'Start') : null,
+        app.controls !== false && p.managed ? el('button', { class: 'stop', onclick: () => act(app, 'stop', p.name), disabled: pb || busy ? '' : null }, 'Stop') : null,
+        app.controls !== false ? el('button', { class: 'quiet', onclick: () => showLog(app, p.name), 'aria-label': 'View log of ' + p.name }, 'Log') : null);
     })),
-    el('div', { class: 'actions' },
+    app.controls === false ? el('div', { class: 'demo' }, 'Status only here. Start, stop and logs: docker compose on the server.') : el('div', { class: 'actions' },
       el('button', { class: 'primary', onclick: () => act(app, 'start'), disabled: busy || allUp ? '' : null }, busy ? 'Working…' : 'Start'),
       el('button', { onclick: () => act(app, 'restart'), disabled: busy || !anyManaged ? '' : null }, 'Restart'),
       el('button', { class: 'stop', onclick: () => act(app, 'stop'), disabled: busy || !anyManaged ? '' : null }, 'Stop'),
@@ -329,8 +329,8 @@ async function loadDemos(){
     const b = demoBusy.has(id);
     return el('span', { class: 'service' },
       dot(up ? (managed ? 'run' : 'ext') : ''), label + ' ' + (up ? (managed ? 'running' : 'running elsewhere') : 'stopped'),
-      !up ? el('button', { onclick: () => demoAct(id, 'start', label), disabled: b ? '' : null }, b ? 'Working…' : 'Start') : null,
-      managed ? el('button', { class: 'stop', onclick: () => demoAct(id, 'stop', label), disabled: b ? '' : null }, 'Stop') : null);
+      d.appControl !== false && !up ? el('button', { onclick: () => demoAct(id, 'start', label), disabled: b ? '' : null }, b ? 'Working…' : 'Start') : null,
+      d.appControl !== false && managed ? el('button', { class: 'stop', onclick: () => demoAct(id, 'stop', label), disabled: b ? '' : null }, 'Stop') : null);
   };
   const services = el('div', { class: 'group' }, el('h3', {}, 'Demo services'),
     el('div', { class: 'services' },

@@ -45,10 +45,13 @@ recipe() {
       "${DC[@]}" run --rm --no-deps crm-migrate seed ;;
     imageapp)
       "${DC[@]}" up -d --no-deps --force-recreate imageapp-demo ;;
-    airfinder)   # && on purpose: this runs inside `if`, where `set -e` is switched off, so each step must gate the next
-      "${DC[@]}" stop airfinder-demo &&
-      "${DC[@]}" run --rm --no-deps -v "$PWD/apps/airfinder/reset.sh:/pd-reset.sh:ro" airfinder-demo sh /pd-reset.sh &&
-      "${DC[@]}" up -d --no-deps airfinder-demo ;;
+    airfinder)   # runs inside `if`, where `set -e` is switched off, so each step is checked by hand. Stopping must succeed (the reset must not run
+                 # under a live app); after that the demo is started again WHATEVER the reset did, so a failed reset never leaves it stopped.
+      "${DC[@]}" stop airfinder-demo || return 1
+      local ok=0
+      "${DC[@]}" run --rm --no-deps -v "$PWD/apps/airfinder/reset.sh:/pd-reset.sh:ro" airfinder-demo sh /pd-reset.sh || ok=1
+      "${DC[@]}" up -d --no-deps airfinder-demo || ok=1
+      return $ok ;;
     claudeworkspace)
       "${DC[@]}" --profile reset run --rm --no-deps cw-reset &&
       "${DC[@]}" run --rm --no-deps claudeworkspace-web node /app/seed_demo.mjs ;;

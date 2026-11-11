@@ -22,7 +22,7 @@ import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURIT
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
 import { EVENTS } from '../lib/events.mjs';
-import { num, fireAndForget, maskSecrets, MINUTE, HOUR } from '../lib/util.mjs';
+import { num, fireAndForget, maskSecrets, cachedFor, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { createStatusCache } from './status-cache.mjs';
 import { assertSafeToListen } from './listen-safety.mjs';
@@ -62,6 +62,9 @@ export async function createConsole(opts = {}) {
   const o = {
     port: ports.console,
     bindHost: process.env.ADMIN_BIND || '127.0.0.1',
+    // ADMIN_APP_CONTROL=off: this console only shows status (the hosted container has no Docker access and its logs are elsewhere), so Start, Stop and
+    // Log are hidden and refused.
+    appControl: process.env.ADMIN_APP_CONTROL !== 'off',
     allowedHosts: (process.env.ADMIN_ALLOWED_HOSTS || '127.0.0.1,localhost').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     scheme: process.env.ADMIN_SCHEME || 'http',
     allowHttp: process.env.ADMIN_ALLOW_HTTP === '1',
@@ -113,6 +116,7 @@ export async function createConsole(opts = {}) {
   }
 
   const ipOf = (req) => clientIp(req, trusted);
+  const dbHealthy = cachedFor(5000, () => store.meta.get('health-check')); // public and unauthenticated: the database is asked once per 5 s
   const findApp = (id) => loadRegistry().apps.find((a) => a.id === id);
 
   // Decides whether this request is the owner's. Returns true to carry on; otherwise the answer (login page, redirect, 401, 403)
@@ -176,13 +180,14 @@ export async function createConsole(opts = {}) {
   async function apiApps({ res }) {
     const { rows, statusError } = await statusRows();
     return json(res, 200, loadRegistry().apps.filter((a) => !a.hidden).map((a) => ({
-      id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note,
+      id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note, controls: o.appControl,
       processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional,
         ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
     })), statusError ? { 'x-status-error': statusError } : {});
   }
 
   function appLogs({ res, url, m }) {
+    if (!o.appControl) return json(res, 403, { error: 'Logs are not shown in this setup. Use docker compose logs on the server.' });
     const app = findApp(m[1]);
     const proc = app?.processes.find((p) => p.name === url.searchParams.get('proc'));
     if (!proc) return json(res, 404, { error: 'unknown app/process' });
@@ -192,6 +197,7 @@ export async function createConsole(opts = {}) {
   async function appAction({ req, res, url, m }) {
     const action = m[2];
     if (!originOk(req)) { audit({ ev: EVENTS.adminActionRefused, app: m[1], why: 'bad-origin', ip: ipOf(req) }); return json(res, 403, { error: 'bad origin' }); }
+    if (!o.appControl) return json(res, 403, { error: 'This console only shows status here. Start and stop with docker compose on the server.' });
     const app = findApp(m[1]);
     if (!app) return json(res, 404, { error: 'unknown app' });
     const only = url.searchParams.get('proc');
@@ -220,7 +226,7 @@ export async function createConsole(opts = {}) {
       accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
     })));
     const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
-    return json(res, 200, { gatewayUp, gatewayManaged, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
+    return json(res, 200, { gatewayUp, gatewayManaged, appControl: o.appControl, gatewayPort: o.gatewayPort, products, grants: (await loadGrants()).map(publicGrant).reverse() });
   }
 
   async function demoCreate({ req, res }) {
@@ -290,7 +296,7 @@ export async function createConsole(opts = {}) {
     const url = new URL(req.url, `${o.scheme}://${req.headers.host}`);
     // Health check for the container / load balancer: no data, no login needed.
     if (req.method === 'GET' && url.pathname === '/_pd/healthz') {
-      try { await store.meta.get('health-check'); return json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); return json(res, 503, { ok: false }); }
+      try { await dbHealthy(); return json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); return json(res, 503, { ok: false }); }
     }
     const pw = await passwordMode();
     if (!(await authenticate(req, res, url, pw))) return;

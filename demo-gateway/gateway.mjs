@@ -16,7 +16,7 @@ import { demoApps } from '../lib/registry.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { ports } from '../lib/config.mjs';
 import { cookieOf as readCookie, clientIp, limitKey, safeEq, json } from '../lib/http-util.mjs';
-import { num, fireAndForget, unmapV4, MINUTE, HOUR } from '../lib/util.mjs';
+import { num, fireAndForget, unmapV4, cachedFor, MINUTE, HOUR } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { resetSweep } from './reset.mjs';
@@ -122,8 +122,9 @@ export async function createGateway(opts = {}) {
   metrics.describe('pd_gateway_handler_errors_total', 'Unexpected errors inside a request handler (answered with a 500)');
   metrics.gauge('pd_gateway_websockets_open', () => [...wsCounts.values()].reduce((a, b) => a + b, 0));
   metrics.gauge('pd_gateway_uptime_seconds', () => Math.round((Date.now() - startedAt) / 1000));
+  const dbHealthy = cachedFor(5000, () => store.meta.get('health-check')); // public and unauthenticated: the database is asked once per 5 s, however often this is called
   async function health(res) {
-    try { await store.meta.get('health-check'); json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); json(res, 503, { ok: false }); }
+    try { await dbHealthy(); json(res, 200, { ok: true }); } catch (e) { logger.error('health check failed', { err: e }); json(res, 503, { ok: false }); }
   }
   // Caddy's on-demand TLS asks this before obtaining a certificate for a host name, so certificates are issued only for
   // real demo addresses (<product>.<base host>), never for arbitrary names someone points at the server.

@@ -97,3 +97,16 @@ test('reset-supabase-demo.mjs stops before touching anything when the project re
   const right = run({ DEMO_PROJECT_REF: 'demoref' }); // passes the guard, then fails only because nothing answers on that port
   assert.doesNotMatch(right.stderr, /refusing|missing DEMO_PROJECT_REF/);
 });
+
+test('cachedFor: many callers inside the window share one call and one answer; a new window calls again (audit F-19)', async () => {
+  const { cachedFor } = await import('../../lib/util.mjs');
+  let t = 1000, calls = 0; const now = () => t;
+  const get = cachedFor(5000, async () => { calls++; return calls; }, now);
+  assert.deepEqual(await Promise.all([get(), get(), get()]), [1, 1, 1]);
+  t += 4999; assert.equal(await get(), 1, 'still inside the window');
+  t += 2; assert.equal(await get(), 2, 'the window passed: asked again');
+  // a failure is shared too, and does not stick after the window
+  let fail = true; const g2 = cachedFor(1000, async () => { if (fail) throw new Error('db down'); return 'ok'; }, now);
+  await assert.rejects(g2(), /db down/); await assert.rejects(g2(), /db down/);
+  fail = false; t += 1001; assert.equal(await g2(), 'ok');
+});

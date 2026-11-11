@@ -74,6 +74,29 @@ services:
       retries: 20
     networks: [db]
 
+  # A backup of the dashboard's database every day, kept in the db_backups volume (the newest 14). Same image as the database, so pg_dump matches it.
+  db-backup:
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,size=16m"]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 0.5
+    depends_on: { postgres: { condition: service_healthy } }
+    entrypoint: ["sh", "/db-backup.sh"]
+    environment:
+      PGHOST: postgres
+      PGUSER: dashboard
+      PGDATABASE: dashboard
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      BACKUP_KEEP: ${BACKUP_KEEP:-14}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+    volumes: ["./db-backup.sh:/db-backup.sh:ro", "db_backups:/backups"]
+    networks: [db]
+
   gateway:
     <<: *hardened
     build: { context: .., dockerfile: deploy/Dockerfile }
@@ -106,6 +129,7 @@ services:
       ADMIN_ALLOWED_HOSTS: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in deploy/.env},127.0.0.1
       ADMIN_SCHEME: https
       ADMIN_DATA_KEY: ${ADMIN_DATA_KEY:?set ADMIN_DATA_KEY in deploy/.env (npm run console:auth -- gen-key)}   # encrypts the 2-step secret in the database
+      ADMIN_APP_CONTROL: "off"          # no Docker access in here: Start, Stop and Log are hidden and refused (use docker compose)
       ADMIN_REQUIRE_TOTP: "1"          # the console refuses to listen beyond this machine until 2-step codes are enabled (see README)
       ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
     volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "console_data:/data"]
@@ -378,6 +402,7 @@ networks:
 
 volumes:
   pgdata:
+  db_backups:
   gateway_data:
   console_data:
   caddy_data:
