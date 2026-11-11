@@ -40,3 +40,37 @@ test('rejects bad input', async () => {
 });
 
 test('an unknown token finds nothing', async () => assert.equal(await g.findGrant('0'.repeat(48)), null));
+
+test('owner link: a new one replaces the owner\'s earlier link for that product, and only that one (audit F-08)', async () => {
+  const { ownerLink, needsSharedInstance, OWNER } = await import('../../demo-gateway/owner-link.mjs');
+  const other = await g.createGrant({ customer: 'Acme', app: product, hours: 1 });
+  const first = await ownerLink(product);
+  assert.equal(first.revoked.length, 0);
+  const second = await ownerLink(product);
+  assert.deepEqual(second.revoked, [first.grant.id], 'the earlier owner link is revoked, which frees its private seat');
+  assert.equal(g.isActive(await g.findGrant(first.link.split('/d/')[1])), false);
+  assert.equal(g.isActive(await g.findGrant(second.link.split('/d/')[1])), true);
+  assert.equal(g.isActive(await g.findGrant(other.link.split('/d/')[1])), true, 'a customer\'s link is never touched');
+  const owners = (await g.loadGrants()).filter((x) => x.app === product && x.customer === OWNER && g.isActive(x));
+  assert.equal(owners.length, 1, 'never more than one live owner link per product');
+  assert.equal(second.grant.customer, OWNER);
+  // the launcher starts a shared instance only for products without private copies
+  const apps = g.demoApps();
+  for (const [id, a] of Object.entries(apps)) assert.equal(needsSharedInstance(id), !a.perLink, id);
+  assert.equal(needsSharedInstance('no-such-product'), null);
+  assert.ok(Object.values(apps).some((a) => a.perLink), 'the registry has private-copy products');
+});
+
+test('owner-link.mjs as a command: --shared exit codes, and a link line the launcher can pick up (audit F-08)', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const { minimalEnv } = await import('../../lib/clean-env.mjs');
+  const run = (...a) => spawnSync(process.execPath, ['demo-gateway/owner-link.mjs', ...a], { encoding: 'utf8', timeout: 30000, env: { ...minimalEnv(process.env), DASHBOARD_DATA: dir } });
+  const apps = g.demoApps();
+  const shared = Object.keys(apps).find((k) => !apps[k].perLink), priv = Object.keys(apps).find((k) => apps[k].perLink);
+  assert.equal(run('--shared', shared).status, 0);
+  assert.equal(run('--shared', priv).status, 1);
+  assert.equal(run('--shared', 'nope').status, 2);
+  const r = run(product);
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout.trim().split('\n').at(-1), /^ {2}http\S+\/d\/[a-f0-9]{48}$/);
+});

@@ -3,8 +3,8 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 title ProjectsDashboard - Customer demo launcher
 rem Usage: start-customer-demo.bat [crm|imageapp|airfinder|claudeworkspace|claudeos|rmm]   (no argument: shows a menu)
-rem Starts the demo gateway (port 4300) + that product's isolated demo instance, creates an
-rem 8-hour link for "Local owner", and opens it at http://<product>.localhost:4300/
+rem Starts the demo gateway (port 4300) + that product's isolated demo instance (not for products with a private copy per link),
+rem replaces your earlier "Local owner" link with a new 8-hour one, and opens it at http://<product>.localhost:4300/
 set "APP=%~1"
 if not "%APP%"=="" goto :picked
 echo Which customer demo do you want to open?
@@ -66,6 +66,12 @@ echo [demo] Starting the demo gateway...
 call node supervisor\index.mjs start gateway || ( echo [demo] ERROR: gateway failed to start. See data\logs. & goto :fail )
 :gwdone
 
+rem A product with private copies starts one per opened link, so there is no shared instance to start (it would only use memory).
+node demo-gateway\owner-link.mjs --shared %APP%
+if errorlevel 1 (
+  echo [demo] %APP% gives every link its own private copy: no shared demo instance to start.
+  goto :instdone
+)
 curl.exe -s -o NUL -m 2 "%DURL%" && (
   echo [demo] %APP% demo instance already running on port %DPORT%.
   goto :instdone
@@ -75,9 +81,9 @@ call node supervisor\index.mjs start %APP%-demo || ( echo [demo] ERROR: %APP%-de
 curl.exe -s -o NUL -m 5 "%DURL%" || ( echo [demo] ERROR: %APP%-demo is not responding on port %DPORT%. See data\logs. & goto :fail )
 :instdone
 
-echo [demo] Creating a demo link...
+echo [demo] Creating a demo link (an earlier one of yours for %APP% is replaced, so it does not keep a private seat)...
 set "LINK="
-for /f "tokens=*" %%L in ('node demo-gateway\grants-cli.mjs create --customer "Local owner" --app %APP% --hours 8 ^| findstr /b /c:"  http"') do set "LINK=%%L"
+for /f "tokens=*" %%L in ('node demo-gateway\owner-link.mjs %APP% ^| findstr /b /c:"  http"') do set "LINK=%%L"
 if not defined LINK ( echo [demo] ERROR: could not create a demo link. Is "%APP%" demo-ready in registry\apps.json? & goto :fail )
 
 echo [demo] Opening %LINK%
