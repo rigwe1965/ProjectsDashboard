@@ -8,7 +8,7 @@ npm run demo -- create --customer "Acme" --app crm --max-uses 3 --device-lock   
 npm run demo -- list
 npm run demo -- revoke <id>
 ```
-- **Link limits (optional):** `--max-uses N` (or "Max opens" in the console) stops the link after N opens; `--device-lock` ("Lock to first browser") pins it to the browser that opens it first, so a forwarded link opened elsewhere is refused. The device check uses the browser's User-Agent, so it deters casual sharing but is not a hard guarantee. Revoking a link is the way to end it early.
+- **Link limits (optional):** `--max-uses N` (or "Max opens" in the console) stops the link after N opens; `--device-lock` ("Lock to first browser") pins it to the browser that opens it first, so a forwarded link opened elsewhere is refused. The first browser is given a random cookie (only its hash is stored with the link), so the lock follows that browser and not its User-Agent text; someone who copies the cookie can still get in, so it is a strong deterrent rather than a guarantee. Revoking a link is the way to end it early.
 - **Abuse protection:** link opens are limited per IP and per link, and an address that keeps presenting bad links is refused for a while. Repeated denials after a revocation are summarised in the audit log instead of filling it. Audit entries include the IP and browser.
 - **Headers:** the gateway's own pages carry strict security headers (CSP, frame, referrer), and proxied responses get `nosniff` and a referrer policy unless the app set its own.
 - Link format: `http://<product>.localhost:4300/d/<token>` (set `DEMO_BASE_HOST` / `DEMO_SCHEME=https` for a real domain).

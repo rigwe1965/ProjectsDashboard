@@ -8,10 +8,12 @@ Full explanation of how everything fits together: [docs/HOW-IT-WORKS.md](docs/HO
 
 ## Layout
 - `registry/apps.json`: one entry per app (path, start command, proposed port, health URL, demo support)
-- `supervisor/`: process control (only `status` exists so far)
-- `admin-console/`: owner-only console (placeholder)
-- `showcase/`: public product pages (placeholder)
-- `demo-gateway/`: time-limited, single-app demo links (placeholder)
+- `supervisor/`: process control: status, start, stop, restart, build, reset, and private demo copies (see below)
+- `admin-console/`: the owner-only console (port 4100): app status and control, customer demo links, activity, backups
+- `showcase/`: the public product pages
+- `demo-gateway/`: time-limited, single-app demo links, served on port 4300
+- `lib/`: code shared by the above (stores, registry, alerts, logging)
+- `deploy/`: the hosted setup (Docker Compose, Caddy, Postgres)
 - `data/`: the dashboard's own runtime data (git-ignored)
 
 ## Try it
@@ -26,7 +28,11 @@ node supervisor/index.mjs status
 node supervisor/index.mjs start <app> [--only=proc]
 node supervisor/index.mjs stop <app> [--only=proc]
 node supervisor/index.mjs restart <app> [--only=proc]
+node supervisor/index.mjs build <app>                       production build of a demo
+node supervisor/index.mjs reset <demo-instance>             put a demo back to its seeded state
+node supervisor/index.mjs instance-start|instance-stop <app> <slot>   one private copy of a demo (used by the gateway)
 ```
+An unknown command exits with code 2.
 Apps: airfinder, claudeos, rmm, crm, claudeworkspace, imageapp. Optional processes (e.g. the RMM Streamlit UI) start only with `--only=`.
 Logs go to `data/logs/`; PIDs are tracked in the database (`data/dashboard.db`, one row per process). Stop only ever kills PIDs the supervisor started itself.
 
