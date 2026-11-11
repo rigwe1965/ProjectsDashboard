@@ -222,6 +222,7 @@
       "path": "${DASHBOARD_ROOT}\\data\\demo-src\\crm",
       "stack": "Next.js 15 + Prisma + Neon (crm-demo project)",
       "demoOf": "crm",
+      "guide": true,
       "demoReady": true,
       "build": { "cmd": "npx next build", "cwd": ".", "envFile": "data/crm-demo.env", "produces": ".next\\BUILD_ID", "timeoutSec": 1800 },
       "reset": { "steps": [
@@ -388,6 +389,7 @@
       "path": "${DASHBOARD_ROOT}\\data\\demo-src\\rmm",
       "stack": "Flask + Streamlit + Postgres + Redis (Docker containers pd-rmm-demo-pg, pd-rmm-demo-redis)",
       "demoOf": "rmm",
+      "guide": true,
       "requiresDocker": true,
       "demoReady": true,
       "reset": { "steps": [
