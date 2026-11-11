@@ -3,6 +3,7 @@ import { existsSync, appendFileSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { childEnv } from './env.mjs';
+import { rotateLog } from '../lib/log-rotate.mjs';
 
 // Step output goes to a log file: hide the values of secret-looking settings (keys, tokens, passwords, connection strings) if a script prints them.
 export function redact(text, env) {
@@ -37,6 +38,7 @@ export function createStepRunner({ driver, logDir }) {
     let env; try { env = childEnv(app, envSource, fillStep); } catch (e) { return { ok: false, problem: e.message }; }
     onStart();
     const r = await runStep(fillStep(step.cmd), cwd, env, (step.timeoutSec ?? defaultTimeoutSec) * 1000);
+    rotateLog(join(logDir, logName));
     try { appendFileSync(join(logDir, logName), `\n--- ${new Date().toISOString()} ${label}: exit ${r.timedOut ? 'timed out' : r.status ?? 'error'}\n${r.output}${r.error ? 'error: ' + r.error + '\n' : ''}`, { mode: 0o600 }); } catch { /* best effort */ }
     if (r.error || r.timedOut || r.status !== 0) return { ok: false, how: r.timedOut ? 'timed out' : r.error ?? 'exit ' + r.status };
     return { ok: true };

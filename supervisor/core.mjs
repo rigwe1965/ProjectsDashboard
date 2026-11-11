@@ -14,6 +14,7 @@ import { portInUse, httpUp } from '../lib/http-util.mjs';
 import { instanceApp, validSlot, freshInstanceDir, removeInstanceDir } from '../lib/instance-app.mjs';
 import { fill, portRefs, childEnv } from './env.mjs';
 import { createStepRunner } from './steps.mjs';
+import { rotateLog } from '../lib/log-rotate.mjs';
 
 // Thrown to end a command early with an exit code; the entry point turns it into the process exit code.
 export class Exit extends Error { constructor(code) { super(`exit ${code}`); this.code = code; } }
@@ -108,6 +109,7 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
       const logPath = join(logDir, `${app.id}-${p.name}.log`);
       // The app's output is appended to this file by the shell. Make the file owner-only first (where the system supports it), so other
       // users of the machine cannot read what the app prints.
+      rotateLog(logPath); // a log over 5 MB moves to <name>.log.1 before the app starts writing to it
       try { appendFileSync(logPath, '', { mode: 0o600 }); chmodSync(logPath, 0o600); } catch { /* best effort */ }
       const child = driver.spawnApp({ cmd: fill(p.cmd, p, app), cwd, env, logPath });
       await new Promise((r) => setTimeout(r, 800));
