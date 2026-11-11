@@ -2,7 +2,7 @@
 // demo app, and the real gateway and admin console as child processes on random ports. Not named *.test.mjs, so `npm test` skips it.
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,18 +22,23 @@ export async function until(fn, what, ms = 15000) {
   }
 }
 
-export async function createStack() {
+// options: stubHeaders (extra headers the stand-in app sends, e.g. one that forbids framing); guide: { apiUrl } turns the AI guide on for the toy demo,
+// with a checked guide file, a made-up key, and `apiUrl` (a fake Claude API the test runs) as the API address.
+export async function createStack({ stubHeaders = {}, guide = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'pd-browser-'));
-  const stub = http.createServer((req, res) => { res.setHeader('content-type', 'text/html'); res.end(`<!doctype html><title>Stand-in</title><h1>${MARK}</h1>`); });
+  const stub = http.createServer((req, res) => { res.setHeader('content-type', 'text/html'); for (const [k, v] of Object.entries(stubHeaders)) res.setHeader(k, v); res.end(`<!doctype html><title>Stand-in</title><h1>${MARK}</h1>`); });
   await new Promise((r) => stub.listen(0, '127.0.0.1', r));
   const stubPort = stub.address().port;
   const [gwPort, conPort] = [await freePort(), await freePort()];
   writeFileSync(join(dir, 'registry.json'), JSON.stringify({ apps: [
     { id: 'toy', name: 'Toy', path: '.', processes: [testProc('app', stubPort + 1)] },
-    { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [testProc('app', stubPort)] },
+    { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, ...(guide ? { guide: true } : {}), processes: [testProc('app', stubPort)] },
   ] }));
+  if (guide) { mkdirSync(join(dir, 'guides')); writeFileSync(join(dir, 'guides', 'toy.md'), '# Toy guide\n' + 'The Toys tab lists every toy; the search box finds one by name. '.repeat(6)); }
   const env = { ...testEnv(), DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json'), GATEWAY_PORT: String(gwPort), CONSOLE_PORT: String(conPort),
     DEMO_BASE_HOST: `localhost:${gwPort}`, ADMIN_URL_FILE: join(dir, 'console-url.txt'), DEMO_AUTO_RESET: '0' };
+  if (guide) Object.assign(env, { GUIDES_DIR: join(dir, 'guides'), ANTHROPIC_API_KEY: 'test-key-not-real', ANTHROPIC_BASE_URL: guide.apiUrl });
+  else delete env.ANTHROPIC_API_KEY;
   for (const k of ['DASHBOARD_DB', 'DATABASE_URL', 'TEST_DATABASE_URL', 'ADMIN_DATA_KEY', 'ADMIN_BIND', 'DEMO_SCHEME']) delete env[k];
 
   const children = [];

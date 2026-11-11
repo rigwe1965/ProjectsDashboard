@@ -254,3 +254,66 @@ test('a link\'s guide allowance is a whole number from 0 to 200, stored with the
   assert.equal(grants.publicGrant(grant).guideMessages, 25);
   assert.equal((await grants.createGrant({ customer: 'Max', app: 'toy', guideMessages: 200 })).grant.guideMessages, 200);
 });
+
+// ---- opening a link with the guide, and framing the demo inside the guide page
+const landingOf = async (guideMessages, app = 'toy') => {
+  const { grant, link } = await grants.createGrant({ customer: 'Land', app, guideMessages });
+  const token = link.split('/d/')[1];
+  return { grant, token, page: await httpRequest({ port, host: host(app, port), path: '/d/' + token }) };
+};
+
+test('the opening page offers the guide only to a link that has one, says it is AI and where the words go, and a GET still spends nothing', async () => {
+  const { page, grant } = await landingOf(7);
+  assert.equal(page.status, 200);
+  assert.match(page.body, /A demo guide is included/); assert.match(page.body, /up to 7 questions/); assert.match(page.body, /sent to Anthropic/); assert.match(page.body, /We do not store it/);
+  assert.match(page.body, /open the demo<\/button>/); assert.match(page.body, /action="\?guide=1"[^>]*><button[^>]*>I understand - open it with the guide/);
+  assert.equal((await store.grants.findById(grant.id)).uses, 0);
+  assert.match((await landingOf(1)).page.body, /up to 1 question about/);
+  for (const [n, app] of [[0, 'toy'], [5, 'nog'], [5, 'dra']]) { const r = (await landingOf(n, app)).page.body; assert.doesNotMatch(r, /guide/i, `no guide offered: ${n} on ${app}`); assert.match(r, /open the demo/); }
+});
+
+test('the guide button goes to the guide page, the plain button to the demo; a link without a guide ignores the request for one', async () => {
+  const { token } = await landingOf(5);
+  const post = (query, tok = token, app = 'toy') => httpRequest({ port, host: host(app, port), path: '/d/' + tok + query, method: 'POST' });
+  assert.equal((await post('')).headers.location, '/');
+  const withGuide = await post('?guide=1');
+  assert.equal(withGuide.status, 302); assert.equal(withGuide.headers.location, '/_pd/guide');
+  assert.equal((await post('?guide=0')).headers.location, '/');
+  assert.equal((await post('?guide=1&x=%')).headers.location, '/_pd/guide', 'odd extra query text changes nothing');
+  const plain = await landingOf(0);
+  assert.equal((await post('?guide=1', plain.token)).headers.location, '/', 'no allowance: straight to the demo');
+  const nog = await landingOf(5, 'nog');
+  assert.equal((await post('?guide=1', nog.token, 'nog')).headers.location, '/', 'a product without a guide');
+});
+
+test('responseHeaders: for the guide\'s own frame an app that forbids framing may be framed by its own address; otherwise nothing changes', async () => {
+  const { responseHeaders } = await import('../../demo-gateway/proxy-headers.mjs');
+  const ctx = { upHost: '127.0.0.1', port: 5000, hostHdr: 'toy.localhost:4300', scheme: 'http', https: false, hsts: 'x' };
+  const app = { 'x-frame-options': 'DENY', 'content-security-policy': "default-src 'self'; frame-ancestors 'none'; img-src *", 'content-security-policy-report-only': "frame-ancestors https://a.example https://b.example, default-src 'none'" };
+  const normal = responseHeaders(app, ctx);
+  assert.equal(normal['x-frame-options'], 'DENY'); assert.match(normal['content-security-policy'], /frame-ancestors 'none'/, 'as before for every other request');
+  const framed = responseHeaders(app, { ...ctx, guideFrame: true });
+  assert.equal(framed['x-frame-options'], 'SAMEORIGIN');
+  assert.equal(framed['content-security-policy'], "default-src 'self'; frame-ancestors 'self'; img-src *");
+  assert.equal(framed['content-security-policy-report-only'], "frame-ancestors 'self', default-src 'none'", 'a second policy after a comma is kept');
+  assert.equal(responseHeaders({}, { ...ctx, guideFrame: true })['x-frame-options'], 'SAMEORIGIN', 'the gateway default still applies');
+  assert.equal(responseHeaders({ 'x-frame-options': 'SAMEORIGIN' }, { ...ctx, guideFrame: true })['x-frame-options'], 'SAMEORIGIN');
+  assert.equal(responseHeaders({ 'content-security-policy': "default-src 'self'" }, { ...ctx, guideFrame: true })['content-security-policy'], "default-src 'self'", 'a policy with no frame-ancestors is left alone');
+});
+
+test('through the gateway: the relaxed headers are sent only to the guide\'s own frame (the browser says so with Sec-Fetch headers), and only for a link with a guide', async () => {
+  const stub = http.createServer((req, res) => { res.writeHead(200, { 'content-type': 'text/html', 'x-frame-options': 'DENY', 'content-security-policy': "frame-ancestors 'none'" }); res.end('<h1>app</h1>'); });
+  await new Promise((r, j) => { stub.once('error', j); stub.listen(19042, '127.0.0.1', r); });
+  try {
+    const c = await customer('toy', 5);
+    const get = (extra, who = c) => httpRequest({ port, host: host('toy', port), path: '/', headers: { cookie: who.cookie, ...extra } });
+    const frame = await get({ 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'same-origin' });
+    assert.equal(frame.status, 200); assert.equal(frame.headers['x-frame-options'], 'SAMEORIGIN'); assert.equal(frame.headers['content-security-policy'], "frame-ancestors 'self'");
+    const other = await get({ 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'cross-site' });
+    assert.equal(other.headers['x-frame-options'], 'DENY', 'another site framing the demo is still refused');
+    assert.equal((await get({ 'sec-fetch-dest': 'document', 'sec-fetch-site': 'same-origin' })).headers['x-frame-options'], 'DENY');
+    assert.equal((await get({})).headers['x-frame-options'], 'DENY', 'a browser that sends no Sec-Fetch headers gets the app\'s own headers');
+    const none = await customer('toy', 0);
+    assert.equal((await get({ 'sec-fetch-dest': 'iframe', 'sec-fetch-site': 'same-origin' }, none)).headers['x-frame-options'], 'DENY', 'a link without a guide is never relaxed');
+  } finally { await new Promise((r) => stub.close(r)); }
+});

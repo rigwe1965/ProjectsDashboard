@@ -14,7 +14,7 @@ const DEV_RE = /^[a-f0-9]{32}$/;
 // Everything it needs comes in as arguments: the options (`o`), the store, the private-copy manager, the grant lookup, the rate limiter,
 // the audit and metrics sinks and the request's browser string, plus two groups: `pages` ({ page, tooMany }, the gateway's page writers)
 // and `cookies` ({ COOKIE, DEV_COOKIE, https }: the two cookie names and whether they are Secure). Returns the handler for one /d/<token> request.
-export function createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages, cookies }) {
+export function createRedeemHandler({ o, store, instances, findGrant, guideFor = () => false, limited, audit, metrics, uaOf, pages, cookies }) {
   const { page, tooMany, landing } = pages;
   const { COOKIE, DEV_COOKIE, https } = cookies;
   // `m` is the match of the path pattern (m[1] is the token); `ip` the client address.
@@ -36,9 +36,11 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
       // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
       if (req.method === 'GET') {
         if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
-        return landing(res, { productName: target.name, g, notice: target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE, brand: o.brandName, bookingUrl: o.bookingUrl });
+        return landing(res, { productName: target.name, g, notice: target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE, brand: o.brandName, bookingUrl: o.bookingUrl,
+          guide: guideFor(g, slug, target) ? { messages: g.guideMessages } : null });
       }
       req.resume(); // a POST body (the empty form) is not needed
+      const wantsGuide = new URL(req.url, 'http://x').searchParams.get('guide') === '1'; // the second button on the page
       // a private copy needs a free seat: say so BEFORE the link's use is counted
       if (target.perLink && !(await instances.hasRoom(slug, target, g.id))) return page(res, 503, 'All demo seats are taken', 'Every private demo seat is in use right now. Please try this link again in a few minutes.', { 'retry-after': '120' });
       // counts this use and enforces the link's limits (maximum opens, pinned browser) in one atomic step
@@ -60,7 +62,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
       await store.grantSessions.create(hashSessionId(sid), g.id, g.expiresAt);
       if (target.perLink) await instances.ensure(slug, target, g.id); // allocates the seat and starts the copy in the background
       const flags = `; HttpOnly; SameSite=Lax; Path=/; Max-Age=${maxAge}${https ? '; Secure' : ''}`;
-      res.writeHead(302, { 'set-cookie': [`${COOKIE}=${sid}${flags}`, ...(g.deviceLock && !hadDev ? [`${DEV_COOKIE}=${devId}${flags}`] : [])], location: '/', 'cache-control': 'no-store' });
+      res.writeHead(302, { 'set-cookie': [`${COOKIE}=${sid}${flags}`, ...(g.deviceLock && !hadDev ? [`${DEV_COOKIE}=${devId}${flags}`] : [])], location: wantsGuide && guideFor(g, slug, target) ? '/_pd/guide' : '/', 'cache-control': 'no-store' });
       return res.end();
   };
 }

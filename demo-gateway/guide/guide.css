@@ -24,3 +24,4 @@ button:disabled, textarea:disabled { opacity: .5; cursor: not-allowed; }
   .split { grid-template-columns: 1fr; grid-template-rows: minmax(0, 55%) minmax(0, 45%); }
   .demo { border-right: 0; border-bottom: 1px solid var(--line); }
 }
+.guide header a { font-size: 13px; }

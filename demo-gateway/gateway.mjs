@@ -70,7 +70,7 @@ export async function createGateway(opts = {}) {
     guidePerMinute: num(process.env.GUIDE_PER_MINUTE, GUIDE_DEFAULTS.perMinute), // guide messages per link per minute
     guideDailyCapUsd: num(process.env.GUIDE_DAILY_CAP_USD, GUIDE_DEFAULTS.dailyCapUsd), // the most the guide may cost in a UTC day, all links together (estimated)
     guideMaxMessage: num(process.env.GUIDE_MAX_MESSAGE_CHARS, MAX_MESSAGE_CHARS), // longest message a customer may send the guide
-    guidesDir: undefined, // where the product guides are (default: guides/ in this project)
+    guidesDir: process.env.GUIDES_DIR || undefined, // where the product guides are (default: guides/ in this project)
     guideClient: null, // tests hand in a client here (createGuideClient with a fake)
     store: null, // the store to use; null = the process-wide one (lib/store/index.mjs)
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
@@ -191,7 +191,8 @@ export async function createGateway(opts = {}) {
   const activity = createActivity({ store, flushMs: o.activityFlushMs }); // what each link did, written in batches (activity.mjs)
   activity.start();
   const { readyCopy, forward } = createProxy({ o, trusted, agent, metrics, instances, page, https });
-  const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages: { page, tooMany, landing }, cookies: { COOKIE, DEV_COOKIE, https } });
+  const guideFor = (g, slug, target) => Boolean(guide?.eligible(g, slug, target).ok); // does this link have a working guide on this product?
+  const redeem = createRedeemHandler({ o, store, instances, findGrant, guideFor, limited, audit, metrics, uaOf, pages: { page, tooMany, landing }, cookies: { COOKIE, DEV_COOKIE, https } });
   const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws: { counts: wsCounts, closers: wsClosers, release: releaseWs }, audit, metrics, activity });
 
   async function handle(req, res) {
@@ -226,7 +227,9 @@ export async function createGateway(opts = {}) {
       slot = copy.slot;
     }
     activity.record(g.id, path); // only requests that really go to the demo are counted (memory only, no waiting)
-    return forward(req, res, { path, slug, slot, g, target, hostHdr });
+    // The guide page frames the demo from the same address; the browser says so in these headers (they cannot be set by a page), and only then are the app's anti-framing headers relaxed.
+    const guideFrame = req.headers['sec-fetch-dest'] === 'iframe' && req.headers['sec-fetch-site'] === 'same-origin' && guideFor(g, slug, target);
+    return forward(req, res, { path, slug, slot, g, target, hostHdr, guideFrame });
   }
 
   const server = http.createServer({ maxHeaderSize: 16384, headersTimeout: 20000 }, (req, res) => {

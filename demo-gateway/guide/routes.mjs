@@ -114,7 +114,7 @@ export function createGuideRoutes({ o, store, budget, client }) {
     res.end('<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><meta name=color-scheme content="light dark"><meta name=robots content="noindex">' +
       '<title>Your demo, with a guide</title><link rel=stylesheet href="/_pd/guide.css">' +
       `<body data-left="${left}" data-max="${maxMessage}"><main class=split><iframe class=demo src="/" title="The demo"></iframe>` +
-      '<section class=guide aria-label="Demo guide"><header><strong>Demo guide</strong><span id=left></span></header>' +
+      '<section class=guide aria-label="Demo guide"><header><strong>Demo guide</strong><span id=left></span><a href="/" target=_top>Hide guide</a></header>' +
       '<p class=ai>This guide is an AI assistant, not a person. What you type here is sent to Anthropic to get an answer. We do not store it: it is kept only in memory while your visit lasts.</p>' +
       '<div id=log role=log aria-live=polite></div>' +
       `<form id=form><textarea id=msg maxlength="${maxMessage}" rows=2 placeholder="Ask how to do something in the demo" aria-label="Your question"></textarea><button id=send type=submit>Send</button></form>` +

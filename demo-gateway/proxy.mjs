@@ -26,11 +26,11 @@ export function createProxy({ o, trusted, agent, metrics, instances, page, https
   }
 
   // Forwards the request to the demo app and streams the answer back. `slot` is the private copy's number (null for shared demos).
-  function forward(req, res, { path, slug, slot, g, target, hostHdr }) {
+  function forward(req, res, { path, slug, slot, g, target, hostHdr, guideFrame = false }) {
     const { host: upHost, port } = upstreamPort(target, path, slot);
     const headers = requestHeaders(req, { upHost, port, hostHdr, scheme: o.scheme, trusted });
     const up = http.request({ host: upHost, port, method: req.method, path: req.url, headers, agent }, (ur) => {
-      const out = responseHeaders(ur.headers, { upHost, port, hostHdr, scheme: o.scheme, https, hsts: HSTS });
+      const out = responseHeaders(ur.headers, { upHost, port, hostHdr, scheme: o.scheme, https, hsts: HSTS, guideFrame });
       res.writeHead(ur.statusCode, out);
       // pipeline() keeps pipe()'s backpressure (a slow browser slows the upstream) and also ends the browser's response
       // when the upstream dies mid-body, instead of leaving it hanging

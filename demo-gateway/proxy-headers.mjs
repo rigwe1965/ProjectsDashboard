@@ -60,12 +60,19 @@ export function upgradeResponseHead(headText) {
   return [status, ...kept].join('\r\n');
 }
 
-// The demo app's response headers for the customer's browser.
-export function responseHeaders(upstreamHeaders, { upHost, port, hostHdr, scheme, https, hsts }) {
+// The demo app's response headers for the customer's browser. guideFrame: this response is for the AI guide's own frame (same origin, a link that has
+// the guide). An app that forbids all framing (X-Frame-Options: DENY, CSP frame-ancestors 'none' or a list of sites) is then let be framed by
+// its own address only, which is what the guide page is; every other site still cannot frame it.
+export function responseHeaders(upstreamHeaders, { upHost, port, hostHdr, scheme, https, hsts, guideFrame = false }) {
   const out = {};
   for (const [k, v] of Object.entries(upstreamHeaders)) if (!HOP.has(k)) out[k] = v;
   out['x-content-type-options'] ??= 'nosniff';
   out['referrer-policy'] ??= 'strict-origin-when-cross-origin';
+  if (guideFrame) {
+    if (/^\s*deny\s*$/i.test(String(out['x-frame-options'] ?? ''))) out['x-frame-options'] = 'SAMEORIGIN';
+    const fix = (v) => String(v).replace(/frame-ancestors\s+[^;,]*/gi, "frame-ancestors 'self'");
+    for (const h of ['content-security-policy', 'content-security-policy-report-only']) if (out[h]) out[h] = Array.isArray(out[h]) ? out[h].map(fix) : fix(out[h]);
+  }
   out['x-frame-options'] ??= 'SAMEORIGIN'; // demo pages cannot be framed by another site (clickjacking)
   if (out['set-cookie']) {
     // A demo app may set its own cookies, but not ours, and not for the whole parent domain (Domain=.demo.example.com

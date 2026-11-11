@@ -32,7 +32,7 @@ export function parseBookingUrl(raw) {
 
 // Everything the page shows, as one HTML string. productName: the product's name; g: the link (customer's own name for it is NOT shown, only
 // displayName); notice: the trusted notice HTML; brand: the owner's name (or ''); bookingUrl: from parseBookingUrl or null.
-export function renderLanding({ productName, g, notice, brand = '', bookingUrl = null, now = Date.now() }) {
+export function renderLanding({ productName, g, notice, brand = '', bookingUrl = null, guide = null, now = Date.now() }) {
   const product = esc(String(productName || 'the demo').replace(/\s+demo$/i, ''));
   const left = timeLeft(g.expiresAt, now);
   const welcome = g.welcome ? `<p style="margin:16px 0;padding:12px 16px;border-left:4px solid #888;background:rgba(128,128,128,.12);white-space:normal">${esc(g.welcome).replaceAll('\n', '<br>')}</p>` : '';
@@ -44,7 +44,9 @@ export function renderLanding({ productName, g, notice, brand = '', bookingUrl =
     welcome +
     (left ? `<p style="font-size:15px;opacity:.8">This link works until ${esc(new Date(g.expiresAt).toUTCString())} (${left} left).</p>` : '') +
     `<div style="font-size:16px;margin:18px 0">${notice}</div>` +
+    (guide ? `<div style="font-size:16px;margin:18px 0;padding:12px 16px;border:1px solid #888;border-radius:8px"><strong>A demo guide is included.</strong> It is an AI assistant beside the demo that can answer up to ${esc(guide.messages)} ${guide.messages === 1 ? 'question' : 'questions'} about how to use it. What you type to it is sent to Anthropic to get the answer. We do not store it.</div>` : '') +
     '<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open the demo</button></form>' +
+    (guide ? '<form method="post" action="?guide=1" style="margin-top:10px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open it with the guide</button></form>' : '') +
     (bookingUrl ? `<p style="margin-top:28px;font-size:15px">Questions, or want to talk it through? <a href="${esc(bookingUrl)}" target="_blank" rel="noopener noreferrer">Book a call</a></p>` : '');
 }
 // The gateway's own pages. Whether they carry HSTS follows the gateway's scheme option (the same one the cookies use), not a second reading of the environment.
