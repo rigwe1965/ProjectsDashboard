@@ -7,20 +7,32 @@
 // State lives in the store's meta table so the gateway and the console (separate processes) agree:
 //   demo_resetting:<product>  ISO time while a reset is running (the gateway refuses new link opens meanwhile)
 //   demo_reset_at:<product>   ISO time the last successful reset started
-//   demo_reset_failed:<product>  ISO time of the last failed automatic reset (retry after a pause)
+//   demo_reset_failed:<product>  ISO time of the last failed reset. Set until a reset succeeds: the gateway refuses new link opens
+//                                meanwhile, because the instance may still hold the previous customer's data. Retry after a pause.
+//   demo_restart:<product>    set while a reset that stopped a running demo is in progress; the sweep starts the demo again if it is
+//                             found stopped with this still set (the reset was killed between the stop and the start)
 import { isActive } from './grants.mjs';
 import { logger } from '../lib/log.mjs';
 import { errMessage } from '../lib/util.mjs';
 import { EVENTS } from '../lib/events.mjs';
+import { httpUp } from '../lib/http-util.mjs';
 
 export const RESET_STALE_MS = 25 * 60 * 1000;   // a "resetting" flag older than this is a crashed reset, not a running one
 export const RESET_RETRY_AFTER_FAIL_MS = 10 * 60 * 1000;
-const resettingKey = (p) => 'demo_resetting:' + p, lastKey = (p) => 'demo_reset_at:' + p, failKey = (p) => 'demo_reset_failed:' + p;
+const resettingKey = (p) => 'demo_resetting:' + p, lastKey = (p) => 'demo_reset_at:' + p, failKey = (p) => 'demo_reset_failed:' + p, restartKey = (p) => 'demo_restart:' + p;
 
 export async function isResetting(store, product) {
   const t = Date.parse((await store.meta.get(resettingKey(product))) || '');
   return Number.isFinite(t) && Date.now() - t < RESET_STALE_MS;
 }
+// New link opens are held back while a reset runs AND after one failed, until a reset succeeds (SEC-03: a failed reset must not hand the
+// next customer the previous one's data). The owner can end the hold by resetting again from the console, or with
+// `node supervisor/demo-reset-state.mjs clear <product>` once the data has been checked.
+export async function holdReason(store, product) {
+  if (await isResetting(store, product)) return 'resetting';
+  return (await store.meta.get(failKey(product))) ? 'failed' : null;
+}
+export const clearResetFailure = (store, product) => store.meta.set(failKey(product), '');
 export const lastResetAt = async (store, product) => (await store.meta.get(lastKey(product))) || null;
 
 // busy:  a link for this product was opened and has not yet ended, so a customer may still be in the demo
@@ -52,12 +64,28 @@ export async function endReset(store, product, { ok, startedAt, by = 'auto' }) {
 export async function runReset({ store, product, app, supervisor, by = 'auto' }) {
   const startedAt = await beginReset(store, product);
   if (!startedAt) return { ok: false, busy: true, output: 'A reset of this demo is already running.' };
+  // Remember that the demo was up, so that if this reset is killed after the stop but before the start, the sweep starts it again.
+  if (await anyUp(app)) await store.meta.set(restartKey(product), startedAt);
   let r;
   try { r = await supervisor(['reset', app.id], 20 * 60 * 1000); }
   catch (err) { r = { ok: false, output: errMessage(err) }; }
   finally { /* the flag is cleared by endReset below, whatever happened */ }
   await endReset(store, product, { ok: !!r.ok, startedAt, by });
+  if (await allUp(app)) await store.meta.set(restartKey(product), '');
   return r;
+}
+
+const upChecks = (app) => app.processes.filter((p) => !p.optional).map((p) => httpUp(p.port, p.health, p.host));
+const anyUp = async (app) => (await Promise.all(upChecks(app))).some(Boolean);
+const allUp = async (app) => (await Promise.all(upChecks(app))).every(Boolean);
+
+// A demo that a reset stopped and never started again (the reset was killed in between, or the machine restarted) is started here.
+async function restartIfLeftDown({ store, product, app, supervisor }) {
+  if (!(await store.meta.get(restartKey(product))) || (await isResetting(store, product))) return;
+  if (await allUp(app)) { await store.meta.set(restartKey(product), ''); return; }
+  logger.warn('demo was left stopped by a reset; starting it', { product });
+  await supervisor(['start', app.id], 5 * 60 * 1000);
+  if (await allUp(app)) await store.meta.set(restartKey(product), '');
 }
 
 // Why a product is, or is not, due for a reset right now: 'due' | 'clean' (nothing opened since the last reset) |
@@ -79,6 +107,7 @@ export async function resetSweep({ store, apps, supervisor }) {
   for (const [product, app] of Object.entries(apps)) {
     if (!app.reset || app.perLink) continue; // a product with private copies has no shared data to reset
     try {
+      await restartIfLeftDown({ store, product, app, supervisor });
       if ((await resetDue(store, product)) !== 'due') continue;
       logger.info('resetting demo to its seeded state', { product });
       const r = await runReset({ store, product, app, supervisor, by: 'auto' });

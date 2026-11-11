@@ -114,6 +114,54 @@ test('while a reset runs the gateway will not open links for that demo (and does
   } finally { await gw.close(); }
 });
 
+test('after a failed reset new links stay held back until a reset succeeds (audit F-04a)', async () => {
+  const gw = await createGateway({ port: 0, baseHost: 'localhost', redeemPerMinute: 1000, supervisor });
+  const port = await gw.listen();
+  const post = (path) => new Promise((resolve, reject) => {
+    const r = http.request({ host: '127.0.0.1', port, path, method: 'POST', headers: { host: 'rst.localhost:' + port } }, (res) => { res.resume(); res.on('end', () => resolve({ status: res.statusCode, headers: res.headers })); });
+    r.on('error', reject); r.end();
+  });
+  try {
+    const app = grants.demoApps().rst;
+    await store.meta.set('demo_reset_failed:rst', '');
+    const failed = await runReset({ store, product: 'rst', app, supervisor: async () => ({ ok: false, output: 'boom' }), by: 'admin' });
+    assert.equal(failed.ok, false);
+    assert.equal(await isResetting(store, 'rst'), false, 'the reset itself is over');
+    const { link, grant } = await grants.createGrant({ customer: 'Next', app: 'rst', hours: 1 });
+    const path = '/d/' + link.split('/d/')[1];
+    const r = await post(path);
+    assert.equal(r.status, 503, 'but the demo may still hold the previous customer\'s data');
+    assert.equal(r.headers['retry-after'], '300');
+    assert.equal((await store.grants.findById(grant.id)).uses, 0);
+    assert.equal((await runReset({ store, product: 'rst', app, supervisor })).ok, true);
+    assert.equal((await post(path)).status, 302, 'a successful reset lifts the hold');
+    // the owner can also lift it by hand
+    await runReset({ store, product: 'rst', app, supervisor: async () => ({ ok: false, output: 'boom' }), by: 'admin' });
+    assert.equal((await post(path)).status, 503);
+    const { clearResetFailure } = await import('../../demo-gateway/reset.mjs');
+    await clearResetFailure(store, 'rst');
+    assert.equal((await post(path)).status, 302);
+  } finally { await gw.close(); }
+});
+
+test('a demo a killed reset left stopped is started again by the next sweep (audit F-04b)', async () => {
+  const app = grants.demoApps().rst;
+  await runReset({ store, product: 'rst', app, supervisor }); // baseline: clean, marker clear
+  assert.equal(await store.meta.get('demo_restart:rst'), '', 'a reset that finished leaves no marker');
+  // a reset that was killed after the stop: the marker is set and nothing answers on the port
+  await store.meta.set('demo_restart:rst', new Date().toISOString());
+  await new Promise((r) => up.close(r)); up.closeAllConnections?.();
+  calls.length = 0;
+  await sweep();
+  assert.deepEqual(calls, ['start rst-demo']);
+  assert.ok(await store.meta.get('demo_restart:rst'), 'still marked: it did not come up');
+  await new Promise((r) => up.listen(upPort, '127.0.0.1', r));
+  calls.length = 0;
+  await sweep();
+  assert.deepEqual(calls, [], 'it is up now, so nothing more is started');
+  assert.equal(await store.meta.get('demo_restart:rst'), '');
+});
+
 test('host-side reset bookkeeping (container deployments): due / begin / end', async () => {
   const { beginReset, endReset, resetDue } = await import('../../demo-gateway/reset.mjs');
   for (const x of await store.grants.list()) if (x.app === 'rst' && !x.revoked) await grants.revokeGrant(x.id); // links left open by earlier tests

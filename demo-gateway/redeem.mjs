@@ -2,7 +2,7 @@
 // the click is a POST, and only that counts a use, checks the link's limits, starts a private copy if the product has them, and sets the cookies.
 import { randomBytes } from 'node:crypto';
 import { isActive } from './grants.mjs';
-import { isResetting } from './reset.mjs';
+import { holdReason } from './reset.mjs';
 import { cookieOf as readCookie, limitKey } from '../lib/http-util.mjs';
 import { MINUTE } from '../lib/util.mjs';
 import { EVENTS } from '../lib/events.mjs';
@@ -29,7 +29,8 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
         if ((await store.rateLimit.hit('redeem-fail:' + limitKey(ip), 10 * MINUTE, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
         return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
       }
-      if (await isResetting(store, slug)) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a minute or two.', { 'retry-after': '60' });
+      const held = await holdReason(store, slug); // a reset is running, or the last one failed and the demo may still hold earlier data
+      if (held) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a few minutes.', { 'retry-after': held === 'failed' ? '300' : '60' });
       if (req.method !== 'GET' && req.method !== 'POST') { res.writeHead(405, { allow: 'GET, POST', 'cache-control': 'no-store' }); return res.end(); }
       // A GET never opens the demo or spends a use: mail scanners and chat link-previews fetch links automatically. The
       // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
