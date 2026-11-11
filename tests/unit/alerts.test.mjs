@@ -73,3 +73,48 @@ test('webhook sender: format follows the service, https only, never throws', asy
   assert.equal(await makeWebhookSender('https://ntfy.sh/t', { fetchImpl: async () => ({ ok: false }) })('T', 'b'), false);
   assert.equal(makeWebhookSender('https://ntfy.sh/secret-topic').host, 'ntfy.sh');
 });
+
+// a sender whose answers are scripted: true = delivered, false = the webhook could not be reached
+const flaky = (answers) => { const sent = []; const send = async (title, text) => { sent.push({ title, text }); return answers.length ? answers.shift() : true; }; send.sent = sent; return send; };
+
+test('alerter: a DOWN message that did not get through is tried again at the next check (audit F-07)', async () => {
+  const send = flaky([false, false, true]);
+  const a = createAlerter({ send, failAfter: 2, now: clock() });
+  assert.equal(await a.observe('x', false), null);
+  assert.equal(await a.observe('x', false), 'unsent');
+  assert.equal(await a.observe('x', false), 'unsent', 'still not delivered: tried again, not silent for six hours');
+  assert.equal(await a.observe('x', false), 'down');
+  assert.equal(await a.observe('x', false), null, 'delivered once, so quiet again');
+  assert.equal(send.sent.length, 3);
+});
+
+test('alerter: a reminder that did not get through is tried again at the next check (audit F-07)', async () => {
+  const now = clock(), send = flaky([true, false, true]);
+  const a = createAlerter({ send, failAfter: 1, repeatMs: 3600e3, now });
+  assert.equal(await a.observe('x', false), 'down');
+  now.add(3600e3);
+  assert.equal(await a.observe('x', false), 'unsent');
+  assert.equal(await a.observe('x', false), 'reminder');
+  assert.equal(await a.observe('x', false), null);
+});
+
+test('alerter: a BACK message that did not get through is kept and tried again while the thing stays up (audit F-07)', async () => {
+  const now = clock(), send = flaky([true, false, false, true]);
+  const a = createAlerter({ send, failAfter: 1, now });
+  await a.observe('x', false); now.add(300e3);
+  assert.equal(await a.observe('x', true), 'unsent');
+  assert.equal(await a.observe('x', true), 'unsent');
+  assert.equal(await a.observe('x', true), 'back');
+  assert.equal(await a.observe('x', true), null, 'delivered, record gone');
+  assert.match(send.sent.at(-1).text, /down for 5 min/, 'the message still says how long it was down');
+  assert.equal(send.sent.length, 4);
+});
+
+test('alerter: if it goes down again before BACK was delivered, the failure is reported at once, not after another grace period (audit F-07)', async () => {
+  const send = flaky([true, false]);
+  const a = createAlerter({ send, failAfter: 2, now: clock() });
+  await a.observe('x', false); await a.observe('x', false); // DOWN delivered
+  assert.equal(await a.observe('x', true), 'unsent');       // BACK lost
+  assert.equal(await a.observe('x', false), null, 'one failed check is still not reported');
+  assert.equal(await a.observe('x', true), 'back', 'the held BACK goes out when the thing is up again');
+});
