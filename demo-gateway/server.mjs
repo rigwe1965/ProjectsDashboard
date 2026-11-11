@@ -45,7 +45,7 @@ async function shutdown(sig) {
   logger.info('shutting down', { signal: sig });
   const force = setTimeout(() => { logger.warn('forced exit after timeout'); process.exit(1); }, 10000); force.unref();
   try { await gw.close(); await closeStore(); } catch (e) { logger.error('error during shutdown', { err: e }); }
-  process.exit(0);
+  process.exit(process.exitCode ?? 0); // a fatal error set exitCode = 1 before shutting down; keep it
 }
 for (const sig of ['SIGINT', 'SIGTERM']) process.on(sig, () => shutdown(sig));
 installProcessHandlers((why) => { process.exitCode = 1; shutdown(why); });

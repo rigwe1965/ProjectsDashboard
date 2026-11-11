@@ -42,3 +42,15 @@ test('log: text format is one readable line', () => {
   const r = capture(() => log('info', 'started', { port: 4300, host: 'x' }), { LOG_FORMAT: 'text' });
   assert.match(r.out, /^\S+ INFO {2}started port=4300 host=x\n$/);
 });
+
+test('the gateway and the console keep a fatal error\'s exit code through their graceful shutdown (audit F-10)', async () => {
+  const { readFileSync } = await import('node:fs');
+  // Both services run `process.exitCode = 1; shutdown()` on a fatal error, and shutdown() ends the process. A plain exit(0) would
+  // override the 1 and make a crash look like a clean stop. (A real crash cannot be provoked from outside, so this pins the source.)
+  for (const f of ['demo-gateway/server.mjs', 'admin-console/server.mjs']) {
+    const src = readFileSync(new URL('../../' + f, import.meta.url), 'utf8');
+    assert.match(src, /process\.exitCode = 1; shutdown\(why\)/, f);
+    assert.match(src, /process\.exit\(process\.exitCode \?\? 0\)/, f);
+    assert.doesNotMatch(src, /process\.exit\(0\)/, f);
+  }
+});
