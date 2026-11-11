@@ -180,6 +180,29 @@ for (const f of factories) {
       assert.deepEqual(await s.activity.summary(), []);
     });
 
+    test('guideUsage: counts and cost add up per link and day; totals per link and per day; bad numbers are zero; no lost updates', async () => {
+      assert.deepEqual(await s.guideUsage.totalForGrant('gu1'), { messages: 0, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costMicro: 0 }, 'a link that never used the guide reads as zeros');
+      await s.guideUsage.add('gu1', '2026-03-05', { messages: 1, inputTokens: 4000, cachedTokens: 0, outputTokens: 200, costMicro: 500 });
+      await s.guideUsage.add('gu1', '2026-03-05', { messages: 1, inputTokens: 300, cachedTokens: 3900, outputTokens: 150, costMicro: 120 });
+      await s.guideUsage.add('gu1', '2026-03-06', { messages: 2, costMicro: 7 });
+      await s.guideUsage.add('gu2', '2026-03-05', { messages: 5, costMicro: 1000 });
+      const rows = await s.guideUsage.forGrant('gu1');
+      assert.deepEqual(rows.map((r) => r.day), ['2026-03-05', '2026-03-06']);
+      assert.deepEqual(rows[0], { grantId: 'gu1', day: '2026-03-05', messages: 2, inputTokens: 4300, cachedTokens: 3900, outputTokens: 350, costMicro: 620 });
+      assert.deepEqual(await s.guideUsage.totalForGrant('gu1'), { messages: 4, inputTokens: 4300, cachedTokens: 3900, outputTokens: 350, costMicro: 627 });
+      assert.equal((await s.guideUsage.totalForDay('2026-03-05')).messages, 7, 'the day total spans every link');
+      assert.equal((await s.guideUsage.totalForDay('2026-03-05')).costMicro, 1620);
+      await s.guideUsage.add('gu3', '2026-03-05', { messages: -2, inputTokens: 'x', outputTokens: NaN, costMicro: 1.9 });
+      assert.deepEqual((await s.guideUsage.forGrant('gu3'))[0], { grantId: 'gu3', day: '2026-03-05', messages: 0, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costMicro: 1 });
+      await assert.rejects(async () => s.guideUsage.add('gu3', 'today', { messages: 1 }), /YYYY-MM-DD/);
+      await Promise.all([1, 2, 3, 4, 5, 6].map((i) => s.guideUsage.add('grace', '2026-03-05', { messages: 1, costMicro: i })));
+      assert.deepEqual(await s.guideUsage.totalForGrant('grace'), { messages: 6, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costMicro: 21 });
+      assert.equal(await s.guideUsage.deleteForGrant('gu2'), 1);
+      assert.deepEqual(await s.guideUsage.forGrant('gu2'), []);
+      assert.ok(await s.guideUsage.prune(1) >= 1, 'all of these old test rows are pruned');
+      assert.deepEqual(await s.guideUsage.forGrant('gu1'), []);
+    });
+
     test('grants: the name and welcome note shown to the customer are stored, and forgetting the customer removes them', async () => {
       await s.grants.insert(grant({ id: 'b1', tokenHash: 'b1h', displayName: 'Acme Ltd', welcome: 'Hello Dana,\nhere is your demo.' }));
       const g = await s.grants.findById('b1');

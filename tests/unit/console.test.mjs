@@ -686,9 +686,13 @@ test('forget also deletes the activity counts for the link (analytics plan step 
   const id = made.grant.id, other = 'feedfacefeedface';
   await store.activity.add(id, '2026-03-05', { requests: 3, paths: { '/a': 3 } });
   await store.activity.add(other, '2026-03-05', { requests: 9 });
+  await store.guideUsage.add(id, '2026-03-05', { messages: 2 });
+  await store.guideUsage.add(other, '2026-03-05', { messages: 3 });
   assert.equal((await post(port, '/api/demos/' + id + '/revoke', {}, { cookie })).status, 200);
   assert.equal((await post(port, '/api/demos/' + id + '/forget', {}, { cookie })).status, 200);
   assert.deepEqual(await store.activity.forGrant(id), []);
+  assert.deepEqual(await store.guideUsage.forGrant(id), [], 'guide counts go with forget');
+  assert.equal((await store.guideUsage.forGrant(other)).length, 1);
   assert.equal((await store.activity.forGrant(other)).length, 1, 'another link\'s counts are untouched');
 });
 

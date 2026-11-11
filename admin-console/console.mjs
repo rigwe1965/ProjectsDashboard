@@ -268,6 +268,7 @@ export async function createConsole(opts = {}) {
     if (isActive(g)) throw new HttpError(409, 'Revoke the link first; it is still active');
     const removed = await store.audit.deleteForGrant(m[1]);
     await store.activity.deleteForGrant(m[1]); // what the link's customer did (pages, time) goes too
+    await store.guideUsage.deleteForGrant(m[1]); // and their AI guide counts
     await store.grants.anonymize(m[1]); // the name on the grant goes too
     audit({ ev: EVENTS.grantForgotten, ip: ipOf(req), removed }); // deliberately without the grant id
     return json(res, 200, { ok: true, removed });
