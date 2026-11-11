@@ -22,7 +22,7 @@ import { loadRegistry } from '../lib/registry.mjs';
 import { cookieOf as readCookie, safeEq, json, portInUse, clientIp, BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { logger } from '../lib/log.mjs';
-import { EVENTS } from '../lib/events.mjs';
+import { EVENTS, EVENT_FILTERS } from '../lib/events.mjs';
 import { num, fireAndForget, maskSecrets, cachedFor, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { createStatusCache } from './status-cache.mjs';
@@ -35,8 +35,6 @@ import { ADMIN_KEYS, hashSessionId } from '../lib/auth.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const COOKIE_BASE = 'pd_session';
-// Things the owner did (sign-ins, start/stop, creating and revoking customer links), as opposed to what customers did.
-const isAdminEvent = (ev) => ev.startsWith('admin-') || ev === EVENTS.grantCreated || ev === EVENTS.grantRevoked;
 
 const defaultSupervisor = runSupervisor;
 
@@ -165,12 +163,7 @@ export async function createConsole(opts = {}) {
   async function apiAudit({ res, url }) {
     const kind = url.searchParams.get('kind') || 'all';
     const limit = Math.min(Math.max(parseInt(url.searchParams.get('limit') || '100', 10) || 100, 1), 300);
-    const keep = {
-      all: () => true,
-      admin: (e) => isAdminEvent(e.ev),
-      demos: (e) => !isAdminEvent(e.ev),
-      problems: (e) => e.ev === EVENTS.adminLoginFailed || e.ev === EVENTS.denied || e.ev === EVENTS.adminActionRefused,
-    }[kind];
+    const keep = Object.hasOwn(EVENT_FILTERS, kind) ? EVENT_FILTERS[kind] : null; // hasOwn: "constructor" is not a filter
     if (!keep) return json(res, 400, { error: 'unknown filter' });
     const rows = (await store.audit.list(1000)).filter((e) => keep(e)).slice(0, limit)
       .map((e) => ({ t: e.t, ev: e.ev, app: e.app, grant: e.grant, ip: e.ip, ua: typeof e.ua === 'string' ? e.ua.slice(0, 120) : undefined,

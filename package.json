@@ -19,7 +19,8 @@
     "test:e2e": "node tests/journeys.mjs",
     "backup": "node supervisor/backup-cli.mjs",
     "alert:test": "node supervisor/alert-cli.mjs",
-    "migrate": "node supervisor/migrate.mjs"
+    "migrate": "node supervisor/migrate.mjs",
+    "mcp": "node mcp/server.mjs"
   },
   "engines": {
     "node": ">=22"
