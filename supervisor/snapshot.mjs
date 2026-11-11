@@ -4,15 +4,17 @@
 //   node supervisor/snapshot.mjs take <app-id>       save the registry's "snapshot.paths" (the demo must be stopped)
 //   node supervisor/snapshot.mjs restore <app-id>    replace the live files with the saved copy
 //   node supervisor/snapshot.mjs info <app-id>       when the copy was taken and what it holds
-// The copy lives in data/demo-golden/<app-id>/. Every path (live and saved) must be inside the dashboard's data/ folder.
+// The copy lives in demo-golden/<app-id>/ inside the dashboard's data folder (DASHBOARD_DATA). Every path (live and saved) must be inside it
+// (or inside <project>/data, where the demo clones are).
 // A SQLite file's -wal and -shm companions are saved and restored with it, so no half-written state survives a restore.
-import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, resolve, sep } from 'node:path';
-import { root, dataDir } from '../lib/config.mjs';
+import { dataDir } from '../lib/config.mjs';
+import { httpUp } from '../lib/http-util.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
 import { checkPath } from './reset-fs.mjs';
 
-const goldenRoot = join(root, 'data', 'demo-golden');
+const goldenRoot = join(dataDir, 'demo-golden');
 const withCompanions = (p) => /\.(db|sqlite3?)$/i.test(p) ? [p, p + '-wal', p + '-shm'] : [p];
 
 export function goldenDir(id) {
@@ -25,8 +27,19 @@ export function targets(app) {
   return paths.map((p) => checkPath(resolve(app.path, p)));
 }
 
+// Saving files a running demo is writing gives a torn copy, so `take` refuses while any of the demo's processes answers on its port.
+export async function assertStopped(app) {
+  for (const p of app.processes ?? []) if (!p.optional && await httpUp(p.port, p.health, p.host)) throw new Error(`${app.id} is running (${p.name} answers on port ${p.port}). Stop it first, then save the copy.`);
+}
+
+// A swap that was interrupted between its two renames leaves the previous copy at <dir>.old: put it back before anything reads or replaces it.
+function recoverGolden(dir) {
+  if (!existsSync(dir) && existsSync(dir + '.old')) renameSync(dir + '.old', dir);
+}
+
 export function take(app) {
   const dir = goldenDir(app.id);
+  recoverGolden(dir);
   const next = dir + '.new'; // built aside, so a failure never destroys the previous copy
   rmSync(next, { recursive: true, force: true }); mkdirSync(next, { recursive: true });
   const items = [];
@@ -40,12 +53,16 @@ export function take(app) {
   }
   if (!items.length) { rmSync(next, { recursive: true, force: true }); throw new Error('None of the snapshot paths exist, so there is nothing to save'); }
   writeFileSync(join(next, 'manifest.json'), JSON.stringify({ app: app.id, takenAt: new Date().toISOString(), declared: targets(app), items }, null, 2));
-  rmSync(dir, { recursive: true, force: true });
-  cpSync(next, dir, { recursive: true }); rmSync(next, { recursive: true, force: true });
+  // Swap by rename, never delete-then-copy: at every moment either the old copy or the new one is complete on disk (audit F-17).
+  rmSync(dir + '.old', { recursive: true, force: true });
+  if (existsSync(dir)) renameSync(dir, dir + '.old');
+  renameSync(next, dir);
+  rmSync(dir + '.old', { recursive: true, force: true });
   return items.length;
 }
 
 export function manifest(app) {
+  recoverGolden(goldenDir(app.id));
   const f = join(goldenDir(app.id), 'manifest.json');
   if (!existsSync(f)) throw new Error(`There is no saved copy of ${app.id}. Save one when the demo is in the state customers should start from: node supervisor/snapshot.mjs take ${app.id}`);
   return JSON.parse(readFileSync(f, 'utf8'));
@@ -80,7 +97,7 @@ if (process.argv[1]?.endsWith('snapshot.mjs')) {
   try {
     const app = loadRegistry().apps.find((a) => a.id === id);
     if (!app) throw new Error(`Unknown app "${id ?? ''}"`);
-    if (cmd === 'take') console.log(`Saved ${take(app)} item(s) as the golden copy of ${id}.`);
+    if (cmd === 'take') { await assertStopped(app); console.log(`Saved ${take(app)} item(s) as the golden copy of ${id}.`); }
     else if (cmd === 'restore') { const r = restore(app); console.log(`Restored ${r.count} item(s) from the copy taken ${r.takenAt}.`); }
     else if (cmd === 'restore-to' && dest) { const r = restoreTo(app, dest); console.log(`Copied ${r.count} item(s) from the copy taken ${r.takenAt} into ${dest}.`); }
     else if (cmd === 'info') { const m = manifest(app); console.log(`${id}: copy taken ${m.takenAt}, ${m.items.length} item(s).`); }

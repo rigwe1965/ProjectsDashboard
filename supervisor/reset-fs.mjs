@@ -1,19 +1,23 @@
 // File steps for a demo reset (used from the registry's "reset" block).
 //   node supervisor/reset-fs.mjs clear-dir <dir>    empty a folder (the folder itself is kept)
 //   node supervisor/reset-fs.mjs delete <file>      delete one file (a missing file is fine)
-// Safety: it only touches paths inside the dashboard's own data/ folder, below the first level, and never the demo clones' root.
+// Safety: it only touches paths inside the dashboard's own data folder (<project>/data, where the demo clones live, or DASHBOARD_DATA, where
+// the private copies live), below the first level, and never the demo clones' root.
 import { existsSync, mkdirSync, readdirSync, rmSync, lstatSync, realpathSync } from 'node:fs';
 import { join, resolve, relative, sep, isAbsolute, dirname } from 'node:path';
-import { root } from '../lib/config.mjs';
+import { root, dataDir } from '../lib/config.mjs';
 
-const dataRoot = join(root, 'data');
+// The folders a step may work in: <project>/data (demo clones, saved copies) and DASHBOARD_DATA (private copies). The same folder unless that is set.
+export const dataRoots = () => [...new Set([join(root, 'data'), resolve(dataDir)])];
 
 export function checkPath(p) {
   const abs = resolve(p);
+  // isAbsolute(rel): on Windows a path on another drive or a network share has no relative form, so `relative` returns it whole
+  const inside = (r) => { const rel = relative(r, abs); return !!rel && !isAbsolute(rel) && !rel.startsWith('..') && resolve(r, rel) === abs; };
+  const dataRoot = dataRoots().find(inside);
+  if (!dataRoot) throw new Error(`Refusing to touch ${abs}: it is not inside ${dataRoots().join(' or ')}`); // audit F-17
   const rel = relative(dataRoot, abs);
   const parts = rel.split(sep);
-  // isAbsolute(rel): on Windows a path on another drive or a network share has no relative form, so `relative` returns it whole
-  if (!rel || isAbsolute(rel) || rel.startsWith('..') || resolve(dataRoot, rel) !== abs) throw new Error(`Refusing to touch ${abs}: it is not inside ${dataRoot}`);
   if (parts.length < 2) throw new Error(`Refusing to touch ${abs}: too close to the top of ${dataRoot}`);
   if (parts[0] === 'demo-src' && parts.length < 3) throw new Error(`Refusing to touch ${abs}: that is a whole demo clone`);
   // Symlinks and junctions: the real location of the closest existing part of the path must still be inside data/
