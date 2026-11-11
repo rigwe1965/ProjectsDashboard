@@ -23,7 +23,7 @@ function setup({ killWorks }) {
     // the listener answers as the recorded one until it is really killed
     listenerPid: () => (killWorks && events.includes('kill') ? null : 4243),
     spawnApp: () => { events.push('spawn'); return { exited: true, pid: 1 }; },
-    killTree: async (pid) => { events.push('kill'); events.push(existsSync(marker) ? 'folder-still-there' : 'folder-gone'); return killWorks; },
+    killTree: async (_pid) => { events.push('kill'); events.push(existsSync(marker) ? 'folder-still-there' : 'folder-gone'); return killWorks; },
   };
   mkdirSync(join(dir, 'instances', 'cp-demo', '0'), { recursive: true }); writeFileSync(marker, 'customer data');
   const sup = createSupervisor({ registry, store, driver, docker: {}, logDir: join(dir, 'logs') });

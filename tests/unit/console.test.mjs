@@ -652,7 +652,7 @@ test('ADMIN_APP_CONTROL=off: the console shows status only; start, stop and logs
 test('the public health check asks the database once per window, however often it is called (audit F-19)', async () => {
   const hits = []; const real = store.meta.get;
   const spyStore = { ...store, meta: { ...store.meta, get: async (k) => { if (k === 'health-check') hits.push(k); return real.call(store.meta, k); } } };
-  const { c, port } = await start({ store: spyStore });
+  const { port } = await start({ store: spyStore });
   for (let i = 0; i < 8; i++) assert.equal((await req(port, { path: '/_pd/healthz' })).status, 200);
   assert.equal(hits.length, 1, 'eight calls, one database read');
 });

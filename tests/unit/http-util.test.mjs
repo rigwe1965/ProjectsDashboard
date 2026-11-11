@@ -72,7 +72,7 @@ test('limitKey: an IPv6 client is limited as its whole /64, IPv4 as itself', asy
 
 test('childEnv: a process\'s passEnv copies its own settings from the supervisor; nothing else leaks (audit F-06)', async () => {
   const { childEnv } = await import('../../supervisor/env.mjs');
-  const source = { PATH: 'p', GATEWAY_PORT: '1', gateway_requests_per_minute: '5', DEMO_BASE_HOST: 'demo.example', TRUSTED_PROXIES: '10.0.0.1', DASHBOARD_DATA: 'D:\data', DATABASE_URL: 'postgres://u:p@h/db', ANTHROPIC_API_KEY: 'k', ADMIN_DATA_KEY: 'secret' };
+  const source = { PATH: 'p', GATEWAY_PORT: '1', gateway_requests_per_minute: '5', DEMO_BASE_HOST: 'demo.example', TRUSTED_PROXIES: '10.0.0.1', DASHBOARD_DATA: String.raw`D:\data`, DATABASE_URL: 'postgres://u:p@h/db', ANTHROPIC_API_KEY: 'k', ADMIN_DATA_KEY: 'secret' };
   const app = { id: 'x' }, fillStr = (v) => v;
   const plain = childEnv(app, {}, fillStr, source);
   assert.equal(plain.DEMO_BASE_HOST, undefined, 'without passEnv nothing of the dashboard\'s settings reaches the process');
@@ -80,7 +80,7 @@ test('childEnv: a process\'s passEnv copies its own settings from the supervisor
   const gw = childEnv(app, { passEnv: ['GATEWAY_*', 'DEMO_*', 'TRUSTED_PROXIES', 'DASHBOARD_DATA', 'DATABASE_*'], env: { GATEWAY_PORT: '4300' } }, fillStr, source);
   assert.equal(gw.DEMO_BASE_HOST, 'demo.example');
   assert.equal(gw.TRUSTED_PROXIES, '10.0.0.1');
-  assert.equal(gw.DASHBOARD_DATA, 'D:\data');
+  assert.equal(gw.DASHBOARD_DATA, String.raw`D:\data`);
   assert.equal(gw.DATABASE_URL, 'postgres://u:p@h/db');
   assert.equal(gw.gateway_requests_per_minute, '5', 'prefix match ignores case');
   assert.equal(gw.GATEWAY_PORT, '4300', 'the registry\'s own env value wins over the passed-through one');
