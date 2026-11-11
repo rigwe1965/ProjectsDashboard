@@ -137,6 +137,48 @@ for (const f of factories) {
       const results = await Promise.all([1, 2, 3, 4, 5].map((i) => s.meta.claim('c2', t(20 + i), t(0))));
       assert.equal(results.filter(Boolean).length, 1, 'of several simultaneous claims exactly one wins');
     });
+
+    test('activity: batches add up per link and day, first/last times widen, only the 10 busiest pages are kept', async () => {
+      const t = (m) => `2026-03-05T10:${String(m).padStart(2, '0')}:00.000Z`;
+      assert.deepEqual(await s.activity.forGrant('ax'), []);
+      await s.activity.add('ax', '2026-03-05', { requests: 3, firstAt: t(5), lastAt: t(9), activeSeconds: 240, paths: { '/crm': 2, '/crm/contacts': 1 } });
+      await s.activity.add('ax', '2026-03-05', { requests: 2, firstAt: t(1), lastAt: t(20), activeSeconds: 60, wsSeconds: 30, paths: { '/crm': 1, '/crm/deals': 1 } });
+      await s.activity.add('ax', '2026-03-06', { requests: 1, firstAt: '2026-03-06T08:00:00.000Z', lastAt: '2026-03-06T08:00:00.000Z' });
+      const rows = await s.activity.forGrant('ax');
+      assert.equal(rows.length, 2);
+      assert.deepEqual(rows[0], { grantId: 'ax', day: '2026-03-05', requests: 5, firstAt: t(1), lastAt: t(20), activeSeconds: 300, wsSeconds: 30,
+        topPaths: [{ path: '/crm', count: 3 }, { path: '/crm/contacts', count: 1 }, { path: '/crm/deals', count: 1 }] });
+      assert.deepEqual(rows[1].topPaths, []);
+      // twelve different pages: only the ten busiest survive
+      const paths = {}; for (let i = 1; i <= 12; i++) paths['/p' + String(i).padStart(2, '0')] = i;
+      await s.activity.add('ay', '2026-03-05', { requests: 78, paths });
+      const top = (await s.activity.forGrant('ay'))[0].topPaths;
+      assert.equal(top.length, 10); assert.equal(top[0].path, '/p12'); assert.equal(top.at(-1).path, '/p03');
+    });
+
+    test('activity: bad numbers count as zero, a bad day is refused, simultaneous batches are not lost', async () => {
+      await s.activity.add('az', '2026-03-05', { requests: -4, activeSeconds: 'x', wsSeconds: NaN, paths: { '/a': -1 } });
+      const r = (await s.activity.forGrant('az'))[0];
+      assert.deepEqual([r.requests, r.activeSeconds, r.wsSeconds, r.topPaths.length], [0, 0, 0, 0]);
+      await assert.rejects(async () => s.activity.add('az', 'yesterday', { requests: 1 }), /YYYY-MM-DD/);
+      await Promise.all([1, 2, 3, 4, 5, 6].map((i) => s.activity.add('race', '2026-03-05', { requests: i, paths: { '/x': 1 } })));
+      const q = (await s.activity.forGrant('race'))[0];
+      assert.equal(q.requests, 21); assert.equal(q.topPaths[0].count, 6);
+    });
+
+    test('activity: summary per link from a day on, prune by age, deleteForGrant', async () => {
+      await s.activity.add('s1', '2026-03-01', { requests: 2, activeSeconds: 10, firstAt: '2026-03-01T01:00:00.000Z', lastAt: '2026-03-01T02:00:00.000Z' });
+      await s.activity.add('s1', '2026-03-09', { requests: 4, activeSeconds: 20, wsSeconds: 5, firstAt: '2026-03-09T01:00:00.000Z', lastAt: '2026-03-09T03:00:00.000Z' });
+      await s.activity.add('s2', '2026-03-09', { requests: 1 });
+      const all = Object.fromEntries((await s.activity.summary()).map((x) => [x.grantId, x]));
+      assert.deepEqual(all.s1, { grantId: 's1', days: 2, requests: 6, activeSeconds: 30, wsSeconds: 5, firstAt: '2026-03-01T01:00:00.000Z', lastAt: '2026-03-09T03:00:00.000Z' });
+      const recent = Object.fromEntries((await s.activity.summary('2026-03-07')).map((x) => [x.grantId, x]));
+      assert.equal(recent.s1.requests, 4); assert.equal(recent.s1.days, 1); assert.equal(recent.ax, undefined);
+      assert.equal(await s.activity.deleteForGrant('s2'), 1);
+      assert.deepEqual(await s.activity.forGrant('s2'), []);
+      assert.ok(await s.activity.prune(1) >= 1, 'rows older than a day (all of these test rows) are pruned');
+      assert.deepEqual(await s.activity.summary(), []);
+    });
   });
 }
 
