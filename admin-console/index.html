@@ -264,7 +264,7 @@ function card(app, compact){
         dot(kind), el('span', { class: 'pname' }, p.name), el('span', { class: 'port' }, ':' + p.port),
         p.up && p.managed && !p.optional ? null : el('span', { class: 'state' }, word + (p.optional ? ', optional' : '')),
         el('span', { class: 'sp' }),
-        p.up ? el('a', { class: 'btn', href: `http://127.0.0.1:${p.port}/`, target: '_blank', rel: 'noopener' }, 'Open') : null,
+        p.up ? el('a', { class: 'btn', href: `http://127.0.0.1:${p.port}${p.openPath || '/'}`, target: '_blank', rel: 'noopener' }, 'Open') : null,
         app.controls !== false && p.optional && !p.up ? el('button', { onclick: () => act(app, 'start', p.name), disabled: pb || busy ? '' : null }, 'Start') : null,
         app.controls !== false && p.managed ? el('button', { class: 'stop', onclick: () => act(app, 'stop', p.name), disabled: pb || busy ? '' : null }, 'Stop') : null,
         app.controls !== false ? el('button', { class: 'quiet', onclick: () => showLog(app, p.name), 'aria-label': 'View log of ' + p.name }, 'Log') : null);

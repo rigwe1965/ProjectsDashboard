@@ -176,7 +176,7 @@ export async function createConsole(opts = {}) {
     const { rows, statusError } = await statusRows();
     return json(res, 200, loadRegistry().apps.filter((a) => !a.hidden).map((a) => ({
       id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note, controls: o.appControl,
-      processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional,
+      processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional, openPath: p.openPath || '/',
         ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
     })), statusError ? { 'x-status-error': statusError } : {});
   }

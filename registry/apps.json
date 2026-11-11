@@ -146,6 +146,7 @@
           "cwd": "apps\\admin",
           "port": 3103,
           "health": "/admin",
+          "openPath": "/admin",
           "env": {
             "NEXT_PUBLIC_APP_URL": "http://localhost:{port:web}",
             "NEXT_PUBLIC_ADMIN_URL": "{url}"
@@ -289,6 +290,7 @@
           "cwd": "apps\\admin",
           "port": 3113,
           "health": "/admin",
+          "openPath": "/admin",
           "envFile": "data/claudeworkspace-demo.env",
           "env": { "NEXT_PUBLIC_APP_URL": "http://claudeworkspace.localhost:4300", "NEXT_PUBLIC_ADMIN_URL": "http://claudeworkspace.localhost:4300/admin" }
         }
