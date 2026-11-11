@@ -25,7 +25,8 @@ ProjectsDashboard is the control and showcase layer for your separate apps (CRM,
 | Supervisor | `supervisor/` | – | you / console | Starts, stops, restarts and reports on apps |
 | Admin console | `admin-console/` | 4100 | you only | Web UI: app status and controls, logs, demo links, activity feed |
 | Showcase | `showcase/` | 4200 | the public | Static marketing pages for each product |
-| Demo gateway | `demo-gateway/` | 4300 | customers | Gives one customer time-limited access to one product's demo copy |
+| Demo gateway | `demo-gateway/` | 4300 | customers | Gives one customer time-limited access to one product's demo copy, and counts what they did with it |
+| MCP server | `mcp/` | – (stdin/stdout) | your AI assistant | Lets an assistant read the dashboard (and, if you allow it, create and revoke links) |
 | Store | `lib/store/`, `data/` | – | all | SQLite database (`data/dashboard.db`) or Postgres when hosted |
 
 Ports 4100, 4200 and 4300 can be changed with `CONSOLE_PORT`, `SHOWCASE_PORT` and `GATEWAY_PORT`.
@@ -106,6 +107,7 @@ Run `npm run console` (or `start-console.bat`). It binds to localhost only.
 - **Token mode (default):** each launch prints a one-time URL containing `?t=<token>`.
 - **Password mode (recommended):** set up with `npm run console:auth -- set-password`, then `enable-totp` for authenticator codes. The token URL is then switched off. Other commands: `status`, `disable-totp`, `remove-password`, `sign-out-all`. Sign-in attempts are rate limited and every login and credential change is audited.
 - **Panels:** each app's processes with status and Start/Stop/Restart/Open/Log buttons, the Demos panel (create and revoke links), and a read-only Activity panel (sign-ins, changes, demo opens and refusals).
+- **Activity column:** each link shows *Not opened*, *Opened*, *Engaged* (a minute or more of use) or *Came back* (two or more days), with a Details view of days and busiest pages. The numbers come from the gateway's activity counting (section 7); the console only reads them.
 - To reach it from another machine you must set `ADMIN_BIND`, `ADMIN_ALLOWED_HOSTS` and `ADMIN_SCHEME=https`, and it refuses to listen beyond localhost until a password is set.
 
 ## 7. Demo gateway and demo links
@@ -136,7 +138,7 @@ Edit `showcase/site.json` (brand, contact) and `showcase/products.json` (product
 ## 9. Data and storage
 
 - `data/` is git-ignored and holds runtime data: `dashboard.db`, `logs/`, demo env files, demo source clones.
-- The SQLite database stores process records, demo grants and the audit log. Set `DASHBOARD_DB=postgres` to use Postgres instead (used when hosted).
+- The SQLite database stores process records, demo grants, the audit log and the per-link activity counts (`grant_activity`). Set `DASHBOARD_DB=postgres` to use Postgres instead (used when hosted).
 - Older JSON files are imported automatically the first time and kept as a backup. `npm run migrate` re-checks the import.
 
 ## 10. Commands
@@ -149,6 +151,7 @@ Edit `showcase/site.json` (brand, contact) and `showcase/products.json` (product
 | `npm run gateway` | Start the demo gateway |
 | `npm run demo -- <cmd>` | Create, list and revoke demo links |
 | `npm run showcase` / `showcase:build` | Build and preview / build only |
+| `npm run mcp` | MCP server for an AI assistant (read-only unless `MCP_WRITE=1`; normally started by the assistant, see `mcp/README.md`) |
 | `npm test` | Unit tests |
 | `npm run lint` | ESLint |
 | `npm run test:e2e` | Customer journeys (needs demo instances running) |

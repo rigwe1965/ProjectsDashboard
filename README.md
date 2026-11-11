@@ -12,6 +12,7 @@ Full explanation of how everything fits together: [docs/HOW-IT-WORKS.md](docs/HO
 - `admin-console/`: the owner-only console (port 4100): app status and control, customer demo links, activity, backups
 - `showcase/`: the public product pages
 - `demo-gateway/`: time-limited, single-app demo links, served on port 4300
+- `mcp/`: an MCP server so an AI assistant can look at the dashboard (and, if you allow it, create and revoke links); see below
 - `lib/`: code shared by the above (stores, registry, alerts, logging)
 - `deploy/`: the hosted setup (Docker Compose, Caddy, Postgres)
 - `data/`: the dashboard's own runtime data (git-ignored)
@@ -43,6 +44,18 @@ Logs go to `data/logs/`; PIDs are tracked in the database (`data/dashboard.db`, 
 
 It shows each app's processes with status, Start/Stop/Restart, Open and Log buttons. Closing the console never stops the apps.
 
+## Link activity
+The gateway counts what each customer did with their link, so you can tell who opened a demo and who actually used it. In the console's "Links you have sent" table the **Activity** column shows *Not opened*, *Opened*, *Engaged* (a minute or more of use) or *Came back* (used on two or more days), with the active minutes, the days and the last time; **Details** lists the days and the busiest pages.
+
+What is kept, per link and day: number of requests, first and last time, active minutes, the ten busiest pages (two path segments, ids hidden). Not kept: the address, the browser, the query string, anything the customer types, files such as images and scripts. It is removed with the audit events (`AUDIT_RETENTION_DAYS`, 90 by default) and by the console's **Forget** button, and customers are told on the page where they open the link. Details and settings: `demo-gateway/README.md`, "What is recorded about a link".
+
+## MCP server (for an AI assistant)
+`npm run mcp` starts a small server that an assistant such as Claude Code talks to over standard input/output (no network port). It lets the assistant answer questions like "who opened their demo link this week?" or "is the CRM demo running?" from the same database as the console. By default it only reads: apps and whether they run, demo links with their engagement, one link's activity, recent audit events (without addresses or browser strings) and the state of each demo. It never returns link addresses, tokens, environment values or passwords.
+
+Add it to Claude Code with `claude mcp add projects-dashboard -- node <full path to this folder>\mcp\server.mjs`.
+
+Three tools that change things exist but are **off** unless the server is started with `MCP_WRITE=1`: create a demo link (the link is shown once, in the assistant's answer), revoke a link, and reset a shared demo (refused while a customer is using it). Every change is logged as `by: mcp`, and changes are limited to 20 a minute. Starting and stopping apps is not offered. Full list and safety notes: `mcp/README.md`.
+
 ## Backup
 The console backs up `data/dashboard.db` (links, audit log, admin password hash and 2-step secret) at start-up when the newest copy is over 20 hours old, and then every 24 hours, into `data/backups/` (14 newest kept). `npm run backup` makes one now. Set `DASHBOARD_BACKUP_DIR` to a folder on another drive or a synced folder, and `DASHBOARD_BACKUP_KEEP` to change how many are kept. To restore: stop the console and gateway, copy a backup over `data/dashboard.db`, delete `data/dashboard.db-wal` and `data/dashboard.db-shm`, start again. The backup does not include `ADMIN_DATA_KEY` (it lives in the console's environment): keep that value somewhere safe too, or the stored 2-step secret cannot be decrypted after a restore (then run `disable-totp` and `enable-totp`). With Postgres, back up with `pg_dump` or your provider's tools.
 
@@ -56,7 +69,7 @@ Set `ALERT_WEBHOOK_URL` in the console's environment and the console checks ever
 See `deploy/README.md`: Docker Compose with Postgres, Caddy (automatic HTTPS) and optional app containers. Locally it still runs on SQLite with no Docker needed.
 
 ## Tests
-`npm test` (unit tests), `npm run lint`, `npm run test:browser` (real Chrome, a stand-in demo app, runs in CI: the console loads, create a link, a customer opens it, revoke; then the console's Log dialog and Activity panel, password sign-in, wrong password, lost session and sign-out, and the console and showcase on desktop and phone; `npm run test:browser:ui` runs only the second half), `npm run test:e2e` (the real demo apps; needs them running, owner's PC only). With `TEST_DATABASE_URL=postgres://...` set, the same store tests also run against Postgres. CI runs everything on Windows and Linux.
+`npm test` (unit tests, including the activity counting and the MCP server), `npm run lint`, `npm run test:browser` (real Chrome, a stand-in demo app, runs in CI: the console loads, create a link, a customer opens it, revoke; then the console's Log dialog and Activity panel, password sign-in, wrong password, lost session and sign-out, and the console and showcase on desktop and phone; `npm run test:browser:ui` runs only the second half), `npm run test:e2e` (the real demo apps; needs them running, owner's PC only). With `TEST_DATABASE_URL=postgres://...` set, the same store tests also run against Postgres. CI runs everything on Windows and Linux.
 
 ## Demo gateway
 See `demo-gateway/README.md`. Ready now: `imageapp`, `airfinder`, `crm`, `claudeworkspace`, `claudeos`, `rmm` (each runs as its own isolated demo instance).

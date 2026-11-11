@@ -13,7 +13,23 @@ node mcp/server.mjs          # or: npm run mcp   (an assistant starts it for you
 claude mcp add projects-dashboard -- node C:\path\to\ProjectsDashboard\mcp\server.mjs
 ```
 
-Use the full path of this folder. Set `DASHBOARD_DATA` in the same command if you keep the data folder elsewhere.
+Use the full path of this folder. Set `DASHBOARD_DATA` in the same command (`--env DASHBOARD_DATA=...`) if you keep the data folder elsewhere. Or put it in a project's `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "projects-dashboard": {
+      "command": "node",
+      "args": ["C:\\path\\to\\ProjectsDashboard\\mcp\\server.mjs"],
+      "env": {}
+    }
+  }
+}
+```
+
+Check it with `claude mcp list` and, inside Claude Code, `/mcp`. Then try: "Which demo links are active, and has anyone opened theirs?"
+
+The server uses the same database as the console, so the console and gateway may be running at the same time.
 
 ## Tools
 
