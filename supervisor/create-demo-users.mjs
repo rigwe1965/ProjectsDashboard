@@ -12,7 +12,7 @@ const missing = missingKeys(env, ['NEXT_PUBLIC_SUPABASE_URL', 'SUPABASE_SERVICE_
 if (missing.length) { console.error('STOP: missing ' + missing[0]); process.exit(1); }
 
 const base = env.NEXT_PUBLIC_SUPABASE_URL.replace(/\/$/, '');
-const h = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, 'content-type': 'application/json' };
+const h = { apikey: env.SUPABASE_SERVICE_ROLE_KEY, authorization: 'Bearer ' + env.SUPABASE_SERVICE_ROLE_KEY, 'content-type': 'application/json' };
 
 async function make(email, password, first, last, role) {
   const r = await fetch(`${base}/auth/v1/admin/users`, { method: 'POST', headers: h, body: JSON.stringify({

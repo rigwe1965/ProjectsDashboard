@@ -54,5 +54,7 @@ if (process.argv[1]?.endsWith('redis-rest-stub.mjs')) {
   const port = Number(process.argv[2]);
   if (!Number.isInteger(port) || port < 1) { console.error('Usage: redis-rest-stub.mjs <port>'); process.exit(2); }
   const bind = process.env.REDIS_STUB_BIND || '127.0.0.1'; // 0.0.0.0 only inside a container network, together with REDIS_STUB_TOKEN
+  const token = process.env.REDIS_STUB_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '';
+  if (!token && !['127.0.0.1', '::1', 'localhost'].includes(bind)) { console.error(`Refusing to listen on ${bind} without REDIS_STUB_TOKEN: only a loopback address may run without one.`); process.exit(2); }
   createStub(process.env.REDIS_STUB_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || '').server.listen(port, bind, () => console.log(`rate-limit store listening on ${bind}:${port}`));
 }

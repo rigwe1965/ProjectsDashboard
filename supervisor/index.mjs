@@ -34,7 +34,8 @@ export async function main(argv, { registry = loadRegistry(), store, driver = ge
   };
   let code = 0;
   try {
-    if (Object.hasOwn(commands, cmd)) await commands[cmd](); else console.log(USAGE);
+    if (Object.hasOwn(commands, cmd)) await commands[cmd]();
+    else { console.log(USAGE); if (cmd) code = 2; } // no command at all is just a request for help; an unknown one must not look like success
     if (sup.failed()) code = 1;
   } catch (e) {
     if (!(e instanceof Exit)) throw e;

@@ -75,7 +75,7 @@ export async function createConsole(opts = {}) {
     statusReuseMs: 2000, // how long one status check answers further requests
     ...opts,
   };
-  const registry = loadRegistry();
+  loadRegistry(); // fail at start-up on an invalid registry; requests read it again (cached by file time), so an edit to apps.json shows without a restart
   const store = o.store ?? await getStore(); // a store can be passed in; the default is the process-wide one
   const { loadGrants, createGrant, revokeGrant } = createGrants(store);
   const trusted = new Set(o.trustedProxies);
@@ -113,7 +113,7 @@ export async function createConsole(opts = {}) {
   }
 
   const ipOf = (req) => clientIp(req, trusted);
-  const findApp = (id) => registry.apps.find((a) => a.id === id);
+  const findApp = (id) => loadRegistry().apps.find((a) => a.id === id);
 
   // Decides whether this request is the owner's. Returns true to carry on; otherwise the answer (login page, redirect, 401, 403)
   // has already been sent.
@@ -175,7 +175,7 @@ export async function createConsole(opts = {}) {
 
   async function apiApps({ res }) {
     const { rows, statusError } = await statusRows();
-    return json(res, 200, registry.apps.filter((a) => !a.hidden).map((a) => ({
+    return json(res, 200, loadRegistry().apps.filter((a) => !a.hidden).map((a) => ({
       id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note,
       processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional,
         ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
@@ -198,7 +198,7 @@ export async function createConsole(opts = {}) {
     if (only && !app.processes.some((p) => p.name === only)) return json(res, 400, { error: 'unknown process' });
     if (busy.has(app.id)) { audit({ ev: EVENTS.adminActionRefused, app: app.id, why: 'busy', ip: ipOf(req) }); return json(res, 409, { error: `${app.id} is busy with another action` }); }
     busy.add(app.id);
-    audit({ ev: 'admin-app-' + action, app: app.id, ip: ipOf(req), ...(only ? { proc: only } : {}) });
+    audit({ ev: EVENTS.adminApp(action), app: app.id, ip: ipOf(req), ...(only ? { proc: only } : {}) });
     try {
       // start/restart can legitimately wait up to 60 s per process for the app to answer
       const r = await o.supervisor([action, app.id, ...(only ? [`--only=${only}`] : [])], action === 'stop' ? 2 * MINUTE : 5 * MINUTE);
@@ -272,8 +272,8 @@ export async function createConsole(opts = {}) {
     ['GET', '/api/demos', demosList],
     ['POST', '/api/demos', demoCreate],
     ['POST', /^\/api\/demos\/([\w-]+)\/reset$/, demoReset],
-    ['POST', /^\/api\/demos\/([a-f0-9]{8})\/revoke$/, demoRevoke],
-    ['POST', /^\/api\/demos\/([a-f0-9]{8})\/forget$/, demoForget],
+    ['POST', /^\/api\/demos\/([a-f0-9]{8,16})\/revoke$/, demoRevoke],
+    ['POST', /^\/api\/demos\/([a-f0-9]{8,16})\/forget$/, demoForget],
   ];
   const matchRoute = (method, pathname) => {
     for (const [verb, path, handler] of routes) {

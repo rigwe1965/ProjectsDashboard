@@ -5,6 +5,7 @@ import { demoApps } from '../lib/registry.mjs';
 import { getStore } from '../lib/store/index.mjs';
 import { HttpError } from '../lib/errors.mjs';
 import { EVENTS } from '../lib/events.mjs';
+import { logger } from '../lib/log.mjs';
 
 export { demoApps }; // lives in lib/registry.mjs; still importable from here
 export const MAX_HOURS = 720;
@@ -24,10 +25,12 @@ async function createGrantIn(store, { customer, app, hours = 48, maxUses = null,
   maxUses = maxUses === null || maxUses === undefined || maxUses === '' ? null : Number(maxUses);
   if (maxUses !== null && !(Number.isInteger(maxUses) && maxUses >= 1 && maxUses <= 1000)) throw new HttpError(400, 'Uses must be a whole number from 1 to 1000');
   const token = randomBytes(24).toString('hex');
-  const grant = { id: randomBytes(4).toString('hex'), tokenHash: hashToken(token), customer, app, createdAt: new Date().toISOString(),
+  const grant = { id: randomBytes(8).toString('hex'), tokenHash: hashToken(token), customer, app, createdAt: new Date().toISOString(),
     expiresAt: new Date(Date.now() + hours * 3600e3).toISOString(), revoked: false, uses: 0, maxUses, deviceLock: !!deviceLock, lastUsedAt: null };
   await store.grants.insert(grant);
-  await store.audit.add({ ev: EVENTS.grantCreated, grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock, ...who });
+  // The link exists now. If the audit write fails, the owner must still be shown the link (it is never shown again), so the failure is logged, not thrown.
+  try { await store.audit.add({ ev: EVENTS.grantCreated, grant: grant.id, app, customer, hours, maxUses, deviceLock: !!deviceLock, ...who }); }
+  catch (err) { logger.error('link created but its audit record could not be written', { err, grant: grant.id }); }
   return { grant, link: demoLink(app, token) };
 }
 async function revokeGrantIn(store, id, who = {}) {

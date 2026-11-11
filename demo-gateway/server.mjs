@@ -5,15 +5,16 @@ import { demoApps } from '../lib/registry.mjs';
 import { ports } from '../lib/config.mjs';
 import { closeStore } from '../lib/store/index.mjs';
 import { logger, installProcessHandlers } from '../lib/log.mjs';
-import { skipIfRunning } from '../lib/util.mjs';
+import { skipIfRunning, num } from '../lib/util.mjs';
 
 const gw = await createGateway({ port: ports.gateway });
-const RETENTION_DAYS = Number(process.env.AUDIT_RETENTION_DAYS || 90);
+// A retention of 0 or less would delete the whole audit log at start-up, so it is ignored (the default stays) rather than obeyed.
+const RETENTION_DAYS = num(process.env.AUDIT_RETENTION_DAYS, 90) >= 1 ? num(process.env.AUDIT_RETENTION_DAYS, 90) : 90;
 // Housekeeping must never keep the gateway from starting.
 // Retention is applied at start-up and then once a day, so a long-running gateway does not keep personal data past the limit.
 const keepDays = Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90;
 // The owner's own sign-in events are the ones worth keeping longest for an investigation.
-const ADMIN_DAYS = Number(process.env.AUDIT_ADMIN_RETENTION_DAYS || 365);
+const ADMIN_DAYS = num(process.env.AUDIT_ADMIN_RETENTION_DAYS, 365) >= 1 ? num(process.env.AUDIT_ADMIN_RETENTION_DAYS, 365) : 365;
 const keepAdminDays = Number.isFinite(ADMIN_DAYS) ? ADMIN_DAYS : 365;
 async function pruneAudit() {
   try {

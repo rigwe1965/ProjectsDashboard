@@ -57,7 +57,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
       await write(product, table);
     });
     if (r.ok) touch(product, slot);
-    audit({ ev: r.ok ? 'instance-ready' : 'instance-failed', app: product, grant: grantId, slot });
+    audit({ ev: r.ok ? EVENTS.instanceReady : EVENTS.instanceFailed, app: product, grant: grantId, slot });
   }
 
   // Make sure this grant has a copy and, if it has none or a failed one, start it (in the background).
