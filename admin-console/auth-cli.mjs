@@ -63,7 +63,7 @@ try {
     await store.meta.set(ADMIN_KEYS.passwordHash, await hashPassword(a));
     await store.sessions.clear();
     await audit(EVENTS.adminPasswordSet);
-    console.log('Password saved. All signed-in sessions were ended. Sign in at the console's address; no restart is needed.');
+    console.log('Password saved. All signed-in sessions were ended. Sign in at the console address; no restart is needed.');
     if (!(await store.meta.get(ADMIN_KEYS.totpSecret))) console.log('Next: "npm run console:auth -- enable-totp" adds a 2-step code (recommended).');
   } else if (cmd === 'enable-totp') {
     if (!(await store.meta.get(ADMIN_KEYS.passwordHash))) throw new Error('Set a password first (set-password).');
