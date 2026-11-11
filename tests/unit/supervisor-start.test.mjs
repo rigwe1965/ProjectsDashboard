@@ -9,7 +9,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { freePort } from '../helpers.mjs';
+import { freePort, testEnv } from '../helpers.mjs';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), '..', '..');
 const dir = mkdtempSync(join(tmpdir(), 'pd-start-'));
@@ -21,7 +21,7 @@ writeFileSync(join(dir, 'registry.json'), JSON.stringify({ apps: [
   { id: 'toy', name: 'Toy', path: dir, processes: [proc('a', pa), proc('b', pb)] },
   { id: 'held', name: 'Held', path: dir, processes: [proc('c', pc)] },
 ] }));
-const env = { ...process.env, DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json'), PD_DRIVER: '' };
+const env = testEnv({ DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json'), PD_DRIVER: '' });
 delete env.PD_DRIVER;
 const sup = (...args) => new Promise((resolve) => execFile(process.execPath, [join(root, 'supervisor', 'index.mjs'), ...args], { env, timeout: 90000, windowsHide: true },
   (err, stdout, stderr) => resolve({ code: err ? (err.code ?? 1) : 0, out: stdout + stderr })));

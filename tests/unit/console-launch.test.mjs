@@ -1,5 +1,6 @@
 // Starting the console as a program (admin-console/server.mjs) in token mode: where the one-time URL goes.
 import { test } from 'node:test';
+import { testEnv } from '../helpers.mjs';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs';
@@ -12,7 +13,7 @@ const server = fileURLToPath(new URL('../../admin-console/server.mjs', import.me
 // Starts the console on a free port with its own empty database; resolves with what it printed once `ready()` is true.
 function launch(extraEnv, ready) {
   const dir = mkdtempSync(join(tmpdir(), 'pd-launch-'));
-  const child = spawn(process.execPath, [server], { env: { ...process.env, DASHBOARD_DATA: dir, CONSOLE_PORT: '0', ...extraEnv(dir) }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(process.execPath, [server], { env: testEnv({ DASHBOARD_DATA: dir, CONSOLE_PORT: '0', ...extraEnv(dir) }), stdio: ['ignore', 'pipe', 'pipe'] });
   let out = '';
   child.stdout.on('data', (d) => { out += d; }); child.stderr.on('data', (d) => { out += d; });
   return new Promise((resolve, reject) => {

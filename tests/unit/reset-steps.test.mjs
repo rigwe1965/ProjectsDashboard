@@ -1,5 +1,6 @@
 // The reset steps themselves: `supervisor reset <id>` runs the registry's steps in order, and reset-fs.mjs only touches data/.
 import { test, after } from 'node:test';
+import { testEnv } from '../helpers.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync, mkdirSync } from 'node:fs';
@@ -43,7 +44,7 @@ test('reset-fs: a link inside data/ that points outside is refused, and nothing 
 function supervisor(args, registry) {
   const reg = join(dir, 'registry.json'); writeFileSync(reg, JSON.stringify(registry));
   return spawnSync(process.execPath, [fileURLToPath(new URL('../../supervisor/index.mjs', import.meta.url)), ...args],
-    { env: { ...process.env, DASHBOARD_DATA: join(dir, 'data'), DASHBOARD_REGISTRY: reg }, encoding: 'utf8' });
+    { env: testEnv({ DASHBOARD_DATA: join(dir, 'data'), DASHBOARD_REGISTRY: reg }), encoding: 'utf8' });
 }
 const node = (js) => `"${process.execPath}" -e "${js}"`;
 const demo = (steps, extra = {}) => ({ apps: [

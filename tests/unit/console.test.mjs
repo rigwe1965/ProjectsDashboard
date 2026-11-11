@@ -7,7 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'no
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { httpRequest, testProc } from '../helpers.mjs';
+import { httpRequest, testProc, testEnv } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-con-'));
 const proc = testProc;
@@ -340,7 +340,7 @@ test('2-step codes: required, wrong code refused, a code cannot be used twice', 
 const cli = fileURLToPath(new URL('../../admin-console/auth-cli.mjs', import.meta.url));
 function runCli(args, { input, env = {}, interactive } = {}) {
   return new Promise((resolve) => {
-    const p = spawn(process.execPath, [cli, ...args], { env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const p = spawn(process.execPath, [cli, ...args], { env: testEnv(env), stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '', err = '';
     p.stdout.on('data', (d) => { out += d; interactive?.(out, p); });
     p.stderr.on('data', (d) => { err += d; });

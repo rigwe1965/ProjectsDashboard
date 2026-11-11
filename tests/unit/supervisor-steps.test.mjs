@@ -2,6 +2,7 @@
 // These pin today's behaviour (messages, exit codes, log lines) so the three loops can be merged into one runner (audit D-03)
 // without changing what an operator sees. tests/unit/reset-steps.test.mjs covers the happy paths and a failing or hanging reset step.
 import { test, after } from 'node:test';
+import { testEnv } from '../helpers.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, existsSync, readFileSync } from 'node:fs';
@@ -16,7 +17,7 @@ const node = (js) => `"${process.execPath}" -e "${js}"`;
 const sh = (args, registry) => {
   const reg = join(dir, 'registry.json'); writeFileSync(reg, JSON.stringify(registry));
   return spawnSync(process.execPath, [fileURLToPath(new URL('../../supervisor/index.mjs', import.meta.url)), ...args],
-    { env: { ...process.env, DASHBOARD_DATA: join(dir, 'data'), DASHBOARD_REGISTRY: reg }, encoding: 'utf8' });
+    { env: testEnv({ DASHBOARD_DATA: join(dir, 'data'), DASHBOARD_REGISTRY: reg }), encoding: 'utf8' });
 };
 const log = (name) => readFileSync(join(dir, 'data', 'logs', name), 'utf8');
 const base = { id: 'x', name: 'X', path: dir, processes: [{ name: 'app', cmd: 'x', port: 19301 }] };

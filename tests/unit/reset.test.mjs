@@ -5,7 +5,7 @@ import http from 'node:http';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { testProc } from '../helpers.mjs';
+import { testProc, testEnv } from '../helpers.mjs';
 
 const dir = mkdtempSync(join(tmpdir(), 'pd-reset-'));
 const up = http.createServer((req, res) => res.end('ok'));
@@ -141,7 +141,7 @@ test('supervisor/demo-reset-state.mjs: exit codes the host script relies on', as
   const { spawnSync } = await import('node:child_process');
   const { fileURLToPath } = await import('node:url');
   const cli = fileURLToPath(new URL('../../supervisor/demo-reset-state.mjs', import.meta.url));
-  const run = (...a) => spawnSync(process.execPath, [cli, ...a], { env: { ...process.env, DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json') }, encoding: 'utf8' });
+  const run = (...a) => spawnSync(process.execPath, [cli, ...a], { env: testEnv({ DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json') }), encoding: 'utf8' });
   await store.meta.set('demo_resetting:cli', ''); // (the CLI shares this test's database)
   const due = run('due', 'cli');
   assert.equal(due.status, 1); assert.equal(due.stdout.trim(), 'clean');

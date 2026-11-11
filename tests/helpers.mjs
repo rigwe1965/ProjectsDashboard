@@ -22,3 +22,13 @@ export const freePort = () => new Promise((resolve) => {
 
 // A registry process entry that is never started (the tests that use it only read the registry).
 export const testProc = (name, port) => ({ name, cmd: 'x', port });
+
+// The owner's own settings that a test process must never inherit (audit F-01): they point at the real backup folder, alert
+// webhook and data key, so a spawned console would write an empty backup there, send real alerts, and skip its own "key not set" paths.
+const OWNER_ENV = ['DASHBOARD_BACKUP_DIR', 'ALERT_WEBHOOK_URL', 'ADMIN_DATA_KEY', 'DASHBOARD_DB', 'DATABASE_URL', 'TEST_DATABASE_URL', 'ADMIN_REQUIRE_TOTP', 'ADMIN_BIND'];
+// process.env without those variables, plus `extra`. Use it as the `env` of every spawned test process.
+export function testEnv(extra = {}) {
+  const env = { ...process.env };
+  for (const k of OWNER_ENV) delete env[k];
+  return { ...env, ...extra };
+}

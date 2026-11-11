@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync, readFileSync, existsSync } from 'no
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { freePort, testProc } from './helpers.mjs';
+import { freePort, testProc, testEnv } from './helpers.mjs';
 
 export const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const MARK = 'stand-in demo app is working';
@@ -32,7 +32,7 @@ export async function createStack() {
     { id: 'toy', name: 'Toy', path: '.', processes: [testProc('app', stubPort + 1)] },
     { id: 'toy-demo', name: 'Toy demo', path: '.', demoOf: 'toy', demoReady: true, processes: [testProc('app', stubPort)] },
   ] }));
-  const env = { ...process.env, DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json'), GATEWAY_PORT: String(gwPort), CONSOLE_PORT: String(conPort),
+  const env = { ...testEnv(), DASHBOARD_DATA: dir, DASHBOARD_REGISTRY: join(dir, 'registry.json'), GATEWAY_PORT: String(gwPort), CONSOLE_PORT: String(conPort),
     DEMO_BASE_HOST: `localhost:${gwPort}`, ADMIN_URL_FILE: join(dir, 'console-url.txt'), DEMO_AUTO_RESET: '0' };
   for (const k of ['DASHBOARD_DB', 'DATABASE_URL', 'TEST_DATABASE_URL', 'ADMIN_DATA_KEY', 'ADMIN_BIND', 'DEMO_SCHEME']) delete env[k];
 
