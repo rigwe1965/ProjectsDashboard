@@ -139,7 +139,9 @@ test('against a local stand-in for the API: --smoke makes two calls and reports 
     seen.length = 0;
     const { tmpdir } = await import('node:os'); const { join } = await import('node:path'); const { readFileSync, rmSync } = await import('node:fs');
     const file = join(tmpdir(), 'guide-eval-' + process.pid + '.json');
-    const full = await run(['rmm', '--allow-draft', '--yes', '--out', file], env);
+    const { mkdtempSync, writeFileSync } = await import('node:fs'); // a draft made from the real rmm guide, so this does not depend on whether it is finished
+    const draftDir = mkdtempSync(join(tmpdir(), 'guide-draft-')); writeFileSync(join(draftDir, 'rmm.md'), readFileSync(join(GUIDES_DIR, 'rmm.md'), 'utf8') + EOL + 'TODO(owner): check this.' + EOL);
+    const full = await run(['rmm', '--allow-draft', '--yes', '--dir', draftDir, '--out', file], env);
     assert.match(full.out, /answers passed/); assert.equal(seen.length, casesFor('rmm').length);
     const saved = JSON.parse(readFileSync(file, 'utf8'));
     assert.equal(saved.product, 'rmm'); assert.equal(saved.draft, true); assert.equal(saved.total, seen.length);
