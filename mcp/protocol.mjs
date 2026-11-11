@@ -21,6 +21,7 @@ export function checkArgs(schema, args) {
     const v = args[k];
     if (v === undefined) continue;
     if (def.type === 'string' && typeof v !== 'string') return `"${k}" must be text.`;
+    if (def.type === 'boolean' && typeof v !== 'boolean') return `"${k}" must be true or false.`;
     if (def.type === 'integer' && !Number.isInteger(v)) return `"${k}" must be a whole number.`;
     if (def.enum && !def.enum.includes(v)) return `"${k}" must be one of: ${def.enum.join(', ')}.`;
     if (def.minimum !== undefined && v < def.minimum) return `"${k}" must be at least ${def.minimum}.`;
@@ -34,13 +35,14 @@ const reply = (id, result) => ({ jsonrpc: '2.0', id, result });
 const fail = (id, code, message) => ({ jsonrpc: '2.0', id, error: { code, message } });
 const toolText = (text, isError = false) => ({ content: [{ type: 'text', text }], ...(isError ? { isError: true } : {}) });
 
-// tools: [{ name, description, inputSchema, handler(args) -> data }]. `log(message, fields)` is where unexpected failures are reported (never to the client).
+// tools: [{ name, description, inputSchema, handler(args) -> data, disabled?: 'why' }]. A tool with `disabled` is not listed and answers with that sentence. `log(message, fields)` is where unexpected failures are reported (never to the client).
 export function createProtocol({ name, version, instructions = '', tools, log = () => {} }) {
   const byName = new Map(tools.map((t) => [t.name, t]));
 
   async function callTool(id, params) {
     const tool = isPlainObject(params) && typeof params.name === 'string' && byName.get(params.name);
     if (!tool) return fail(id, ERR.params, 'Unknown tool.');
+    if (tool.disabled) return reply(id, toolText(tool.disabled, true)); // switched off by the owner: said plainly, nothing is run
     const args = params.arguments ?? {};
     const problem = checkArgs(tool.inputSchema, args);
     if (problem) return reply(id, toolText(problem, true)); // a tool's own problem is a result the model can read and correct, not a protocol error
@@ -65,7 +67,7 @@ export function createProtocol({ name, version, instructions = '', tools, log = 
         return reply(id, { protocolVersion: SUPPORTED_VERSIONS.includes(asked) ? asked : SUPPORTED_VERSIONS[0], capabilities: { tools: {} }, serverInfo: { name, version }, ...(instructions ? { instructions } : {}) });
       }
       case 'ping': return reply(id, {});
-      case 'tools/list': return reply(id, { tools: tools.map(({ name: n, description, inputSchema, annotations }) => ({ name: n, description, inputSchema, ...(annotations ? { annotations } : {}) })) });
+      case 'tools/list': return reply(id, { tools: tools.filter((t) => !t.disabled).map(({ name: n, description, inputSchema, annotations }) => ({ name: n, description, inputSchema, ...(annotations ? { annotations } : {}) })) });
       case 'tools/call': return callTool(id, msg.params);
       default: return fail(id, ERR.method, 'Method not found.');
     }
