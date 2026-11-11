@@ -15,7 +15,7 @@ const DEV_RE = /^[a-f0-9]{32}$/;
 // the audit and metrics sinks and the request's browser string, plus two groups: `pages` ({ page, tooMany }, the gateway's page writers)
 // and `cookies` ({ COOKIE, DEV_COOKIE, https }: the two cookie names and whether they are Secure). Returns the handler for one /d/<token> request.
 export function createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages, cookies }) {
-  const { page, tooMany } = pages;
+  const { page, tooMany, landing } = pages;
   const { COOKIE, DEV_COOKIE, https } = cookies;
   // `m` is the match of the path pattern (m[1] is the token); `ip` the client address.
   return async function redeem(req, res, { m, slug, target, ip }) {
@@ -36,7 +36,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, limited, a
       // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
       if (req.method === 'GET') {
         if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
-        return page(res, 200, 'Open your demo', (target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE) + '<form method="post" style="margin-top:20px"><button type="submit" style="font:inherit;padding:10px 20px;cursor:pointer">I understand - open the demo</button></form>');
+        return landing(res, { productName: target.name, g, notice: target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE, brand: o.brandName, bookingUrl: o.bookingUrl });
       }
       req.resume(); // a POST body (the empty form) is not needed
       // a private copy needs a free seat: say so BEFORE the link's use is counted

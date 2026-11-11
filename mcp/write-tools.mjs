@@ -36,12 +36,14 @@ export function createWriteTools({ store, supervisor, enabled = false, demos = d
         hours: { type: 'integer', minimum: 1, maximum: 720, description: 'How long the link works (default 48).' },
         maxUses: { type: 'integer', minimum: 1, maximum: 1000, description: 'How many times it may be opened (default: no limit).' },
         deviceLock: { type: 'boolean', description: 'Tie the link to the first browser that opens it (default false).' },
+        displayName: { type: 'string', description: 'Optional name the CUSTOMER sees on the page where they open the link ("Prepared for ..."), up to 80 characters. Not the owner\'s own label.' },
+        welcome: { type: 'string', description: 'Optional short welcome note the customer sees on that page (up to 400 characters), e.g. what to try first. Plain text only.' },
       }, required: ['customer', 'product'] },
       annotations: { ...CHANGES, destructiveHint: false, idempotentHint: false },
       ...off,
-      handler: async ({ customer, product, hours, maxUses, deviceLock }) => {
+      handler: async ({ customer, product, hours, maxUses, deviceLock, displayName, welcome }) => {
         await allowed();
-        const { grant, link } = await grants.createGrant({ customer: clean(customer), app: product, hours, maxUses, deviceLock }, { by: 'mcp' });
+        const { grant, link } = await grants.createGrant({ customer: clean(customer), app: product, hours, maxUses, deviceLock, displayName, welcome }, { by: 'mcp' });
         return { id: grant.id, customer: clean(grant.customer), product: grant.app, expiresAt: grant.expiresAt, maxUses: grant.maxUses, deviceLock: !!grant.deviceLock, link,
           warning: 'This is the only time the link is shown. Give it to the owner; do not post or store it anywhere else.' };
       },

@@ -237,7 +237,7 @@ export async function createConsole(opts = {}) {
   async function demoCreate({ req, res }) {
     if (badOrigin(req, res)) return;
     const b = parseJsonObject(await readBody(req)); // not JSON / not an object -> 400, too large -> 413
-    const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock }, { ip: ipOf(req), by: 'console' });
+    const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock, displayName: b.displayName, welcome: b.welcome }, { ip: ipOf(req), by: 'console' });
     return json(res, 200, { grant: publicGrant(grant), link });
   }
 

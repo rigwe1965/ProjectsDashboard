@@ -691,3 +691,18 @@ test('forget also deletes the activity counts for the link (analytics plan step 
   assert.deepEqual(await store.activity.forGrant(id), []);
   assert.equal((await store.activity.forGrant(other)).length, 1, 'another link\'s counts are untouched');
 });
+
+test('a link can be created with a name and welcome note for the customer; they are cleaned, listed to the owner, and removed by forget', async () => {
+  const { c, port } = await start();
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const made = JSON.parse((await post(port, '/api/demos', { customer: 'Label only', app: 'toy', hours: 1, displayName: ' Dana\nat Acme ', welcome: 'Try <b>Contacts</b>\r\n\r\n\r\n\r\nthen Deals' }, { cookie })).body);
+  assert.equal(made.grant.displayName, 'Dana at Acme'); assert.equal(made.grant.welcome, 'Try <b>Contacts</b>\n\nthen Deals', 'stored as text; the gateway escapes it when it shows it');
+  const listed = JSON.parse((await req(port, { path: '/api/demos', headers: { cookie } })).body).grants.find((g) => g.id === made.grant.id);
+  assert.equal(listed.displayName, 'Dana at Acme');
+  const plain = JSON.parse((await post(port, '/api/demos', { customer: 'No extras', app: 'toy', hours: 1 }, { cookie })).body);
+  assert.deepEqual([plain.grant.displayName, plain.grant.welcome], [null, null]);
+  assert.equal((await post(port, '/api/demos/' + made.grant.id + '/revoke', {}, { cookie })).status, 200);
+  assert.equal((await post(port, '/api/demos/' + made.grant.id + '/forget', {}, { cookie })).status, 200);
+  const after = await store.grants.findById(made.grant.id);
+  assert.deepEqual([after.customer, after.displayName, after.welcome], ['(removed)', null, null]);
+});

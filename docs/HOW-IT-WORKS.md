@@ -124,6 +124,7 @@ How a customer visit works:
 1. You create a link for one customer and one product. The link is shown **once**; only a SHA-256 hash is stored.
 2. The customer opens `http://<product>.localhost:4300/d/<token>`.
 3. The gateway checks the grant (not expired, not revoked, within its use limit, device lock if set), then gives the browser a separate random session cookie. The link token itself is never reused as a cookie.
+3b. The page where the customer opens the link can be branded: a name ("Prepared for ..."), a welcome note, the time the link has left, your brand name (`DEMO_BRAND_NAME`) and a "Book a call" link (`DEMO_BOOKING_URL`). See `demo-gateway/README.md`.
 4. The session is re-checked on every request, so expiry and revocation apply immediately. Open WebSockets are re-checked every few seconds.
 5. Requests are proxied to that product's demo instance only. A link works only on its own product's host.
 

@@ -21,7 +21,8 @@ import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { resetSweep } from './reset.mjs';
 import { createInstances } from './instances.mjs';
-import { makePages, deniedRecord } from './pages.mjs';
+import { makePages, deniedRecord, parseBookingUrl } from './pages.mjs';
+import { oneLine } from '../lib/text.mjs';
 import { createRedeemHandler } from './redeem.mjs';
 import { createUpgradeHandler } from './websocket.mjs';
 import { createProxy } from './proxy.mjs';
@@ -58,6 +59,8 @@ export async function createGateway(opts = {}) {
     requestsPerMinute: num(process.env.GATEWAY_REQUESTS_PER_MINUTE, 600), // requests per link per minute (0 = no limit); a page load is often 50-150
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     activityFlushMs: num(process.env.GATEWAY_ACTIVITY_FLUSH_SECONDS, 30) * 1000, // how often the per-link activity counts are written
+    brandName: process.env.DEMO_BRAND_NAME || '', // shown at the top of the page where a customer opens their link
+    bookingUrl: process.env.DEMO_BOOKING_URL || '', // https address of your booking page: adds a "Book a call" link to that page
     store: null, // the store to use; null = the process-wide one (lib/store/index.mjs)
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
     ...opts,
@@ -69,7 +72,10 @@ export async function createGateway(opts = {}) {
   const COOKIE = cookiePrefix + COOKIE_BASE, DEV_COOKIE = cookiePrefix + DEV_BASE;
   const baseHost = o.baseHost || `localhost:${o.port}`;
   const baseName = baseHost.split(':')[0];
-  const { page, tooMany } = makePages(https);
+  const { page, tooMany, landing } = makePages(https);
+  if (o.bookingUrl && !parseBookingUrl(o.bookingUrl)) { logger.warn('DEMO_BOOKING_URL is ignored: it must be a plain https address'); o.bookingUrl = null; }
+  else if (o.bookingUrl) o.bookingUrl = parseBookingUrl(o.bookingUrl);
+  o.brandName = oneLine(o.brandName, 60);
   const trusted = new Set(o.trustedProxies);
   const store = o.store ?? await getStore(); // a store can be passed in (tests, or a second gateway); the default is the process-wide one
   const { findGrant } = createGrants(store);
@@ -162,7 +168,7 @@ export async function createGateway(opts = {}) {
   const activity = createActivity({ store, flushMs: o.activityFlushMs }); // what each link did, written in batches (activity.mjs)
   activity.start();
   const { readyCopy, forward } = createProxy({ o, trusted, agent, metrics, instances, page, https });
-  const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages: { page, tooMany }, cookies: { COOKIE, DEV_COOKIE, https } });
+  const redeem = createRedeemHandler({ o, store, instances, findGrant, limited, audit, metrics, uaOf, pages: { page, tooMany, landing }, cookies: { COOKIE, DEV_COOKIE, https } });
   const upgrade = createUpgradeHandler({ o, trusted, resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, ws: { counts: wsCounts, closers: wsClosers, release: releaseWs }, audit, metrics, activity });
 
   async function handle(req, res) {

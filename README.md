@@ -44,6 +44,9 @@ Logs go to `data/logs/`; PIDs are tracked in the database (`data/dashboard.db`, 
 
 It shows each app's processes with status, Start/Stop/Restart, Open and Log buttons. Closing the console never stops the apps.
 
+## Branded demo pages
+The page a customer sees when they open their link is yours to personalise. When you create a link (console: the optional "Name shown to the customer" and "Welcome note" fields; MCP: `displayName`, `welcome`) it can say "Prepared for Dana at Acme" and carry a line or two such as what to try first, and it always shows how long the link still works. Set `DEMO_BRAND_NAME` (your name, shown at the top) and `DEMO_BOOKING_URL` (an https booking page, adds a "Book a call" link) in the gateway's environment. The "Customer" label stays private to you. Details: `demo-gateway/README.md`, "Branded opening page".
+
 ## Link activity
 The gateway counts what each customer did with their link, so you can tell who opened a demo and who actually used it. In the console's "Links you have sent" table the **Activity** column shows *Not opened*, *Opened*, *Engaged* (a minute or more of use) or *Came back* (used on two or more days), with the active minutes, the days and the last time; **Details** lists the days and the busiest pages.
 

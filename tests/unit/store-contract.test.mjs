@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { openSqlite } from '../../lib/store/sqlite.mjs';
 import { openPostgres } from '../../lib/store/postgres.mjs';
 
-const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null };
+const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null, displayName: null, welcome: null };
 const grant = (o = {}) => ({ id: 'g1', tokenHash: 'h1', customer: 'Acme', app: 'crm', createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z', revoked: false, ...o });
 const future = () => new Date(Date.now() + 60000).toISOString();
 const past = () => new Date(Date.now() - 1000).toISOString();
@@ -178,6 +178,16 @@ for (const f of factories) {
       assert.deepEqual(await s.activity.forGrant('s2'), []);
       assert.ok(await s.activity.prune(1) >= 1, 'rows older than a day (all of these test rows) are pruned');
       assert.deepEqual(await s.activity.summary(), []);
+    });
+
+    test('grants: the name and welcome note shown to the customer are stored, and forgetting the customer removes them', async () => {
+      await s.grants.insert(grant({ id: 'b1', tokenHash: 'b1h', displayName: 'Acme Ltd', welcome: 'Hello Dana,\nhere is your demo.' }));
+      const g = await s.grants.findById('b1');
+      assert.equal(g.displayName, 'Acme Ltd'); assert.equal(g.welcome, 'Hello Dana,\nhere is your demo.');
+      assert.equal((await s.grants.findById('g2')).displayName, null, 'a link made without them has none');
+      await s.grants.anonymize('b1');
+      const gone = await s.grants.findById('b1');
+      assert.deepEqual([gone.customer, gone.displayName, gone.welcome], ['(removed)', null, null]);
     });
   });
 }

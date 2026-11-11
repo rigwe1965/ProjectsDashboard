@@ -140,3 +140,13 @@ test('all changes together are limited per minute; the refusal is audited and no
   assert.equal((await store.grants.list()).length, before + 3);
   assert.ok((await audits()).some((e) => e.ev === 'admin-action-refused' && e.why === 'mcp-rate-limit' && e.by === 'mcp'));
 });
+
+test('create_demo_link can set the name and welcome note the customer sees; they are cleaned and kept off the read tools', async () => {
+  const p = make({ enabled: true });
+  const r = await call(p, 'create_demo_link', { customer: 'Label', product: 'toy', displayName: 'Dana\nat Acme', welcome: 'Start with Contacts.\n\n\n\nThen Deals.' });
+  assert.equal(r.isError, false, r.text);
+  const g = await store.grants.findById(r.data.id);
+  assert.deepEqual([g.displayName, g.welcome], ['Dana at Acme', 'Start with Contacts.\n\nThen Deals.']);
+  assert.doesNotMatch((await call(p, 'list_demo_links', {})).text, /Dana|Start with Contacts/, 'the read tools do not repeat what the customer is shown');
+  assert.equal((await call(p, 'create_demo_link', { customer: 'Label', product: 'toy', displayName: 5 })).isError, true);
+});

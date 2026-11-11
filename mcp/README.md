@@ -47,7 +47,7 @@ Start the server with `MCP_WRITE=1` to offer these. Without it they are not list
 
 | Tool | Does |
 |---|---|
-| `create_demo_link` | makes a link (customer, product, hours, max opens, device lock) with the same checks as the console. **The link is shown once, in the answer**, so it passes through the assistant's conversation: only turn this on where that is acceptable |
+| `create_demo_link` | makes a link (customer, product, hours, max opens, device lock, and an optional name and welcome note for the customer to see) with the same checks as the console. **The link is shown once, in the answer**, so it passes through the assistant's conversation: only turn this on where that is acceptable |
 | `revoke_demo_link` | revokes a link at once (the customer loses access, including live connections) |
 | `reset_demo` | resets a shared demo to its sample data. **Refused while any link for it is in use**; there is no force option here (force it from the console). Not for private-copy products |
 
