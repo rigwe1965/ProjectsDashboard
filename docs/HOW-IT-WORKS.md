@@ -67,7 +67,7 @@ Demo CRM sample users are `admin@crm.test`, `sales@crm.test` and `support@crm.te
 One entry per app, with these key fields:
 
 - `path`: the app's folder (`${APPS_ROOT}` expands to the Desktop, `${DASHBOARD_ROOT}` to this project).
-- `processes[]`: each process has a `cmd`, `cwd`, `port`, `health` path, optional `env` and `envFile`, and may be `optional` (started only with `--only=`).
+- `processes[]`: each process has a `cmd`, `cwd`, `port`, `health` path, optional `env` and `envFile`, an optional `passEnv` list (names or `PREFIX_*` copied from the supervisor's own environment; only the dashboard's own gateway uses it), and may be `optional` (started only with `--only=`).
 - `demoOf` and `demoReady`: mark a demo instance and whether the gateway may serve it.
 - Placeholders in commands and env values: `{port}`, `{url}`, `{port:NAME}`.
 

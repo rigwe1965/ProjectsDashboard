@@ -442,6 +442,7 @@
           "cwd": ".",
           "port": 4300,
           "health": "/",
+          "passEnv": ["GATEWAY_*", "DEMO_*", "TRUSTED_PROXIES", "METRICS_TOKEN", "AUDIT_*", "DASHBOARD_DATA", "DASHBOARD_DB", "DASHBOARD_REGISTRY", "DATABASE_*", "LOG_*", "APPS_ROOT"],
           "env": { "GATEWAY_PORT": "{port}" }
         }
       ],

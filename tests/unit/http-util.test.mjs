@@ -69,3 +69,31 @@ test('limitKey: an IPv6 client is limited as its whole /64, IPv4 as itself', asy
   assert.equal(limitKey('not an address'), 'not an address');
   assert.equal(limitKey(undefined), 'undefined');
 });
+
+test('childEnv: a process\'s passEnv copies its own settings from the supervisor; nothing else leaks (audit F-06)', async () => {
+  const { childEnv } = await import('../../supervisor/env.mjs');
+  const source = { PATH: 'p', GATEWAY_PORT: '1', gateway_requests_per_minute: '5', DEMO_BASE_HOST: 'demo.example', TRUSTED_PROXIES: '10.0.0.1', DASHBOARD_DATA: 'D:\data', DATABASE_URL: 'postgres://u:p@h/db', ANTHROPIC_API_KEY: 'k', ADMIN_DATA_KEY: 'secret' };
+  const app = { id: 'x' }, fillStr = (v) => v;
+  const plain = childEnv(app, {}, fillStr, source);
+  assert.equal(plain.DEMO_BASE_HOST, undefined, 'without passEnv nothing of the dashboard\'s settings reaches the process');
+  assert.equal(plain.DATABASE_URL, undefined);
+  const gw = childEnv(app, { passEnv: ['GATEWAY_*', 'DEMO_*', 'TRUSTED_PROXIES', 'DASHBOARD_DATA', 'DATABASE_*'], env: { GATEWAY_PORT: '4300' } }, fillStr, source);
+  assert.equal(gw.DEMO_BASE_HOST, 'demo.example');
+  assert.equal(gw.TRUSTED_PROXIES, '10.0.0.1');
+  assert.equal(gw.DASHBOARD_DATA, 'D:\data');
+  assert.equal(gw.DATABASE_URL, 'postgres://u:p@h/db');
+  assert.equal(gw.gateway_requests_per_minute, '5', 'prefix match ignores case');
+  assert.equal(gw.GATEWAY_PORT, '4300', 'the registry\'s own env value wins over the passed-through one');
+  assert.equal(gw.ANTHROPIC_API_KEY, undefined, 'only what is listed');
+  assert.equal(gw.ADMIN_DATA_KEY, undefined);
+});
+
+test('the registry\'s gateway entry passes its settings through, and no demo app lists passEnv (audit F-06)', async () => {
+  const { readFileSync } = await import('node:fs');
+  const reg = JSON.parse(readFileSync(new URL('../../registry/apps.json', import.meta.url), 'utf8'));
+  const withPass = reg.apps.flatMap((a) => a.processes.filter((p) => p.passEnv).map(() => a.id));
+  assert.deepEqual(withPass, ['gateway']);
+  const gw = reg.apps.find((a) => a.id === 'gateway').processes[0];
+  for (const need of ['GATEWAY_*', 'DEMO_*', 'TRUSTED_PROXIES', 'METRICS_TOKEN', 'AUDIT_*', 'DASHBOARD_DATA', 'DASHBOARD_DB', 'DATABASE_*']) assert.ok(gw.passEnv.includes(need), need);
+  assert.ok(!gw.passEnv.some((p) => /KEY|SECRET|PASSWORD|ALERT|ADMIN/.test(p)), 'no secret of the console is handed to the gateway');
+});
