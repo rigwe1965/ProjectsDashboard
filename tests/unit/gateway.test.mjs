@@ -22,7 +22,18 @@ const main = http.createServer((req, res) => {
   res.setHeader('content-type', 'application/json');
   res.end(JSON.stringify({ url: req.url, host: req.headers.host, cookie: req.headers.cookie ?? null, xff: req.headers['x-forwarded-for'] ?? null, spoof: ['forwarded', 'x-real-ip', 'true-client-ip', 'cf-connecting-ip', 'x-client-ip'].filter((h) => h in req.headers) }));
 });
-const wss = new WebSocketServer({ server: main });
+const wss = new WebSocketServer({ noServer: true });
+// Two odd answers to an upgrade (audit F-02): a plain 200 that keeps the connection open, and a real 101 that sets cookies.
+main.on('upgrade', (req, socket, head) => {
+  if (req.url === '/plain-upgrade') {
+    socket.on('end', () => socket.end()); // an upgraded socket is half-open: close our side when the gateway hangs up
+    socket.write('HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok');
+    socket.on('data', (d) => { seen.tunnel = (seen.tunnel || '') + d; socket.write('HTTP/1.1 200 OK\r\nContent-Length: 6\r\n\r\nopened'); });
+    return;
+  }
+  wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
+});
+wss.on('headers', (headers, req) => { if (req.url === '/cookie-upgrade') headers.push('Set-Cookie: theme=dark; Path=/; Domain=.localhost', 'Set-Cookie: pd_demo=evil; Path=/', 'Set-Cookie: plain=1; Path=/'); });
 wss.on('connection', (ws, req) => { seen.wsHeaders = req.headers; ws.on('message', (m) => ws.send('echo:' + m)); });
 const second = http.createServer((req, res) => res.end('second:' + req.url));
 const third = http.createServer((req, res) => res.end('third:' + req.headers.host));
@@ -55,7 +66,7 @@ const gwPort = await gw.listen();
 const gwTrusted = await createGateway({ port: 0, baseHost: 'localhost', trustedProxies: ['127.0.0.1'] });
 const trustedPort = await gwTrusted.listen();
 
-after(async () => { await gw.close(); await gwTrusted.close(); await new Promise((r) => main.close(r)); main.closeAllConnections?.(); second.close(); third.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
+after(async () => { await gw.close(); await gwTrusted.close(); main.closeAllConnections?.(); await new Promise((r) => main.close(r)); second.close(); third.close(); await closeStore(); rmSync(dir, { recursive: true, force: true }); });
 
 // ---- helpers
 function request({ port = gwPort, host = 'toy.localhost', ...rest }) {
@@ -510,6 +521,34 @@ test('an Upgrade request that is not a WebSocket is refused, even with a valid s
     r.end();
   });
   assert.equal(status, 400);
+});
+
+test('an upgrade the app does not switch to a WebSocket is answered 502 and never becomes a tunnel (audit F-02)', async () => {
+  const g = await newGrant();
+  const net = await import('node:net');
+  seen.tunnel = '';
+  const upgradeReq = [`GET /plain-upgrade HTTP/1.1`, `Host: toy.localhost:${gwPort}`, `Cookie: ${g.cookie}`, 'Connection: Upgrade', 'Upgrade: websocket',
+    'Sec-WebSocket-Version: 13', 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==', '', ''].join('\r\n');
+  const got = await new Promise((resolve) => {
+    const s = net.connect(gwPort, '127.0.0.1');
+    let data = '';
+    s.on('connect', () => s.write(upgradeReq));
+    s.on('data', (d) => { data += d; if (data.includes('Bad Gateway')) s.write('GET /second HTTP/1.1\r\nHost: x\r\nX-Forwarded-For: 6.6.6.6\r\n\r\n'); });
+    s.on('close', () => resolve(data)); s.on('error', () => {});
+    setTimeout(() => { s.destroy(); resolve(data); }, 2000);
+  });
+  assert.match(got, /^HTTP\/1\.1 502 /);
+  assert.doesNotMatch(got, /opened/, 'nothing typed afterwards reached the app');
+  assert.doesNotMatch(seen.tunnel, /6\.6\.6\.6/);
+});
+
+test("a real WebSocket answer passes, minus the gateway's cookie names and any Domain=", async () => {
+  const g = await newGrant();
+  const headers = await new Promise((resolve) => {
+    const ws = new WebSocket(`ws://127.0.0.1:${gwPort}/cookie-upgrade`, { headers: { Host: `toy.localhost:${gwPort}`, Cookie: g.cookie } });
+    ws.on('upgrade', (res) => { resolve(res.headers); ws.close(); }); ws.on('error', () => resolve(null));
+  });
+  assert.deepEqual(headers['set-cookie'], ['theme=dark; Path=/', 'plain=1; Path=/']);
 });
 
 test('requests with no valid session are limited per address; a valid session is never counted', async () => {

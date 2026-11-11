@@ -41,6 +41,15 @@ export function requestHeaders(req, { upHost, port, hostHdr, scheme, trusted }) 
   return headers;
 }
 
+// The app's answer to a WebSocket upgrade, as raw header text (status line first, no blank line), for the customer's browser: the same
+// cookie rules as responseHeaders (not ours, no Domain=). Other lines pass as they are (Sec-WebSocket-Accept, subprotocol, ...).
+export function upgradeResponseHead(headText) {
+  const [status, ...lines] = headText.split('\r\n');
+  const kept = lines.filter((l) => !(/^set-cookie:/i.test(l) && OURS.test(l.slice(l.indexOf(':') + 1))))
+    .map((l) => (/^set-cookie:/i.test(l) ? l.replace(/;\s*domain=[^;]*/gi, '') : l));
+  return [status, ...kept].join('\r\n');
+}
+
 // The demo app's response headers for the customer's browser.
 export function responseHeaders(upstreamHeaders, { upHost, port, hostHdr, scheme, https, hsts }) {
   const out = {};

@@ -6,7 +6,7 @@ import { clientIp } from '../lib/http-util.mjs';
 import { EVENTS } from '../lib/events.mjs';
 import { logger } from '../lib/log.mjs';
 import { deniedRecord } from './pages.mjs';
-import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort } from './proxy-headers.mjs';
+import { SPOOFABLE, cookiesForUpstream, forwardedFor, upstreamPort, upgradeResponseHead } from './proxy-headers.mjs';
 
 // ctx: o (options), trusted (proxy addresses), resolveRequest, grantFor, tooManyMisses, auditDenied, uaOf, instances, audit, metrics, and
 // `ws`, the gateway's record of open sockets: { counts (grant id -> open sockets), closers (a set of functions that close each socket),
@@ -90,9 +90,26 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
       lines.push(`X-Forwarded-Host: ${hostHdr}`, `X-Forwarded-Proto: ${o.scheme}`, `X-Forwarded-For: ${forwardedFor(req, trusted)}`);
       upstream.write(lines.join('\r\n') + '\r\n\r\n');
       if (head?.length) upstream.write(head);
-      socket.pipe(upstream); upstream.pipe(socket);
-      metrics.inc('pd_gateway_websockets_total');
-      audit({ ev: EVENTS.wsOpen, grant: g.id, app: slug, ip });
+      // The sockets are joined only if the app really switches protocols. Anything else (a 200 that keeps the connection open, say) would
+      // leave the customer a raw line to the app that skips every check above, so it is answered with 502 and both sockets are closed.
+      const fail = (why) => { rejectUpgrade(socket, 502, 'Bad Gateway'); close(why); };
+      const headTimer = setTimeout(() => fail('upgrade-timeout'), 10000);
+      let buf = Buffer.alloc(0);
+      const onData = (chunk) => {
+        buf = Buffer.concat([buf, chunk]);
+        const end = buf.indexOf('\r\n\r\n');
+        if (end < 0) { if (buf.length > 16384) { clearTimeout(headTimer); upstream.off('data', onData); fail('upgrade-refused'); } return; }
+        clearTimeout(headTimer); upstream.off('data', onData); upstream.pause();
+        const headText = buf.subarray(0, end).toString('latin1');
+        if (!/^HTTP\/1\.1 101[ \r]/.test(headText + ' ')) return fail('upgrade-refused');
+        if (closed) return;
+        socket.write(upgradeResponseHead(headText) + '\r\n\r\n', 'latin1');
+        if (buf.length > end + 4) socket.write(buf.subarray(end + 4));
+        socket.pipe(upstream); upstream.pipe(socket); upstream.resume();
+        metrics.inc('pd_gateway_websockets_total');
+        audit({ ev: EVENTS.wsOpen, grant: g.id, app: slug, ip });
+      };
+      upstream.on('data', onData);
     });
   }
   return upgrade;
