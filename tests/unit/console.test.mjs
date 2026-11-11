@@ -678,3 +678,16 @@ test('demo links show what the customer did: engagement in the list, day-by-day 
   assert.equal((await req(port, { path: '/api/demos/0123456789abcdef/activity', headers: { cookie } })).status, 404);
   assert.equal((await req(port, { path: '/api/demos/zz/activity', headers: { cookie } })).status, 404, 'not a link id');
 });
+
+test('forget also deletes the activity counts for the link (analytics plan step 4)', async () => {
+  const { c, port } = await start();
+  const cookie = cookieFrom(await req(port, { path: '/?t=' + c.launchToken }));
+  const made = JSON.parse((await post(port, '/api/demos', { customer: 'Counted Co', app: 'toy', hours: 1 }, { cookie })).body);
+  const id = made.grant.id, other = 'feedfacefeedface';
+  await store.activity.add(id, '2026-03-05', { requests: 3, paths: { '/a': 3 } });
+  await store.activity.add(other, '2026-03-05', { requests: 9 });
+  assert.equal((await post(port, '/api/demos/' + id + '/revoke', {}, { cookie })).status, 200);
+  assert.equal((await post(port, '/api/demos/' + id + '/forget', {}, { cookie })).status, 200);
+  assert.deepEqual(await store.activity.forGrant(id), []);
+  assert.equal((await store.activity.forGrant(other)).length, 1, 'another link\'s counts are untouched');
+});

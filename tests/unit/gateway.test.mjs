@@ -642,3 +642,12 @@ test('an open WebSocket shows up as activity on its link', async () => {
   assert.equal(rows[0].requests, 0, 'a socket is activity, not a page view');
   assert.ok(rows[0].lastAt, 'it has a last-seen time');
 });
+
+test('the page where a customer opens a link says what is recorded about the visit', async () => {
+  const { link } = await grants.createGrant({ customer: 'Told', app: 'toy', hours: 1 });
+  const r = await request({ path: '/d/' + link.split('/d/')[1] });
+  assert.equal(r.status, 200);
+  assert.match(r.body, /address and browser type are noted/);
+  assert.match(r.body, /how long you are active are counted/);
+  assert.match(r.body, /What you type is not recorded/);
+});

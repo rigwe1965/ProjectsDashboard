@@ -20,6 +20,10 @@ npm run demo -- revoke <id>
 - Tokens are stored hashed in the database (`data/dashboard.db`); grants, entries, denials and revocations go to its audit table (kept 90 days, set `AUDIT_RETENTION_DAYS` to change). Old `demos.json` / `demo-access.log` are imported automatically the first time and kept as a backup; `npm run migrate` re-checks the import.
 - Start the gateway and the demo instance from the Demos panel in the admin console (or `node supervisor/index.mjs start gateway` / `start imageapp-demo`).
 - **WebSockets are supported** (Streamlit apps work through the gateway). An open socket is re-checked every few seconds, so revoking or expiring a grant also cuts off sockets that are already open. ClaudeOS and the RMM UI are *technically* able to run through it now, but stay `demoReady: false` until you have confirmed each one has its own demo data (ClaudeOS and RMM have no separate demo database yet).
+- **What is recorded about a link (and for how long).** Two things, both shown to the customer on the "Open your demo" page:
+  - *Audit events*: when a link is created, opened or refused, and when a live connection opens or is cut. Each has the customer's address and browser type. Kept `AUDIT_RETENTION_DAYS` (90).
+  - *Activity counts* (`activity.mjs`), one row per link per day: number of requests, first and last time, active minutes, WebSocket minutes, and the ten busiest pages (the first two path segments; numbers and ids are shown as `:id`). **Never** the address, the browser, the query string (it can hold names or e-mail addresses), form contents or cookies, and not files such as .js, .css or images. A pause of more than 5 minutes ends a visit and is not counted as active time. Counting happens in memory and is written every `GATEWAY_ACTIVITY_FLUSH_SECONDS`, so a crash can lose up to that many seconds. Kept as long as the audit events and removed with them.
+  - The console's "Forget" (links that are no longer active) deletes both the audit events and the activity counts and removes the customer's name. A batch the gateway was still holding in memory at that moment can write one last row for the link a few seconds later; it holds no address or name and is removed by the normal retention.
 - Code: `gateway.mjs` (the proxy, testable) and `server.mjs` (starts it). `npm test` runs it against a fake upstream.
 
 ## Settings (environment variables, all optional)
@@ -37,3 +41,4 @@ npm run demo -- revoke <id>
 | `GATEWAY_REDEEM_FAIL_LIMIT` | 10 | bad links per IP per 10 minutes before it is refused |
 | `AUDIT_RETENTION_DAYS` | 90 | how long customer audit events are kept |
 | `AUDIT_ADMIN_RETENTION_DAYS` | 365 | how long the owner's sign-in events (`admin-*`) are kept |
+| `GATEWAY_ACTIVITY_FLUSH_SECONDS` | 30 | how often the per-link activity counts are written to the database |

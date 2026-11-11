@@ -267,13 +267,14 @@ export async function createConsole(opts = {}) {
     return json(res, 200, { ok: true });
   }
 
-  // Remove every audit event (address, browser) recorded for one customer's link.
+  // Remove every audit event (address, browser) and the activity counts recorded for one customer's link.
   async function demoForget({ req, res, m }) {
     if (badOrigin(req, res)) return;
     const g = await store.grants.findById(m[1]);
     if (!g) throw new HttpError(404, 'No such demo link');
     if (isActive(g)) throw new HttpError(409, 'Revoke the link first; it is still active');
     const removed = await store.audit.deleteForGrant(m[1]);
+    await store.activity.deleteForGrant(m[1]); // what the link's customer did (pages, time) goes too
     await store.grants.anonymize(m[1]); // the name on the grant goes too
     audit({ ev: EVENTS.grantForgotten, ip: ipOf(req), removed }); // deliberately without the grant id
     return json(res, 200, { ok: true, removed });

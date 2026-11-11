@@ -3,8 +3,10 @@ import { BASE_SECURITY_HEADERS } from '../lib/http-util.mjs';
 import { EVENTS } from '../lib/events.mjs';
 
 // What a customer is told before entering: a private copy of the demo, or a shared one.
-export const PRIVATE_NOTICE = 'This is your own private copy of the demonstration, filled with sample data. It is started for you when you open it and deleted when your link ends, so nobody else can see what you enter.<br><br><strong>Please still avoid entering real personal, customer or confidential information.</strong>';
-export const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>';
+// Said to every customer before they open a demo: what is recorded about their visit (see demo-gateway/README.md, "What is recorded").
+const RECORDED = '<br><br>So the owner can see how the demo is used, your address and browser type are noted when you open the link, and the pages you visit and how long you are active are counted. What you type is not recorded here.';
+export const PRIVATE_NOTICE = 'This is your own private copy of the demonstration, filled with sample data. It is started for you when you open it and deleted when your link ends, so nobody else can see what you enter.<br><br><strong>Please still avoid entering real personal, customer or confidential information.</strong>' + RECORDED;
+export const SHARED_NOTICE = 'This is a shared demonstration with sample data. Other people may be using it at the same time, what you enter can be seen by them, and it can be reset at any time.<br><br><strong>Please do not enter real personal, customer or confidential information.</strong>' + RECORDED;
 export const HSTS = 'max-age=31536000';
 // The gateway's own pages. Whether they carry HSTS follows the gateway's scheme option (the same one the cookies use), not a second reading of the environment.
 export const makePages = (https) => {

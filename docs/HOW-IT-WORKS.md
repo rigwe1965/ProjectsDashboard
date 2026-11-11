@@ -125,7 +125,7 @@ How a customer visit works:
 4. The session is re-checked on every request, so expiry and revocation apply immediately. Open WebSockets are re-checked every few seconds.
 5. Requests are proxied to that product's demo instance only. A link works only on its own product's host.
 
-Protections: per-IP and per-link rate limits, a temporary ban for repeated bad links, strict security headers on the gateway's own pages, and an audit entry (with IP and browser) for every grant, open, denial and revocation. Audit events are kept 90 days (`AUDIT_RETENTION_DAYS`).
+Protections: per-IP and per-link rate limits, a temporary ban for repeated bad links, strict security headers on the gateway's own pages, and an audit entry (with IP and browser) for every grant, open, denial and revocation. Audit events are kept 90 days (`AUDIT_RETENTION_DAYS`). The gateway also counts, per link and day, how many requests were made, for how long the customer was active and which pages they used (never the address, the query string or what was typed); the console shows this as an Activity column, it is kept as long as the audit events, and "Forget" deletes it. The customer is told on the page where they open the link. Details: `demo-gateway/README.md`, "What is recorded about a link".
 
 Links look like `localhost:4300` addresses today, so they only work on your own computer. They become public once the dashboard is hosted and `DEMO_BASE_HOST` / `DEMO_SCHEME=https` are set.
 

@@ -6,6 +6,7 @@ import { ports } from '../lib/config.mjs';
 import { closeStore } from '../lib/store/index.mjs';
 import { logger, installProcessHandlers } from '../lib/log.mjs';
 import { skipIfRunning, num } from '../lib/util.mjs';
+import { pruneOld } from './retention.mjs';
 
 const gw = await createGateway({ port: ports.gateway });
 // A retention of 0 or less would delete the whole audit log at start-up, so it is ignored (the default stays) rather than obeyed.
@@ -16,12 +17,7 @@ const keepDays = Number.isFinite(RETENTION_DAYS) ? RETENTION_DAYS : 90;
 // The owner's own sign-in events are the ones worth keeping longest for an investigation.
 const ADMIN_DAYS = num(process.env.AUDIT_ADMIN_RETENTION_DAYS, 365) >= 1 ? num(process.env.AUDIT_ADMIN_RETENTION_DAYS, 365) : 365;
 const keepAdminDays = Number.isFinite(ADMIN_DAYS) ? ADMIN_DAYS : 365;
-async function pruneAudit() {
-  try {
-    const pruned = await gw.store.audit.prune(keepDays, keepAdminDays);
-    if (pruned) logger.info('pruned old audit events', { count: pruned, olderThanDays: keepDays });
-  } catch (err) { logger.warn('audit prune failed; continuing', { err }); }
-}
+const pruneAudit = () => pruneOld(gw.store, keepDays, keepAdminDays); // audit events and link activity; never throws
 await pruneAudit();
 setInterval(pruneAudit, 24 * 3600e3).unref();
 // Shared demos go back to their seeded state once every link opened for them has ended (DEMO_AUTO_RESET=0 turns this off).
