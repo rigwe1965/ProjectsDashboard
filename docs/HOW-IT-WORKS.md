@@ -132,6 +132,8 @@ Protections: per-IP and per-link rate limits, a temporary ban for repeated bad l
 
 Links look like `localhost:4300` addresses today, so they only work on your own computer. They become public once the dashboard is hosted and `DEMO_BASE_HOST` / `DEMO_SCHEME=https` are set.
 
+**AI guide (optional, per link).** A link created with guide messages shows a second button, "open it with the guide", on its opening page. That opens `/_pd/guide`: the demo in a frame next to a chat with an AI assistant. The assistant knows only `guides/<product>.md` (written by you, usable only once you have deleted its `TODO(owner)` lines) and fixed rules; it has no tools and cannot see the demo. What a customer types is sent to Anthropic and is **not stored** (the last 10 turns stay in gateway memory for the visit); the database keeps only counts per link per day (messages, tokens, estimated cost). Limits: the link's allowance, a few messages a minute, and a daily spend cap (`GUIDE_DAILY_CAP_USD`); `DEMO_GUIDE=off` turns it off. The key (`ANTHROPIC_API_KEY`) is given to the gateway process only.
+
 ## 8. Showcase
 
 Edit `showcase/site.json` (brand, contact) and `showcase/products.json` (product copy), then run `npm run showcase`. It builds static HTML into `showcase/dist/` and serves it at `http://127.0.0.1:4200/`. The output has no scripts and no links to running apps, so it can be hosted anywhere. `"published": false` keeps a product off the site. Keep ports, paths and vendor internals out of the copy.

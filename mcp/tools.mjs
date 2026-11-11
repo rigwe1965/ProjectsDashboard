@@ -5,7 +5,8 @@ import { loadRegistry, demoApps } from '../lib/registry.mjs';
 import { EVENT_FILTERS } from '../lib/events.mjs';
 import { HttpError } from '../lib/errors.mjs';
 import { isActive } from '../demo-gateway/grants.mjs';
-import { activityView, mergeTopPages } from '../lib/engagement.mjs';
+import { activityView, mergeTopPages, guideView } from '../lib/engagement.mjs';
+import { guideProblem } from '../demo-gateway/guide/content.mjs';
 import { isResetting, lastResetAt, holdReason, productState } from '../demo-gateway/reset.mjs';
 import { listInstances } from '../demo-gateway/instances.mjs';
 import { createStatusCache } from '../admin-console/status-cache.mjs';
@@ -22,8 +23,9 @@ const stateOf = (g) => (g.revoked ? 'revoked' : isActive(g) ? 'active' : 'expire
 export function createTools({ store, supervisor, registry = loadRegistry, demos = demoApps }) {
   const status = createStatusCache({ supervisor, reuseMs: 2000 });
   const sumsOf = async () => new Map((await store.activity.summary()).map((s) => [s.grantId, s]));
-  const linkView = (g, sums) => ({ id: g.id, customer: clean(g.customer), app: g.app, state: stateOf(g), createdAt: g.createdAt, expiresAt: g.expiresAt,
-    uses: g.uses ?? 0, maxUses: g.maxUses ?? null, deviceLock: !!g.deviceLock, lastUsedAt: g.lastUsedAt ?? null, activity: activityView(g, sums.get(g.id)) });
+  const guideSumsOf = async () => new Map((await store.guideUsage.summary()).map((s) => [s.grantId, s]));
+  const linkView = (g, sums, guideSums) => ({ id: g.id, customer: clean(g.customer), app: g.app, state: stateOf(g), createdAt: g.createdAt, expiresAt: g.expiresAt,
+    uses: g.uses ?? 0, maxUses: g.maxUses ?? null, deviceLock: !!g.deviceLock, lastUsedAt: g.lastUsedAt ?? null, activity: activityView(g, sums.get(g.id)), guide: guideView(g, guideSums.get(g.id)) });
 
   return [
     {
@@ -50,9 +52,9 @@ export function createTools({ store, supervisor, registry = loadRegistry, demos 
       } },
       annotations: READ_ONLY,
       handler: async ({ app, state, limit = 50 }) => {
-        const sums = await sumsOf();
+        const sums = await sumsOf(), guideSums = await guideSumsOf();
         const all = (await store.grants.list()).reverse().filter((g) => (!app || g.app === app) && (!state || stateOf(g) === state));
-        return { total: all.length, shown: Math.min(all.length, limit), links: all.slice(0, limit).map((g) => linkView(g, sums)) };
+        return { total: all.length, shown: Math.min(all.length, limit), links: all.slice(0, limit).map((g) => linkView(g, sums, guideSums)) };
       },
     },
     {
@@ -64,7 +66,7 @@ export function createTools({ store, supervisor, registry = loadRegistry, demos 
         const g = await store.grants.findById(id);
         if (!g) throw new HttpError(404, 'No such demo link.');
         const days = await store.activity.forGrant(id);
-        return { link: linkView(g, await sumsOf()), days: days.map(({ day, requests, firstAt, lastAt, activeSeconds, wsSeconds }) => ({ day, requests, firstAt, lastAt, activeSeconds, wsSeconds })),
+        return { link: linkView(g, await sumsOf(), await guideSumsOf()), days: days.map(({ day, requests, firstAt, lastAt, activeSeconds, wsSeconds }) => ({ day, requests, firstAt, lastAt, activeSeconds, wsSeconds })),
           topPages: mergeTopPages(days).map((p) => ({ path: clean(p.path, 100), count: p.count })) };
       },
     },
@@ -94,7 +96,7 @@ export function createTools({ store, supervisor, registry = loadRegistry, demos 
         for (const [product, a] of Object.entries(demos())) {
           const copies = a.perLink ? Object.values(await listInstances(store, product)) : [];
           out.push({ product, name: a.name, up: rows.some((r) => r.app === a.id && r.up), perLink: !!a.perLink, seats: a.perLink?.max ?? null,
-            canReset: !!a.reset && !a.perLink,
+            canReset: !!a.reset && !a.perLink, guide: guideProblem(product, a) === null ? { ready: true } : { ready: false, why: guideProblem(product, a) },
             ...(a.reset && !a.perLink ? { resetting: await isResetting(store, product), hold: await holdReason(store, product), lastReset: await lastResetAt(store, product), linksInUse: productState(grants, product).busy } : {}),
             ...(a.perLink ? { copiesRunning: copies.filter((c) => c.state === 'ready' || c.state === 'starting').length, copiesStuck: copies.filter((c) => c.state === 'stopping' || c.state === 'failed').length } : {}) });
         }

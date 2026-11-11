@@ -197,6 +197,9 @@ for (const f of factories) {
       await assert.rejects(async () => s.guideUsage.add('gu3', 'today', { messages: 1 }), /YYYY-MM-DD/);
       await Promise.all([1, 2, 3, 4, 5, 6].map((i) => s.guideUsage.add('grace', '2026-03-05', { messages: 1, costMicro: i })));
       assert.deepEqual(await s.guideUsage.totalForGrant('grace'), { messages: 6, inputTokens: 0, cachedTokens: 0, outputTokens: 0, costMicro: 21 });
+      const all = Object.fromEntries((await s.guideUsage.summary()).map((x) => [x.grantId, x]));
+      assert.deepEqual(all.gu1, { grantId: 'gu1', messages: 4, inputTokens: 4300, cachedTokens: 3900, outputTokens: 350, costMicro: 627 }, 'one row per link, all days added up');
+      assert.equal(all.gu2.messages, 5); assert.equal(all.grace.messages, 6);
       assert.equal(await s.guideUsage.deleteForGrant('gu2'), 1);
       assert.deepEqual(await s.guideUsage.forGrant('gu2'), []);
       assert.ok(await s.guideUsage.prune(1) >= 1, 'all of these old test rows are pruned');

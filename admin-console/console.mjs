@@ -15,7 +15,8 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { createGrants, publicGrant, isActive } from '../demo-gateway/grants.mjs';
-import { activityView, mergeTopPages } from '../lib/engagement.mjs';
+import { activityView, mergeTopPages, guideView } from '../lib/engagement.mjs';
+import { guideProblem } from '../demo-gateway/guide/content.mjs';
 import { demoApps } from '../lib/registry.mjs';
 import { dataDir, ports } from '../lib/config.mjs';
 import { loadRegistry } from '../lib/registry.mjs';
@@ -218,11 +219,13 @@ export async function createConsole(opts = {}) {
       ...(a.perLink ? copySummary(await listInstances(store, product)) : { copies: 0, stuck: 0, copyList: [] }),
       inUse: a.reset && !a.perLink ? productState(grantList, product).busy : 0, // opened links that have not ended
       accounts: (a.demoAccounts || []).map((x) => ({ label: x.label, user: x.user, admin: !!x.admin })),
+      guide: guideProblem(product, a) === null ? { ready: true } : { ready: false, why: guideProblem(product, a) }, // can a link for this product be given a guide?
     })));
     const gatewayManaged = rows.some((r) => r.app === 'gateway' && r.managed);
     // What each link's customer did with it (counted by the gateway): one query for all links.
     const sums = new Map((await store.activity.summary()).map((s) => [s.grantId, s]));
-    const links = (await loadGrants()).map((g) => ({ ...publicGrant(g), activity: activityView(g, sums.get(g.id)) })).reverse();
+    const guideSums = new Map((await store.guideUsage.summary()).map((s) => [s.grantId, s]));
+    const links = (await loadGrants()).map((g) => ({ ...publicGrant(g), activity: activityView(g, sums.get(g.id)), guide: guideView(g, guideSums.get(g.id)) })).reverse();
     return json(res, 200, { gatewayUp, gatewayManaged, appControl: o.appControl, gatewayPort: o.gatewayPort, products, grants: links });
   }
 
@@ -237,8 +240,9 @@ export async function createConsole(opts = {}) {
   async function demoCreate({ req, res }) {
     if (badOrigin(req, res)) return;
     const b = parseJsonObject(await readBody(req)); // not JSON / not an object -> 400, too large -> 413
-    const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock, displayName: b.displayName, welcome: b.welcome }, { ip: ipOf(req), by: 'console' });
-    return json(res, 200, { grant: publicGrant(grant), link });
+    if (Number(b.guideMessages) > 0) { const why = guideProblem(b.app, demoApps()[b.app]); if (why) throw new HttpError(400, 'This link cannot have a guide: ' + why + '.'); }
+    const { grant, link } = await createGrant({ customer: b.customer, app: b.app, hours: b.hours, maxUses: b.maxUses, deviceLock: b.deviceLock, displayName: b.displayName, welcome: b.welcome, guideMessages: b.guideMessages }, { ip: ipOf(req), by: 'console' });
+    return json(res, 200, { grant: { ...publicGrant(grant), guide: guideView(grant, undefined) }, link });
   }
 
   async function demoReset({ req, res, m }) {

@@ -27,9 +27,19 @@
       "items": [
         { "label": "When you open the link", "text": "We note the time, your network address and your browser type when a link is opened or refused. These records are deleted after 90 days.", "source": "demo-gateway/server.mjs" },
         { "label": "How the demo is used", "text": "Per day we count how many requests were made, how long you were active, and which pages were used most (the first part of the address only). So we can see whether the demo helped, not what you did in it.", "source": "demo-gateway/activity.mjs" },
-        { "label": "What we do not record here", "text": "Anything you type, passwords, search words or other details that follow a page address, and the files and images a page loads.", "source": "demo-gateway/activity.mjs" },
+        { "label": "What we do not record here", "text": "Anything you type into the demo itself, passwords, search words or other details that follow a page address, and the files and images a page loads.", "source": "demo-gateway/activity.mjs" },
         { "label": "You are told first", "text": "The page you see before opening a demo says what is recorded.", "source": "demo-gateway/pages.mjs" },
         { "label": "Deletion on request", "text": "Ask us and we delete the records of your link and remove your name from it.", "source": "admin-console/console.mjs" }
+      ]
+    },
+    {
+      "title": "The AI demo guide",
+      "items": [
+        { "label": "Only on some links, and you are told first", "text": "Some links include a chat guide beside the demo. It is off unless we switch it on for your link, and the page you see before you open the demo tells you if it is there.", "source": "demo-gateway/redeem.mjs" },
+        { "label": "It is an AI, and your words go to Anthropic", "text": "The guide is an AI assistant, not a person. What you type to it is sent to Anthropic, the company that runs the AI, to get an answer. The page before the demo and the guide itself both say this.", "source": "demo-gateway/guide/routes.mjs" },
+        { "label": "We do not keep what you type", "text": "Your questions and its answers are not saved in our database or our logs. The last few are held in memory only while your visit lasts, and are dropped after 2 hours without use, so the guide can follow the conversation. We keep only counts: how many messages, and what they cost.", "source": "demo-gateway/guide/routes.mjs" },
+        { "label": "It cannot see or change anything", "text": "The guide cannot see your screen or the demo's data, cannot click or change anything, and knows only the product notes we wrote for it. Its answers are shown as plain text, never as web page code.", "source": "demo-gateway/guide/prompt.mjs" },
+        { "label": "It has limits", "text": "Each link has its own message allowance. A message can be at most 500 characters, only a few can be sent per minute, and a daily spending limit applies across all links.", "source": "demo-gateway/guide/budget.mjs" }
       ]
     },
     {
@@ -59,7 +69,7 @@
   ],
   "notYet": {
     "title": "What we do not have yet",
-    "text": "We have not had an independent penetration test, and we hold no formal certification such as SOC 2 or ISO 27001. If your purchasing process needs either, tell us."
+    "text": "We have not had an independent penetration test, and we hold no formal certification such as SOC 2 or ISO 27001. If your purchasing process needs either, tell us. The AI guide can also be wrong: treat its answers as hints, and check anything important with us."
   },
   "report": {
     "title": "Found a problem, or have a question?",

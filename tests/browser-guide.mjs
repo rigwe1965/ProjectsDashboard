@@ -5,6 +5,7 @@
 //   3. a question gets a streamed answer and the count of messages left goes down; the API got the made-up key
 //   4. an answer that contains HTML is shown as text, never as markup, and the page's policy raises no violation
 //   5. the allowance runs out: the box is disabled
+//   0. (first) the owner gives a link a guide allowance in the console form; the customer's opening page shows it, and the details show the use
 //   6. on a phone the demo and the chat both fit, with no sideways scroll; "Hide guide" returns to the plain demo
 // Run: node tests/browser-guide.mjs (npm run test:browser runs it). Needs Google Chrome. Everything is temporary: own data folder and ports.
 import http from 'node:http';
@@ -48,7 +49,7 @@ const { gwPort } = stack;
 
 let browser, failed = null, closeStore = async () => {};
 try {
-  await stack.startGatewayAndConsole();
+  const consoleUrl = await stack.startGatewayAndConsole();
   // Links are made in this process, in the same data folder the gateway reads.
   process.env.DASHBOARD_DATA = stack.dir; process.env.DASHBOARD_REGISTRY = `${stack.dir}/registry.json`; process.env.DEMO_BASE_HOST = `localhost:${gwPort}`;
   const grants = await import('../demo-gateway/grants.mjs');
@@ -62,6 +63,26 @@ try {
   const problems = [];
   page.on('pageerror', (e) => problems.push('page error: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error') problems.push('console error: ' + m.text()); });
+
+  // 0. the owner makes a link with a guide in the console, in a real browser
+  const owner = await (await browser.newContext()).newPage();
+  const ownerErrors = [];
+  owner.on('pageerror', (e) => ownerErrors.push(e.message));
+  await owner.goto(consoleUrl);
+  await owner.waitForSelector('#demopanel form.new', { timeout: 30000 });
+  const guideBox = owner.locator('input[name=guideMessages]');
+  must(await guideBox.isEnabled(), 'the guide field is usable for a product whose guide is ready');
+  must(/ready/.test(await owner.locator('#demopanel form.new').innerText()), 'the form says the guide is ready for this product');
+  await owner.fill('input[name=customer]', 'Console guide');
+  await guideBox.fill('4');
+  await owner.click('form.new button[type=submit]');
+  const consoleLink = await owner.locator('.linkbox code').innerText({ timeout: 15000 });
+  const seen4 = await (await browser.newContext()).newPage();
+  await seen4.goto(consoleLink);
+  must(/up to 4 questions/.test(await seen4.locator('body').innerText()), 'a link made in the console carries its guide allowance to the opening page');
+  await until(async () => /Guide 0\/4/.test(await owner.locator('#demopanel').innerText()), 'the list to show the guide allowance');
+  must(ownerErrors.length === 0, 'console page errors: ' + JSON.stringify(ownerErrors));
+  step('the owner gives a link a guide allowance in the console and the customer\'s page shows it');
 
   // 1. the opening page
   const plain = await (await browser.newContext()).newPage();

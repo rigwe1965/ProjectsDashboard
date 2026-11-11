@@ -10,6 +10,7 @@ import { HttpError } from '../lib/errors.mjs';
 import { MINUTE } from '../lib/util.mjs';
 import { logger } from '../lib/log.mjs';
 import { clean } from './tools.mjs';
+import { guideProblem } from '../demo-gateway/guide/content.mjs';
 
 export const OFF_MESSAGE = 'Changing things is switched off. The owner turns it on by starting the MCP server with MCP_WRITE=1.';
 const LINK_ID = '^[a-f0-9]{8,16}$';
@@ -38,13 +39,15 @@ export function createWriteTools({ store, supervisor, enabled = false, demos = d
         deviceLock: { type: 'boolean', description: 'Tie the link to the first browser that opens it (default false).' },
         displayName: { type: 'string', description: 'Optional name the CUSTOMER sees on the page where they open the link ("Prepared for ..."), up to 80 characters. Not the owner\'s own label.' },
         welcome: { type: 'string', description: 'Optional short welcome note the customer sees on that page (up to 400 characters), e.g. what to try first. Plain text only.' },
+        guideMessages: { type: 'integer', minimum: 0, maximum: 200, description: 'Optional: how many questions the customer may ask the AI demo guide beside the demo (default 0: no guide). Only for a product whose guide is ready (demo_state shows guide.ready); each message costs the owner a small amount.' },
       }, required: ['customer', 'product'] },
       annotations: { ...CHANGES, destructiveHint: false, idempotentHint: false },
       ...off,
-      handler: async ({ customer, product, hours, maxUses, deviceLock, displayName, welcome }) => {
+      handler: async ({ customer, product, hours, maxUses, deviceLock, displayName, welcome, guideMessages }) => {
         await allowed();
-        const { grant, link } = await grants.createGrant({ customer: clean(customer), app: product, hours, maxUses, deviceLock, displayName, welcome }, { by: 'mcp' });
-        return { id: grant.id, customer: clean(grant.customer), product: grant.app, expiresAt: grant.expiresAt, maxUses: grant.maxUses, deviceLock: !!grant.deviceLock, link,
+        if (Number(guideMessages) > 0) { const why = guideProblem(product, demos()[product]); if (why) throw new HttpError(400, 'This link cannot have a guide: ' + why + '.'); }
+        const { grant, link } = await grants.createGrant({ customer: clean(customer), app: product, hours, maxUses, deviceLock, displayName, welcome, guideMessages }, { by: 'mcp' });
+        return { id: grant.id, customer: clean(grant.customer), product: grant.app, expiresAt: grant.expiresAt, maxUses: grant.maxUses, deviceLock: !!grant.deviceLock, guideMessages: grant.guideMessages ?? 0, link,
           warning: 'This is the only time the link is shown. Give it to the owner; do not post or store it anywhere else.' };
       },
     },

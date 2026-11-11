@@ -47,6 +47,9 @@ It shows each app's processes with status, Start/Stop/Restart, Open and Log butt
 ## Branded demo pages
 The page a customer sees when they open their link is yours to personalise. When you create a link (console: the optional "Name shown to the customer" and "Welcome note" fields; MCP: `displayName`, `welcome`) it can say "Prepared for Dana at Acme" and carry a line or two such as what to try first, and it always shows how long the link still works. Set `DEMO_BRAND_NAME` (your name, shown at the top) and `DEMO_BOOKING_URL` (an https booking page, adds a "Book a call" link) in the gateway's environment. The "Customer" label stays private to you. Details: `demo-gateway/README.md`, "Branded opening page".
 
+## AI demo guide
+A link can include a chat guide beside the demo: an AI assistant (Claude Haiku 5.5 by default) that answers "how do I...?" from a product guide you write, and refers pricing and anything it cannot know to you. It is **opt-in per link**: the console form has "AI guide messages" (0 = none) and MCP `create_demo_link` has `guideMessages`, offered only for a product whose guide is ready. It needs `"guide": true` on the product's demo entry, a checked `guides/<product>.md` (see `docs/GUIDES.md`) and `ANTHROPIC_API_KEY` on the gateway (use a dedicated key with a spend limit). Per link the console shows messages used and the estimated cost. What customers type goes to Anthropic and is not stored by us (counts only); the opening page and the Security page say so. Details and limits: `demo-gateway/README.md`.
+
 ## Link activity
 The gateway counts what each customer did with their link, so you can tell who opened a demo and who actually used it. In the console's "Links you have sent" table the **Activity** column shows *Not opened*, *Opened*, *Engaged* (a minute or more of use) or *Came back* (used on two or more days), with the active minutes, the days and the last time; **Details** lists the days and the busiest pages.
 

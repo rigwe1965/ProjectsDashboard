@@ -309,11 +309,12 @@ async function toggleDetail(id){
   else { detailOpen.add(id); try { const j = await api('/api/demos/' + id + '/activity'); detailData.set(id, j.error ? { error: j.error } : j); } catch (e) { detailData.set(id, { error: 'Could not load' }); } }
   loadDemos();
 }
+const guideText = (g) => 'AI guide: ' + g.guide.used + ' of ' + g.guide.allowed + ' messages used, estimated cost about $' + g.guide.estimatedCostUsd.toFixed(4) + ' (Anthropic bills the real amount).';
 function detailRow(g){
   const d = detailData.get(g.id);
   const body = !d ? el('div', { class: 'wait' }, 'Loading…') : d.error ? el('div', { class: 'empty' }, d.error)
     : !d.days.length ? el('div', { class: 'empty' }, 'Nothing counted for this link yet. Activity appears within a minute of the customer using the demo.')
-    : el('div', {}, el('div', { class: 'demo' }, 'Days: ' + d.days.map(x => x.day + ' (' + x.requests + ' requests, ' + minutesText(Math.max(x.activeSeconds, x.wsSeconds)) + ')').join(' · ')),
+    : el('div', {}, ...(g.guide?.allowed ? [el('div', { class: 'demo' }, guideText(g))] : []), el('div', { class: 'demo' }, 'Days: ' + d.days.map(x => x.day + ' (' + x.requests + ' requests, ' + minutesText(Math.max(x.activeSeconds, x.wsSeconds)) + ')').join(' · ')),
         el('div', { class: 'demo' }, 'Busiest pages: ' + (d.topPages.length ? d.topPages.map(p => p.path + ' x' + p.count).join(' · ') : 'none')));
   return el('tr', {}, el('td', { colspan: '7' }, body));
 }
@@ -364,6 +365,15 @@ async function loadDemos(){
       (p.canReset ? '. ' + (p.lastReset ? 'Last reset ' + new Date(p.lastReset).toLocaleString() : 'Not reset yet') + (p.inUse ? ', ' + p.inUse + ' link(s) in use' : '') : '')));
   const accounts = accountLines.length ? el('details', { class: 'acct' }, el('summary', {}, 'Demo accounts and private copies'), accountLines.map(x => el('div', {}, x))) : null;
   const field = (label, input) => el('label', { class: 'f' }, label, input);
+  // AI guide messages: a link only gets a guide when its product has a ready guide (a checked guides/<product>.md and "guide": true in the registry).
+  const guideInput = el('input', { name: 'guideMessages', type: 'number', min: '0', max: '200', value: '0', title: 'How many questions the customer may ask the AI guide beside the demo. 0 = no guide. Each message costs a little (see the gateway limits).' });
+  const guideNote = el('div', { class: 'demo' }, '');
+  const guideField = el('div', {}, field('AI guide messages (0 = no guide)', guideInput), guideNote);
+  const syncGuide = (product) => {
+    const p = d.products.find(x => x.product === product), ready = !!p?.guide?.ready;
+    guideInput.disabled = !ready; if (!ready) guideInput.value = '0';
+    guideNote.textContent = ready ? 'The guide is ready for this product. Needs ANTHROPIC_API_KEY on the gateway.' : p?.guide?.why ? 'No guide for this product: ' + p.guide.why + '.' : '';
+  };
   const form = keepForm || (() => {
     const f = el('form', { class: 'new' },
       field('Customer', el('input', { name: 'customer', placeholder: 'Who is this link for?', required: '', maxlength: '80' })),
@@ -372,12 +382,15 @@ async function loadDemos(){
       field('Opens allowed', el('input', { name: 'maxUses', type: 'number', min: '1', max: '1000', value: '5', placeholder: 'Unlimited', title: 'How many times the link may be opened (clear it for unlimited)' })),
       el('div', { class: 'more' },
         field('Name shown to the customer (optional)', el('input', { name: 'displayName', placeholder: 'e.g. Dana at Acme', maxlength: '80', title: 'Shown on the page where they open the link: Prepared for ... Leave empty to show no name.' })),
+        guideField,
         field('Welcome note (optional)', el('textarea', { name: 'welcome', rows: '3', maxlength: '400', placeholder: 'A line or two shown above the demo, e.g. what to try first', title: 'Shown to the customer on the page where they open the link' })),
         el('label', { class: 'chk', title: 'The link only works in the browser that opens it first' }, el('input', { name: 'deviceLock', type: 'checkbox' }), 'Lock to the first browser that opens it'),
         el('button', { type: 'submit', class: 'primary' }, 'Create demo link')));
+    f.querySelector('[name=app]').addEventListener('change', (e) => syncGuide(e.target.value));
+    syncGuide(f.querySelector('[name=app]').value);
     f.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const b = Object.fromEntries(new FormData(f)); b.deviceLock = b.deviceLock === 'on';
+      const b = Object.fromEntries(new FormData(f)); b.deviceLock = b.deviceLock === 'on'; b.guideMessages = guideInput.disabled ? 0 : Number(guideInput.value) || 0;
       let j; try { j = await api('/api/demos', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }); } catch { return say('Request failed'); }
       if (j.error) return say(j.error);
       f.querySelector('[name=customer]').value = ''; f.querySelector('[name=displayName]').value = ''; f.querySelector('[name=welcome]').value = '';
@@ -394,6 +407,7 @@ async function loadDemos(){
       el('td', { title: g.lastUsedAt ? 'Last opened ' + new Date(g.lastUsedAt).toLocaleString() : 'Not opened yet' }, g.uses + (g.maxUses ? ' of ' + g.maxUses : '') + (g.deviceLock ? ', locked' : '')),
       el('td', {}, (() => { const a = g.activity, [kind, word] = ENGAGEMENT[a.engagement] || ['', a.engagement];
         return [el('span', { class: 'pill ' + kind }, word), el('div', { class: 'demo' }, a.engagement === 'none' ? '' : minutesText(a.activeMinutes * 60) + ' active, ' + a.activeDays + (a.activeDays === 1 ? ' day' : ' days') + (a.lastActiveAt ? ', last ' + new Date(a.lastActiveAt).toLocaleString() : '')),
+          g.guide?.allowed ? el('div', { class: 'demo', title: guideText(g) }, 'Guide ' + g.guide.used + '/' + g.guide.allowed) : null,
           g.uses > 0 || a.requests ? el('button', { class: 'linkbtn', onclick: () => toggleDetail(g.id) }, detailOpen.has(g.id) ? 'Hide details' : 'Details') : null]; })()),
       el('td', {}, el('span', { class: 'pill ' + stateKind(g) }, dot(g.state === 'active' ? 'run' : g.state === 'revoked' ? 'bad' : ''), g.state)),
       el('td', {}, g.state === 'active' ? el('button', { class: 'stop', onclick: async () => {
