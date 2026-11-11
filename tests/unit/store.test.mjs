@@ -12,7 +12,7 @@ const fresh = () => {
   const store = openSqlite(join(dir, 'db.sqlite'));
   return { dir, store, done: () => { store.close(); rmSync(dir, { recursive: true, force: true }); } };
 };
-const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null, displayName: null, welcome: null };
+const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null, displayName: null, welcome: null, guideMessages: 0 };
 const grant = (o = {}) => ({ id: 'aaaa1111', tokenHash: 'h1', customer: 'Acme', app: 'crm', createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z', revoked: false, ...o });
 
 test('grants: insert, find by hash, list order, revoke', () => {

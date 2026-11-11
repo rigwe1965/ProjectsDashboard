@@ -10,7 +10,7 @@ import { randomBytes } from 'node:crypto';
 import { openSqlite } from '../../lib/store/sqlite.mjs';
 import { openPostgres } from '../../lib/store/postgres.mjs';
 
-const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null, displayName: null, welcome: null };
+const DEFAULTS = { uses: 0, maxUses: null, deviceLock: false, lastUsedAt: null, displayName: null, welcome: null, guideMessages: 0 };
 const grant = (o = {}) => ({ id: 'g1', tokenHash: 'h1', customer: 'Acme', app: 'crm', createdAt: '2026-01-01T00:00:00.000Z', expiresAt: '2026-01-02T00:00:00.000Z', revoked: false, ...o });
 const future = () => new Date(Date.now() + 60000).toISOString();
 const past = () => new Date(Date.now() - 1000).toISOString();

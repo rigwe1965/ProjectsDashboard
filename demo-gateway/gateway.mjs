@@ -28,6 +28,9 @@ import { createUpgradeHandler } from './websocket.mjs';
 import { createProxy } from './proxy.mjs';
 import { requestPath } from './proxy-headers.mjs';
 import { createActivity } from './activity.mjs';
+import { createGuideClient } from './guide/client.mjs';
+import { createBudget, GUIDE_DEFAULTS } from './guide/budget.mjs';
+import { createGuideRoutes, MAX_MESSAGE_CHARS } from './guide/routes.mjs';
 import { createMetrics } from '../lib/metrics.mjs';
 import { hashSessionId } from '../lib/auth.mjs';
 
@@ -61,6 +64,14 @@ export async function createGateway(opts = {}) {
     activityFlushMs: num(process.env.GATEWAY_ACTIVITY_FLUSH_SECONDS, 30) * 1000, // how often the per-link activity counts are written
     brandName: process.env.DEMO_BRAND_NAME || '', // shown at the top of the page where a customer opens their link
     bookingUrl: process.env.DEMO_BOOKING_URL || '', // https address of your booking page: adds a "Book a call" link to that page
+    guideOn: String(process.env.DEMO_GUIDE || '').toLowerCase() !== 'off', // DEMO_GUIDE=off: the kill switch for the AI guide (it is also off without a key)
+    guideApiKey: process.env.ANTHROPIC_API_KEY || '', // the AI guide's key: only this process is given it (registry passEnv)
+    guideModel: process.env.GUIDE_MODEL || GUIDE_DEFAULTS.model,
+    guidePerMinute: num(process.env.GUIDE_PER_MINUTE, GUIDE_DEFAULTS.perMinute), // guide messages per link per minute
+    guideDailyCapUsd: num(process.env.GUIDE_DAILY_CAP_USD, GUIDE_DEFAULTS.dailyCapUsd), // the most the guide may cost in a UTC day, all links together (estimated)
+    guideMaxMessage: num(process.env.GUIDE_MAX_MESSAGE_CHARS, MAX_MESSAGE_CHARS), // longest message a customer may send the guide
+    guidesDir: undefined, // where the product guides are (default: guides/ in this project)
+    guideClient: null, // tests hand in a client here (createGuideClient with a fake)
     store: null, // the store to use; null = the process-wide one (lib/store/index.mjs)
     supervisor: runSupervisor, // how a demo instance is reset (see reset.mjs)
     ...opts,
@@ -79,6 +90,18 @@ export async function createGateway(opts = {}) {
   const trusted = new Set(o.trustedProxies);
   const store = o.store ?? await getStore(); // a store can be passed in (tests, or a second gateway); the default is the process-wide one
   const { findGrant } = createGrants(store);
+  // The AI guide (guide/). It is off with DEMO_GUIDE=off, without an API key, or if its settings are wrong; the demos work the same either way.
+  let guide = null;
+  if (o.guideOn) {
+    try {
+      const client = o.guideClient ?? createGuideClient({ apiKey: o.guideApiKey, model: o.guideModel });
+      if (!client.available) logger.info('AI guide is off: ANTHROPIC_API_KEY is not set');
+      else {
+        const budget = createBudget({ store, model: client.model, perMinute: o.guidePerMinute, dailyCapUsd: o.guideDailyCapUsd });
+        guide = createGuideRoutes({ o: { enabled: true, brandName: o.brandName, bookingUrl: o.bookingUrl, https, scheme: o.scheme, maxMessage: o.guideMaxMessage, guidesDir: o.guidesDir }, store, budget, client });
+      }
+    } catch (err) { logger.error('AI guide is off: its settings are not valid', { err }); }
+  }
   const instances = createInstances({ store, supervisor: o.supervisor }); // private copies, one per link (registry perLink)
   // An audit failure must never break a customer's request.
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
@@ -193,6 +216,7 @@ export async function createGateway(opts = {}) {
 
     // 3. Proxy to the demo instance (never forward the gateway cookie)
     if (tooManyRequests(g.id)) return tooMany(res, 60);
+    if (guide && path.startsWith('/_pd/guide') && await guide.handle(req, res, { path, g, slug, target, hostHdr, session: hashSessionId(readCookie(req, COOKIE)), json })) return; // the AI guide's own pages
     if (DEV_ONLY_PATH.test(path)) return page(res, 404, 'Not found', 'That page does not exist.');
     if (Number(req.headers['content-length']) > o.maxBodyBytes) return page(res, 413, 'Upload too large', 'That file is bigger than this demo allows.');
     let slot = null;
@@ -226,7 +250,7 @@ export async function createGateway(opts = {}) {
   });
 
   return {
-    server, baseHost, store, metrics, activity,
+    server, baseHost, store, metrics, activity, guide,
     // One pass of the automatic reset: demos nobody can still be using go back to their seeded state (server.mjs runs it on a timer).
     resetSweep: () => resetSweep({ store, apps: demoApps(), supervisor: o.supervisor }),
     // Private copies (one per link): stop those whose link ended or that sit unused; remove leftovers after a restart (server.mjs runs these).
@@ -240,6 +264,7 @@ export async function createGateway(opts = {}) {
     close: async () => {
       clearInterval(pruneTimer); clearInterval(missTimer); clearInterval(usedTimer);
       for (const c of [...wsClosers]) c(); // open sockets report their time here
+      guide?.stop();
       await activity.stop(); // the last batch is written before the store is closed
       agent.destroy();
       await new Promise((r) => { server.close(r); server.closeAllConnections?.(); });

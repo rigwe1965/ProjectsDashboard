@@ -8,4 +8,6 @@ export default [
   { rules: { 'no-unused-vars': ['error', { args: 'after-used', argsIgnorePattern: '^_', caughtErrors: 'none' }] } },
   // ui-check runs callbacks inside the browser page (page.evaluate), so browser globals are valid there
   { files: ['tests/ui-check.mjs', 'tests/journeys.mjs'], languageOptions: { globals: { ...globals.node, ...globals.browser } } },
+  // the AI guide's chat panel runs in the customer's browser, and is a plain script, not a module
+  { files: ['demo-gateway/guide/guide.js'], languageOptions: { sourceType: 'script', globals: { ...globals.browser } } },
 ];

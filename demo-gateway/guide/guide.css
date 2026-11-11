@@ -1,0 +1,26 @@
+:root { color-scheme: light dark; --bg: #fff; --fg: #1d1d1f; --line: #d0d0d5; --me: #e6edff; --bot: #f2f2f4; --err: #fde8e8; --note: #fff4d6; }
+@media (prefers-color-scheme: dark) { :root { --bg: #17171a; --fg: #ececf0; --line: #3a3a42; --me: #25345c; --bot: #26262b; --err: #4a2222; --note: #4a3d1a; } }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font: 15px/1.45 system-ui, sans-serif; background: var(--bg); color: var(--fg); }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100%; }
+.demo { width: 100%; height: 100%; border: 0; border-right: 1px solid var(--line); background: #fff; }
+.guide { display: flex; flex-direction: column; min-height: 0; padding: 12px; gap: 8px; }
+.guide header { display: flex; justify-content: space-between; align-items: baseline; }
+#left { font-size: 13px; opacity: .7; }
+.ai { margin: 0; font-size: 12.5px; opacity: .75; }
+#log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+#log p { margin: 0; padding: 8px 10px; border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; max-width: 92%; }
+#log .me { background: var(--me); align-self: flex-end; }
+#log .bot { background: var(--bot); align-self: flex-start; }
+#log .err { background: var(--err); align-self: flex-start; }
+#log .note { background: var(--note); align-self: flex-start; font-size: 13px; }
+#log .wait::after { content: "..."; opacity: .6; }
+form { display: flex; gap: 6px; align-items: flex-end; }
+textarea { flex: 1; font: inherit; padding: 8px; resize: none; background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 8px; }
+button { font: inherit; padding: 8px 14px; cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--bot); color: var(--fg); }
+button:disabled, textarea:disabled { opacity: .5; cursor: not-allowed; }
+@media (max-width: 760px) {
+  .split { grid-template-columns: 1fr; grid-template-rows: minmax(0, 55%) minmax(0, 45%); }
+  .demo { border-right: 0; border-bottom: 1px solid var(--line); }
+}

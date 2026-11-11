@@ -27,6 +27,15 @@ npm run demo -- revoke <id>
   - The console's "Forget" (links that are no longer active) deletes both the audit events and the activity counts and removes the customer's name. A batch the gateway was still holding in memory at that moment can write one last row for the link a few seconds later; it holds no address or name and is removed by the normal retention.
 - Code: `gateway.mjs` (the proxy, testable) and `server.mjs` (starts it). `npm test` runs it against a fake upstream.
 
+## The AI guide (guide/)
+A chat panel next to the demo, at `/_pd/guide` on the demo's own address. It is **opt-in per link** (`guideMessages`, 0 to 200, set when the link is created), needs `"guide": true` on the product's demo entry in the registry and a **checked** `guides/<product>.md` (a file still containing the draft marker is not used), and an `ANTHROPIC_API_KEY`.
+- It has no tools and cannot see the demo or other customers. Its rules and your guide are the system prompt (`guide/prompt.mjs`); the customer's words are only ever the user message.
+- **Stored:** counts per link per day (messages, tokens, estimated cost; `guide_usage`), kept `AUDIT_RETENTION_DAYS`, removed by Forget. **Not stored:** what customers type or the answers. The last 10 turns are kept in memory per browser session so the guide can follow the conversation, and are lost when the gateway restarts or after 2 idle hours.
+- What a customer types is sent to Anthropic's API to get the answer; the guide page says so.
+- Limits: the link's allowance, `GUIDE_PER_MINUTE`, the daily cap, 500 characters a message. Each message reserves its worst-case cost first, so messages sent at the same moment cannot overshoot.
+- A customer who closes the page mid-answer cancels the call; the tokens already used are still counted.
+- Code: `guide/routes.mjs` (the web side), `client.mjs` (the API call), `budget.mjs` (limits and prices), `content.mjs` and `prompt.mjs` (the guide text and rules).
+
 ## Settings (environment variables, all optional)
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -45,3 +54,9 @@ npm run demo -- revoke <id>
 | `DEMO_BRAND_NAME` | none | your name or company, shown small at the top of the page where a customer opens their link |
 | `DEMO_BOOKING_URL` | none | an `https://` address of your booking page (Calendly, Cal.com, ...): adds a "Book a call" link to that page. Anything that is not a plain https address is ignored with a warning |
 | `GATEWAY_ACTIVITY_FLUSH_SECONDS` | 30 | how often the per-link activity counts are written to the database |
+| `ANTHROPIC_API_KEY` | none | key for the AI guide (use a dedicated key with a spend limit set in the Anthropic Console). Without it the guide is off. Only the gateway is given it |
+| `DEMO_GUIDE` | on | `off` turns the AI guide off whatever else is set |
+| `GUIDE_MODEL` | `claude-haiku-5-5` | the model that answers; must be one the price table knows (`guide/budget.mjs`), so its cost can be capped |
+| `GUIDE_PER_MINUTE` | 6 | guide messages per link per minute |
+| `GUIDE_DAILY_CAP_USD` | 2 | the most the guide may cost in one UTC day, all links together (estimated from token counts; 0 turns the guide off) |
+| `GUIDE_MAX_MESSAGE_CHARS` | 500 | longest message a customer may send the guide |

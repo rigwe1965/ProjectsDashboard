@@ -1,6 +1,6 @@
 # Plan: an AI guide inside the demos
 
-Status: decided 2026-11-11 by the owner: Haiku 5.5 first, split view, opt-in per link (the other decisions take the recommendations below until changed). Steps 1-3 built. Written 2026-11-11 (HEAD 97eccac). Prices are from the Claude API model table as cached on 2026-11-03; confirm with `count_tokens` and real `usage` before relying on them.
+Status: decided 2026-11-11 by the owner: Haiku 5.5 first, split view, opt-in per link (the other decisions take the recommendations below until changed). Steps 1-4 built. Written 2026-11-11 (HEAD 97eccac). Prices are from the Claude API model table as cached on 2026-11-03; confirm with `count_tokens` and real `usage` before relying on them.
 
 ## What it is, and what it is not
 

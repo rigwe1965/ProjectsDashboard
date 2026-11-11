@@ -95,5 +95,7 @@ test('the registry\'s gateway entry passes its settings through, and no demo app
   assert.deepEqual(withPass, ['gateway']);
   const gw = reg.apps.find((a) => a.id === 'gateway').processes[0];
   for (const need of ['GATEWAY_*', 'DEMO_*', 'TRUSTED_PROXIES', 'METRICS_TOKEN', 'AUDIT_*', 'DASHBOARD_DATA', 'DASHBOARD_DB', 'DATABASE_*']) assert.ok(gw.passEnv.includes(need), need);
-  assert.ok(!gw.passEnv.some((p) => /KEY|SECRET|PASSWORD|ALERT|ADMIN/.test(p)), 'no secret of the console is handed to the gateway');
+  // The one secret the gateway may be handed is the AI guide's API key, by its exact name (a pattern like *KEY* would hand over more). Nothing of the console's.
+  assert.ok(gw.passEnv.includes('ANTHROPIC_API_KEY') && gw.passEnv.includes('GUIDE_*'));
+  assert.ok(!gw.passEnv.filter((p) => p !== 'ANTHROPIC_API_KEY').some((p) => /KEY|SECRET|PASSWORD|ALERT|ADMIN|TOKEN_/.test(p)), 'no secret of the console is handed to the gateway');
 });
