@@ -56,3 +56,25 @@ test('demoApps() has no prototype, so names like constructor and __proto__ are n
   for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) assert.equal(apps[name], undefined, name);
   assert.ok(Object.keys(apps).length > 0, 'the real products are still there');
 });
+
+test('validate: demoRoutes must name a real process and a sane prefix; empty entries are reported, not thrown on (audit F-16)', async () => {
+  const { validate } = await import('../../lib/registry.mjs');
+  const app = (extra = {}) => ({ id: 'a', name: 'A', path: '.', processes: [{ name: 'web', cmd: 'x', port: 18001 }, { name: 'admin', cmd: 'x', port: 18002 }], ...extra });
+  assert.deepEqual(validate({ apps: [app({ demoRoutes: [{ prefix: '/admin', process: 'admin' }] })] }), []);
+  assert.match(validate({ apps: [app({ demoRoutes: [{ prefix: '/admin', process: 'nope' }] })] }).join('\n'), /demoRoutes\[0\] names a process that does not exist/);
+  assert.match(validate({ apps: [app({ demoRoutes: [{ prefix: 'admin', process: 'admin' }] })] }).join('\n'), /prefix must start with "\/"/);
+  assert.match(validate({ apps: [app({ demoRoutes: [{ prefix: '/admin/', process: 'admin' }] })] }).join('\n'), /not end with one/);
+  assert.match(validate({ apps: [app({ demoRoutes: [null] })] }).join('\n'), /demoRoutes\[0\]/);
+  assert.match(validate({ apps: [app({ demoRoutes: 'x' })] }).join('\n'), /demoRoutes must be an array/);
+  // a stray comma leaves null in the list: the problem is reported like any other
+  assert.match(validate({ apps: [app(), null] }).join('\n'), /not an object/);
+  assert.match(validate({ apps: [app({ processes: [null, { name: 'web', cmd: 'x', port: 18003 }] })] }).join('\n'), /process entry is not an object/);
+  assert.match(validate({ apps: [app(), 'oops', 5] }).join('\n'), /not an object/);
+});
+
+test('the real registry still validates, and its demoRoutes all point at real processes (audit F-16)', async () => {
+  const { loadRegistry, validate } = await import('../../lib/registry.mjs');
+  const reg = loadRegistry();
+  assert.deepEqual(validate(reg), []);
+  assert.ok(reg.apps.some((a) => a.demoRoutes?.length), 'the registry uses demoRoutes');
+});

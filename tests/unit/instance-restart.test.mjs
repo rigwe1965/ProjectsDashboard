@@ -49,3 +49,24 @@ test('instance-start leaves the folder alone and does not start when something c
   assert.ok(!events.includes('spawn'), 'and nothing new is started on top of it');
   assert.match(out.join('\n'), /could not be stopped, so the copy was not started/);
 });
+
+test('a copy whose seat is above a lowered perLink.max can still be stopped, and its folder is removed (audit F-16)', async () => {
+  const reg = { apps: [{ ...registry.apps[0], perLink: { max: 1, portBase: 19700, prepare: [] } }] }; // max was 4 when copy 3 started
+  const folder = join(dir, 'instances', 'cp-demo', '3');
+  mkdirSync(folder, { recursive: true }); writeFileSync(join(folder, 'data.db'), 'x');
+  const killed = [];
+  const records = { 'cp-demo.i3': { app: { pid: 5151, startTime: 'T9', listenPid: null, port: 19731 } } };
+  const st = { processState: { all: async () => structuredClone(records), set: async () => {}, remove: async (a, p) => { delete records[a]?.[p]; } } };
+  const driver = { name: 'fake', startTime: () => 'T9', startTimes: () => new Map(), listenerPid: () => null, spawnApp: () => ({ exited: true }), killTree: async (pid) => { killed.push(pid); return true; } };
+  const sup = createSupervisor({ registry: reg, store: st, driver, docker: {}, logDir: join(dir, 'logs') });
+  const log = console.log; console.log = () => {};
+  try { await sup.instanceStop(sup.getApp('cp-demo'), '3'); } finally { console.log = log; }
+  assert.deepEqual(killed, [5151], 'the process of seat 3 was stopped');
+  assert.equal(sup.failed(), false);
+  assert.equal(existsSync(folder), false, 'and its data folder was removed');
+  // starting a seat above max is still refused
+  const { Exit } = await import('../../supervisor/core.mjs');
+  await assert.rejects(() => sup.instanceStart(sup.getApp('cp-demo'), '3'), (e) => e instanceof Exit && e.code === 2);
+  // a number that is no seat at all is refused for stop too
+  await assert.rejects(() => sup.instanceStop(sup.getApp('cp-demo'), '9'), (e) => e instanceof Exit && e.code === 2);
+});

@@ -11,7 +11,7 @@
 import { existsSync, appendFileSync, chmodSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { portInUse, httpUp } from '../lib/http-util.mjs';
-import { instanceApp, validSlot, freshInstanceDir, removeInstanceDir } from '../lib/instance-app.mjs';
+import { instanceApp, validSlot, MAX_SLOTS, freshInstanceDir, removeInstanceDir } from '../lib/instance-app.mjs';
 import { fill, portRefs, childEnv } from './env.mjs';
 import { createStepRunner } from './steps.mjs';
 import { rotateLog } from '../lib/log-rotate.mjs';
@@ -161,10 +161,10 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
 
   // One private copy of a demo for one customer link (registry "perLink"): a fresh data folder, the prepare steps that fill it, then
   // the app's processes on that copy's own ports. `instance-stop` stops them and deletes the folder. The copy is never listed in the registry.
-  const perLinkApp = (base, slotArg) => {
+  const perLinkApp = (base, slotArg, { anySlot = false } = {}) => {
     const slot = Number(slotArg);
-    if (!base.perLink || !validSlot(base, slot)) die(`${base.id} has no instance "${slotArg}" (see perLink in the registry).`, 2);
-    return instanceApp(base, slot);
+    if (!base.perLink || !(anySlot ? Number.isInteger(slot) && slot >= 0 && slot < MAX_SLOTS : validSlot(base, slot))) die(`${base.id} has no instance "${slotArg}" (see perLink in the registry).`, 2);
+    return instanceApp(base, slot, { anySlot });
   };
   async function instanceStart(base, slotArg) {
     const app = perLinkApp(base, slotArg);
@@ -187,7 +187,7 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
     await start(app);
   }
   async function instanceStop(base, slotArg) {
-    const app = perLinkApp(base, slotArg);
+    const app = perLinkApp(base, slotArg, { anySlot: true }); // a seat above a lowered perLink.max must still be stoppable (audit F-16)
     await stop(app);
     if (!failed) removeInstanceDir(base.id, app.slot); // keep the data if a process could not be stopped
   }
