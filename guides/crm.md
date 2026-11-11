@@ -40,7 +40,8 @@ Tour 5, see the big picture: 1. Open Dashboard. 2. Look at Open pipeline and Ope
 ## Things to know about this demo
 - The data is sample data and the demo is reset from time to time, so anything added may disappear.
 - Emails, payments, WhatsApp and AI are not connected in the demo, so those actions will not really send anything.
-- The CRM also has an API whose description follows the OpenAPI format, a full audit log and a Team page for admins; those are not available to the demo's Sales and Support accounts.
+- Other tools can connect to the CRM through its open API, which is described in the OpenAPI format. For which tools work with it and how to set that up, refer to the owner.
+- The CRM also has the API description, a full audit log and a Team page for admins, but those are not available to the demo's Sales and Support accounts.
 
 ## What to refer to the owner
 Pricing, plans, discounts, contracts, hosting and where data is stored, data security or legal promises, custom features, integrations, the API in detail, onboarding and migration of real data, and anything not described above.
