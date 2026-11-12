@@ -11,7 +11,9 @@
 FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tini && rm -rf /var/lib/apt/lists/*
-RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
+# pnpm through npm, at the version the app pins (packageManager in its package.json). Node 25 and later no longer ship corepack,
+# so `corepack enable` fails with exit code 127 on this image.
+RUN npm install -g --no-audit --no-fund pnpm@9.15.0 && pnpm --version
 WORKDIR /app
 
 COPY . .
