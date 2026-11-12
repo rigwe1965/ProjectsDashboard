@@ -227,7 +227,7 @@
       "demoReady": true,
       "build": { "cmd": "npx next build", "cwd": ".", "envFile": "data/crm-demo.env", "produces": ".next\\BUILD_ID", "timeoutSec": 1800 },
       "reset": { "steps": [
-        { "cmd": "npx tsx prisma/seed.ts", "cwd": ".", "envFile": "data/crm-demo.env", "env": { "WIPE_FORCE": "1" }, "timeoutSec": 900 }
+        { "cmd": "npx tsx prisma/seed.ts", "cwd": ".", "envFile": "data/crm-demo.env", "env": { "WIPE_FORCE": "1", "CONFIRM_WIPE": "crm_demo" }, "timeoutSec": 900 }
       ] },
       "demoAccounts": [
         { "label": "Sales (limited)", "user": "sales@crm.test" },
