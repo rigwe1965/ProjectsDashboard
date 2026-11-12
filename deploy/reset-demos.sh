@@ -22,6 +22,8 @@
 #   claudeworkspace  empties the demo Supabase project's customer data and extra accounts, resets the two demo passwords,
 #                    then re-seeds the vehicles (needs CW_DEMO_ADMIN_* / CW_DEMO_CUSTOMER_* in .env)
 set -eu
+# Git Bash on Windows rewrites arguments that look like Unix paths (the "/pd-reset.sh" mount below became C:/.../Git/pd-reset.sh); on Linux this does nothing.
+export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL="*"
 cd "$(dirname "$0")"
 
 FORCE=0; DRY=0; PRODUCTS=()
