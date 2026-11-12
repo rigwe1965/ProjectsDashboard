@@ -51,6 +51,21 @@ try {
   await owner.click('#actrefresh');
   await until(async () => /Demo link created/.test(await owner.locator('#acttable').innerText()), 'the new link in the Activity panel');
   step('console: the Activity panel lists the link just created');
+  // The customer opens the link, so the row gets a Details button; the toggle shows and hides what they did.
+  const link = await owner.locator('.linkbox code').innerText();
+  const customer = await (await browser.newContext()).newPage();
+  await customer.goto(link);
+  await customer.getByRole('button', { name: /open the demo/i }).click();
+  await customer.waitForSelector('h1', { timeout: 15000 });
+  await customer.context().close();
+  const detailsBtn = owner.locator('#demopanel button.linkbtn', { hasText: /^Details$/ });
+  await until(async () => { await owner.reload(); await owner.waitForSelector('#demopanel tbody tr', { timeout: 15000 }); return (await detailsBtn.count()) > 0; }, 'a Details button on the opened link', 30000);
+  await detailsBtn.first().click();
+  await owner.waitForSelector('#demopanel button.linkbtn:has-text("Hide details")', { timeout: 10000 });
+  await owner.waitForSelector('#demopanel td[colspan="7"]', { timeout: 10000 });
+  await owner.locator('#demopanel button.linkbtn', { hasText: /^Hide details$/ }).first().click();
+  await owner.waitForSelector('#demopanel td[colspan="7"]', { state: 'detached', timeout: 10000 });
+  step('console: Details opens a row for an opened link and Hide details closes it');
   must(owner.errors.length === 0, `console page errors: ${JSON.stringify(owner.errors)}`);
 
   const phone = await newPage(PHONE);
