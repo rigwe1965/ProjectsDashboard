@@ -105,16 +105,22 @@ services:
     depends_on: { postgres: { condition: service_healthy } }
     environment:
       <<: *dashboard-env
-      GATEWAY_BIND: 0.0.0.0
+      GATEWAY_BIND: 172.30.0.4        # only the edge address below: a demo container on its own network cannot connect to the gateway
       GATEWAY_PORT: "4300"
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "gateway_data:/data"]
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4300/_pd/healthz"]
+      test: ["CMD", "curl", "-fsS", "http://172.30.0.4:4300/_pd/healthz"]
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [edge, db, app_imageapp, app_airfinder, app_crm, app_cw]
+    networks:
+      edge: { ipv4_address: 172.30.0.4 }
+      db:
+      app_imageapp:
+      app_airfinder:
+      app_crm:
+      app_cw:
 
   console:
     <<: *hardened
@@ -125,7 +131,7 @@ services:
     environment:
       <<: *dashboard-env
       CONSOLE_PORT: "4100"
-      ADMIN_BIND: 0.0.0.0              # allowed only because a password must be set first (see README)
+      ADMIN_BIND: 172.30.0.3           # only the edge address below, so no demo container can reach the console; a password must be set first (see README)
       ADMIN_ALLOWED_HOSTS: ${ADMIN_DOMAIN:?set ADMIN_DOMAIN in deploy/.env},127.0.0.1
       ADMIN_SCHEME: https
       ADMIN_DATA_KEY: ${ADMIN_DATA_KEY:?set ADMIN_DATA_KEY in deploy/.env (npm run console:auth -- gen-key)}   # encrypts the 2-step secret in the database
@@ -134,11 +140,17 @@ services:
       ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
     volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "console_data:/data"]
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4100/_pd/healthz"]
+      test: ["CMD", "curl", "-fsS", "-H", "Host: 127.0.0.1", "http://172.30.0.3:4100/_pd/healthz"]   # the console only answers the host names it is allowed to serve
       interval: 15s
       timeout: 4s
       retries: 3
-    networks: [edge, db, app_imageapp, app_airfinder, app_crm, app_cw]
+    networks:
+      edge: { ipv4_address: 172.30.0.3 }
+      db:
+      app_imageapp:
+      app_airfinder:
+      app_crm:
+      app_cw:
 
   caddy:
     build: { context: .., dockerfile: deploy/Caddy.Dockerfile }

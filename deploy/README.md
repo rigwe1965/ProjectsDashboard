@@ -135,3 +135,7 @@ Stop and remove it with `docker compose -f docker-compose.yml -f docker-compose.
 - Recipes for RMM and ClaudeOS (not demo-ready yet; locally they reset through the supervisor).
 - Moving existing demo links from a local SQLite database into Postgres (new links are simply created on the server).
 - ClaudeOS and RMM UI demos still need their own demo data before they can be marked demo-ready.
+
+## Why the gateway and the console have fixed addresses
+
+The gateway and the console each listen only on a fixed address of the `edge` network (`172.30.0.4` and `172.30.0.3`; Caddy is `172.30.0.2`) and not on every interface. Both also sit on the demo networks (to proxy to a demo, and to probe its health), and a customer demo is untrusted code: if they listened on every interface, a demo could open a connection to them. Checked with a real probe from a demo container on 2026-11-12: Postgres, the other demos and the internet were already unreachable from a demo; the gateway and the console were, until this change. `tests/unit/compose-isolation.test.mjs` keeps it that way. The health checks use the same addresses (the console one sends `Host: 127.0.0.1`, which it serves). If you change an address, change the bind, the health check and the `ipv4_address` together.
