@@ -132,9 +132,9 @@ Stop and remove it with `docker compose -f docker-compose.yml -f docker-compose.
 - Demo apps must not share data with production: give every demo instance its own database, as for the local setup.
 
 ## Not done yet
-- Recipes for RMM and ClaudeOS (not demo-ready yet; locally they reset through the supervisor).
+- A recipe for RMM (not demo-ready yet; locally it resets through the supervisor).
 - Moving existing demo links from a local SQLite database into Postgres (new links are simply created on the server).
-- ClaudeOS and RMM UI demos still need their own demo data before they can be marked demo-ready.
+- The RMM UI demo still needs its own demo data before it can be marked demo-ready.
 
 ## Why the gateway and the console have fixed addresses
 

@@ -119,6 +119,7 @@ services:
       db:
       app_imageapp:
       app_airfinder:
+      app_claudeos:
       app_crm:
       app_cw:
 
@@ -149,6 +150,7 @@ services:
       db:
       app_imageapp:
       app_airfinder:
+      app_claudeos:
       app_crm:
       app_cw:
 
@@ -217,6 +219,33 @@ services:
       timeout: 5s
       retries: 3
     networks: [app_airfinder]
+
+  # ClaudeOS demo: one container runs the API (loopback only) and the Streamlit dashboard (see deploy/apps/claudeos/Dockerfile).
+  # It may reach the internet (the AI assistant calls Anthropic), so its network is not internal; AI actions cost money: watch usage.
+  claudeos-demo:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/ClaudeOS
+      dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/claudeos/Dockerfile
+    image: pd-claudeos
+    container_name: pd-claudeos-demo
+    restart: unless-stopped
+    <<: *demo-limits
+    mem_limit: 1g
+    read_only: true                      # writes go to /tmp, /home/app and the data volume (database, vector files, logs)
+    tmpfs: ["/tmp:rw,nosuid,size=128m", "/home/app:rw,nosuid,uid=10001,gid=10001,size=32m"]
+    environment:     # no mail account, no cloud sync, no memory import: nothing reaches a real system
+      CLAUDEOS_SECRET_KEY: ${CLAUDEOS_SECRET_KEY:-}
+      CLAUDEOS_DEMO_PASSWORD: ${CLAUDEOS_DEMO_PASSWORD:-}
+      ANTHROPIC_API_KEY: ${CLAUDEOS_ANTHROPIC_API_KEY:-}
+      ALLOWED_ORIGINS: ${DEMO_SCHEME:-https}://claudeos.${DEMO_DOMAIN}
+    volumes: [claudeos_demo_data:/app/data]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8601/_stcore/health', timeout=3); urllib.request.urlopen('http://127.0.0.1:5100/api/v1/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [app_claudeos]
 
   # CRM demo: its own Postgres (never shared with production) plus the app as a production build (see deploy/apps/crm/Dockerfile).
   crm-demo-db:
@@ -398,7 +427,7 @@ services:
 #   db            the dashboard's Postgres <-> gateway, console. No outside access (internal); no demo container is on it.
 #   app_<demo>    ONE network per demo: the gateway and the console (which probes health) plus that demo's own containers, nothing else.
 #                 A demo cannot see the other demos. ImageApp, Airfinder and the CRM make no outbound calls, so their networks are
-#                 internal (no route to the internet either). ClaudeWorkspace must reach Supabase, so app_cw is not internal.
+#                 internal (no route to the internet either). ClaudeWorkspace must reach Supabase and ClaudeOS must reach Anthropic, so app_cw and app_claudeos are not internal.
 #   crm           the CRM demo's own Postgres and rate-limit stand-in <-> crm-demo only. No outside access.
 # Adding a demo: give it its own app_<name> network here and add that network to the gateway and the console.
 networks:
@@ -408,6 +437,7 @@ networks:
   db: { internal: true }
   app_imageapp: { internal: true }
   app_airfinder: { internal: true }
+  app_claudeos: {}
   app_crm: { internal: true }
   app_cw: {}
   crm: { internal: true }
@@ -420,4 +450,5 @@ volumes:
   caddy_data:
   caddy_config:
   airfinder_demo_data:
+  claudeos_demo_data:
   crm_demo_pgdata:

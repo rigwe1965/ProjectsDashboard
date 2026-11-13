@@ -24,6 +24,9 @@ services:
   airfinder-demo:
     environment:
       PUBLIC_BASE_URL: http://airfinder.demo.localhost:8080
+  claudeos-demo:
+    environment:
+      ALLOWED_ORIGINS: http://claudeos.demo.localhost:8080
   crm-demo:
     environment:
       NEXTAUTH_URL: http://crm.demo.localhost:8080
