@@ -15,7 +15,9 @@ const security = existsSync(join(here, 'security.json')) ? JSON.parse(readFileSy
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 // The demo buttons go to the page's own contact block. A mailto: link opens nothing for a visitor with no mail app set up, so the address
 // is shown there as text (click it to select it) and the mailto: link is a second choice.
-const demoLink = () => '#contact';
+// When site.json has a plain https bookingUrl, the demo buttons open that booking page instead.
+const bookingUrl = /^https:\/\/[^\s@]+$/.test(site.bookingUrl || '') ? site.bookingUrl : '';
+const demoLink = () => (bookingUrl ? esc(bookingUrl) : '#contact');
 // An explicit "Email us" button (the Security page's) still opens a message with its own subject, when there is an address.
 const mail = (subject) => (site.contactEmail ? `mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent(subject)}` : '#contact');
 
@@ -274,7 +276,7 @@ ${body}
 <footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span>${security ? `<a href="${root}security/index.html">Security</a>` : ''}<span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
 </div></body></html>`;
 
-const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2><p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">Open in your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
+const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2>${bookingUrl ? `<p class="who"><a href="${esc(bookingUrl)}">Book a demo call</a>, or email us.</p>` : ''}<p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">Open in your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
 
 const cssFile = `style.${createHash('sha256').update(css).digest('hex').slice(0, 10)}.css`;
 rmSync(dist, { recursive: true, force: true });
