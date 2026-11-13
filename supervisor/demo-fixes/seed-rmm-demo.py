@@ -5,7 +5,7 @@ import os, sys, random
 from datetime import datetime, timedelta, timezone
 
 url = os.environ.get("DATABASE_URL", "")
-if "@127.0.0.1:5433/rmm_demo" not in url:
+if "@127.0.0.1:5433/rmm_demo" not in url and "@rmm-demo-db:5432/rmm_demo" not in url:   # the local demo container, or the hosted one
     sys.exit("Refusing to seed: DATABASE_URL is not the demo database.")
 
 sys.path.insert(0, os.getcwd())

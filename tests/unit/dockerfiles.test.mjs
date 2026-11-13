@@ -8,12 +8,14 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 const appsDir = new URL('../../deploy/apps/', import.meta.url);
 const recipes = readdirSync(appsDir).filter((d) => existsSync(new URL(`${d}/Dockerfile`, appsDir)))
   .map((d) => [d, readFileSync(new URL(`${d}/Dockerfile`, appsDir), 'utf8')]);
+// An app may have a second image (the RMM's dashboard is Dockerfile.ui): it gets the same checks.
+const extra = readdirSync(appsDir).flatMap((d) => readdirSync(new URL(`${d}/`, appsDir)).filter((f) => /^Dockerfile\.[a-z]+$/.test(f)).map((f) => [`${d}/${f}`, readFileSync(new URL(`${d}/${f}`, appsDir), 'utf8')]));
 
 test('there is a recipe for each demo product', () => {
-  assert.deepEqual(recipes.map(([d]) => d).sort(), ['airfinder', 'claudeos', 'claudeworkspace', 'crm', 'imageapp']);
+  assert.deepEqual(recipes.map(([d]) => d).sort(), ['airfinder', 'claudeos', 'claudeworkspace', 'crm', 'imageapp', 'rmm']);
 });
 
-for (const [name, text] of recipes) {
+for (const [name, text] of [...recipes, ...extra]) {
   const instructions = text.split(/\r?\n/).filter((l) => !l.trim().startsWith('#'));
   test(`${name}: no instruction relies on corepack (the pinned Node image does not ship it)`, () => {
     const bad = instructions.filter((l) => /\bcorepack\b/.test(l));

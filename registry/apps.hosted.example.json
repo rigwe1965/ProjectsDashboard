@@ -113,6 +113,29 @@
       "processes": [
         { "name": "ui", "container": "pd-claudeos-demo", "host": "claudeos-demo", "port": 8601, "health": "/" }
       ]
+    },
+    {
+      "id": "rmm",
+      "name": "Remote Management",
+      "tagline": "Remote IT management and support",
+      "path": "/unused",
+      "hidden": true,
+      "processes": [
+        { "name": "ui", "container": "pd-rmm-unused", "host": "rmm-unused", "port": 8501, "health": "/" }
+      ],
+      "demo": { "supported": true, "notes": "Own Postgres and Redis containers; every device, customer, alert and ticket is simulated; no Celery worker, no mail" }
+    },
+    {
+      "id": "rmm-demo",
+      "name": "Remote Management (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "/unused",
+      "demoOf": "rmm",
+      "demoReady": true,
+      "processes": [
+        { "name": "ui", "container": "pd-rmm-demo", "host": "rmm-demo", "port": 8501, "health": "/" },
+        { "name": "api", "container": "pd-rmm-demo-api", "host": "rmm-demo-api", "port": 5000, "health": "/api/health" }
+      ]
     }
   ]
 }
