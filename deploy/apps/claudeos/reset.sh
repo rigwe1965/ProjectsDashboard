@@ -8,7 +8,8 @@ rm -rf /app/data/claudeos.db /app/data/claudeos.db-wal /app/data/claudeos.db-shm
 mkdir -p /app/data/logs /app/data/chromadb /app/data/vault-workspaces /app/data/outputs-store
 python scripts/migrate.py
 python scripts/seed_agents.py
-python scripts/seed_namespaces.py
+# The demo's own neutral sample clients, not scripts/seed_namespaces.py (that one creates the owner's real client names).
+python /pd-seed-namespaces.py
 python scripts/create_admin.py --username demo --password "$CLAUDEOS_DEMO_PASSWORD"
 # A new account may be marked "must change password": the first customer in would be forced to choose a new one and the demo password
 # would stop working for everyone after them. Clear that flag in the demo database.

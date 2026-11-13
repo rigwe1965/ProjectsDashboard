@@ -11,6 +11,9 @@ COPY requirements.txt ./
 RUN grep -viE '^(pytest|pytest-cov|sentence-transformers)' requirements.txt > /tmp/req.txt && pip install --no-cache-dir -r /tmp/req.txt
 
 COPY . .
+# The agent definitions and a few input hints name the owner's real client and the owner (reci-transport, RECI Transport Ltd, Rigwe). The
+# demo shows the sample client (acme-logistics) instead, to match the sample namespaces seeded by seed_namespaces.py.
+RUN grep -rlE 'reci|Reci|RECI|Rigwe' agents/definitions dashboard/_pages/_admin.py dashboard/_pages/_memory.py dashboard/components/login_form.py     | xargs -r sed -i -e 's/RECI Transport Ltd/Acme Logistics Ltd/g; s/RECI Transport/Acme Logistics/g; s/Reci Transport/Acme Logistics/g; s/reci-transport/acme-logistics/g; s/RECI fleet/Acme fleet/g; s/what Rigwe needs/what the user needs/g; s/tags: \[transport, reci, ops, nigeria\]/tags: [transport, acme, ops]/'
 
 # Fail closed: an empty secret must stop the demo, never silently fall back to an app default. (The API itself refuses to start without an
 # Anthropic key, so that one is required too.) One container runs both parts:

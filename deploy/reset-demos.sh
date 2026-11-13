@@ -58,7 +58,7 @@ recipe() {
     claudeos)    # same shape as airfinder: stop, re-seed inside the image, start again whatever the reset did
       "${DC[@]}" stop claudeos-demo || return 1
       local ok=0
-      MSYS_NO_PATHCONV=1 "${DC[@]}" run --rm --no-deps -v "$PWD/apps/claudeos/reset.sh:/pd-reset.sh:ro" claudeos-demo sh /pd-reset.sh || ok=1
+      MSYS_NO_PATHCONV=1 "${DC[@]}" run --rm --no-deps -v "$PWD/apps/claudeos/reset.sh:/pd-reset.sh:ro" -v "$PWD/apps/claudeos/seed_namespaces.py:/pd-seed-namespaces.py:ro" claudeos-demo sh /pd-reset.sh || ok=1
       "${DC[@]}" up -d --no-deps claudeos-demo || ok=1
       return $ok ;;
     claudeworkspace)

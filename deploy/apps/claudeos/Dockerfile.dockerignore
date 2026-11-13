@@ -24,3 +24,4 @@ outputs/*
 !outputs/*.py
 memory/*.db
 dist
+**/*.tmp.*
