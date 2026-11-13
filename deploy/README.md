@@ -53,9 +53,9 @@ seconds longer. Let's Encrypt limits how many certificates one domain can get pe
 ## Apps in containers
 `--profile apps` builds each app from **its own folder** using a recipe owned by the dashboard
 (`deploy/apps/<app>/Dockerfile`). The app's folder is only read; nothing is added to it. Set `APPS_ROOT` in `.env` to
-the folder that contains the apps. Recipes exist for **ImageApp**, **Airfinder**, **CRM** and **ClaudeWorkspace** (the four demo-ready apps). Every recipe
+the folder that contains the apps. Recipes exist for **ImageApp**, **Airfinder**, **CRM**, **ClaudeWorkspace** and **ClaudeOS** (the five demo-ready apps). Every recipe
 excludes the app's real `.env` files, databases and caches from the build (`Dockerfile.dockerignore` next to it), so a demo
-can never contain production secrets or data. Demos start empty; none of them has email, payment, AI or monitoring keys.
+can never contain production secrets or data. Demos start empty; none of them has email, payment or monitoring keys. The one exception is ClaudeOS, which needs an Anthropic key for its AI assistant (use a key with a spend limit: every visitor's AI action costs you money).
 
 | Demo | Needs in `.env` | One-time step |
 | --- | --- | --- |
@@ -63,6 +63,7 @@ can never contain production secrets or data. Demos start empty; none of them ha
 | Airfinder | `AIRFINDER_*` (own SQLite file in a volume) | none; staff login is the `AIRFINDER_ADMIN_*` pair |
 | CRM | `CRM_*` (its own Postgres container) | `docker compose --profile apps run --rm crm-migrate seed` (wipes and fills the demo database only) |
 | ClaudeWorkspace | `CW_SUPABASE_*` of a **separate** demo Supabase project | apply its 14 migrations and seed to that project (as for the local demo) |
+| ClaudeOS | `CLAUDEOS_*` (own SQLite and vector files in a volume; the demo login is `demo` with `CLAUDEOS_DEMO_PASSWORD`, which must not contain "demo") | `./reset-demos.sh claudeos` once, to seed the agents, sample clients and the demo login |
 
 CRM and ClaudeWorkspace run **production builds** (`next build` when the image is built, `next start` when it runs), not dev
 servers, so no error overlay with source code and no development-only routes are reachable. Production mode insists on
@@ -83,7 +84,7 @@ access, so this is driven from the host:
 Run it from cron or a systemd timer every ten minutes (`*/10 * * * * cd /srv/projects-dashboard/deploy && ./reset-demos.sh`).
 While one runs, the gateway tells customers the demo is being prepared, and each reset is listed in the console's Activity
 view. CRM re-runs its seed, ImageApp's container is recreated (its uploads are inside it), Airfinder's database is deleted and
-re-seeded, and ClaudeWorkspace's Supabase project is emptied of customer data and extra accounts and its vehicles re-seeded
+re-seeded, ClaudeOS's database and vector files are deleted and re-seeded, and ClaudeWorkspace's Supabase project is emptied of customer data and extra accounts and its vehicles re-seeded
 (set `CW_DEMO_ADMIN_*` and `CW_DEMO_CUSTOMER_*` in `.env`; the two demo accounts are kept and their passwords restored).
 
 In `registry/apps.hosted.json` a process is either a host process (`cmd`) or an existing container
