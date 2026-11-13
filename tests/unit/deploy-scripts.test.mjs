@@ -36,6 +36,7 @@ test('db-backup.sh: a failed dump leaves no file that looks like a backup, and r
   assert.deepEqual(readdirSync(out), []);
 });
 
-test('the deploy shell scripts parse (sh -n)', opts, () => {
-  for (const f of ['db-backup.sh', 'reset-demos.sh']) { const r = spawnSync('sh', ['-n', script(f)], { encoding: 'utf8' }); assert.equal(r.status, 0, f + ': ' + r.stderr); }
+test('the deploy shell scripts parse with the shell their first line names', opts, () => {
+  // db-backup.sh is plain sh (checked with sh, the stricter one); reset-demos.sh is bash (arrays), so sh -n would reject it on Linux's dash
+  for (const [f, shell] of [['db-backup.sh', 'sh'], ['reset-demos.sh', 'bash']]) { const r = spawnSync(shell, ['-n', script(f)], { encoding: 'utf8' }); assert.equal(r.status, 0, f + ': ' + r.stderr); }
 });
