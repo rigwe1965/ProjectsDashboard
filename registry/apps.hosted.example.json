@@ -91,6 +91,28 @@
         { "name": "web", "container": "pd-claudeworkspace-web", "host": "claudeworkspace-web", "port": 3102, "health": "/" },
         { "name": "admin", "container": "pd-claudeworkspace-admin", "host": "claudeworkspace-admin", "port": 3103, "health": "/admin" }
       ]
+    },
+    {
+      "id": "claudeos",
+      "name": "ClaudeOS",
+      "tagline": "Claude Operating System",
+      "path": "/unused",
+      "hidden": true,
+      "processes": [
+        { "name": "ui", "container": "pd-claudeos-unused", "host": "claudeos-unused", "port": 8601, "health": "/" }
+      ],
+      "demo": { "supported": true, "notes": "Own SQLite and vector files in a volume; no mail, no cloud sync. AI uses the owner key, so AI actions cost money" }
+    },
+    {
+      "id": "claudeos-demo",
+      "name": "ClaudeOS (demo instance)",
+      "tagline": "Isolated demo copy for customers",
+      "path": "/unused",
+      "demoOf": "claudeos",
+      "demoReady": true,
+      "processes": [
+        { "name": "ui", "container": "pd-claudeos-demo", "host": "claudeos-demo", "port": 8601, "health": "/" }
+      ]
     }
   ]
 }

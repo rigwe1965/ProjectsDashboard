@@ -10,7 +10,7 @@ const recipes = readdirSync(appsDir).filter((d) => existsSync(new URL(`${d}/Dock
   .map((d) => [d, readFileSync(new URL(`${d}/Dockerfile`, appsDir), 'utf8')]);
 
 test('there is a recipe for each demo product', () => {
-  assert.deepEqual(recipes.map(([d]) => d).sort(), ['airfinder', 'claudeworkspace', 'crm', 'imageapp']);
+  assert.deepEqual(recipes.map(([d]) => d).sort(), ['airfinder', 'claudeos', 'claudeworkspace', 'crm', 'imageapp']);
 });
 
 for (const [name, text] of recipes) {
