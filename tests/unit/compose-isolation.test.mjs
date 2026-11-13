@@ -12,7 +12,7 @@ const service = (name) => {
   const start = new RegExp(String.raw`^  ${escapeRe(name)}:\r?$`, 'm').exec(compose);
   assert.ok(start, `service ${name} not found`);
   const rest = compose.slice(start.index + start[0].length);
-  const end = /^(  [a-z][a-z0-9-]*:\r?$|[a-z]+:)/m.exec(rest);
+  const end = /^( {2}[a-z][a-z0-9-]*:\r?$|[a-z]+:)/m.exec(rest);
   return end ? rest.slice(0, end.index) : rest;
 };
 
