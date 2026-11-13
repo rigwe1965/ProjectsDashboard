@@ -1,0 +1,23 @@
+# Ignore rules for the RMM dashboard build. They live HERE so nothing is added to the app's own folder.
+# Production secrets, databases, backups and generated files must never enter the image.
+.env
+.env.*
+!.env.example
+.git
+**/venv
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.tmp.*
+backups
+logs
+dump.rdb
+*.pdf
+*.png
+docs
+audits
+nginx
+frontend
+agent
+api
+dashboard/tests

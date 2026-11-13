@@ -120,6 +120,7 @@ services:
       app_imageapp:
       app_airfinder:
       app_claudeos:
+      app_rmm:
       app_crm:
       app_cw:
 
@@ -151,6 +152,7 @@ services:
       app_imageapp:
       app_airfinder:
       app_claudeos:
+      app_rmm:
       app_crm:
       app_cw:
 
@@ -246,6 +248,127 @@ services:
       timeout: 5s
       retries: 3
     networks: [app_claudeos]
+
+  # Remote Management (RMM) demo: its own Postgres and Redis (never shared), the API and the Streamlit dashboard, each from its own image
+  # (deploy/apps/rmm/). No Celery worker, no mail, no agent can enrol (the API is only reachable inside the compose network), so scheduled
+  # jobs, backups and email do not run. Every customer, device, alert and ticket is simulated (supervisor/demo-fixes/seed-rmm-demo.py).
+  rmm-demo-db:
+    profiles: ["apps"]
+    image: postgres:17-alpine@sha256:3540c0362c809df084ffac0ae69fe794515f9de92692f02178bcdce0ef0302ac
+    container_name: pd-rmm-demo-db
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    read_only: true
+    tmpfs: ["/tmp:rw,nosuid,size=64m", "/var/run/postgresql:rw,nosuid,size=8m"]
+    environment:
+      POSTGRES_DB: rmm_demo
+      POSTGRES_USER: rmm
+      POSTGRES_PASSWORD: ${RMM_DB_PASSWORD:-}
+    volumes: [rmm_demo_pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rmm -d rmm_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 512m
+    pids_limit: 256
+    networks: [rmm_data]
+
+  rmm-demo-cache:
+    profiles: ["apps"]
+    image: redis:7-alpine@sha256:7f7d30b7fdd09467bac58198a1f166dd69789d348d4fe859cccb20e0cf287fbe
+    container_name: pd-rmm-demo-cache
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    read_only: true
+    tmpfs: ["/data:rw,nosuid,uid=999,gid=1000,size=32m"]
+    # No saving to disk: the demo's Redis only holds rate-limit counters and caches, and a reset empties it anyway.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$RMM_REDIS_PASSWORD\" --save '' --appendonly no"]
+    environment:
+      RMM_REDIS_PASSWORD: ${RMM_REDIS_PASSWORD:-}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$RMM_REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    mem_limit: 128m
+    pids_limit: 64
+    networks: [rmm_data]
+
+  rmm-demo-api:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/RemoteManagementSystem
+      dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/rmm/Dockerfile
+    image: pd-rmm-api
+    container_name: pd-rmm-demo-api
+    restart: unless-stopped
+    <<: *demo-limits
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m
+      - /app/screenshots:rw,nosuid,uid=10001,gid=10001,size=16m
+      - /app/reports:rw,nosuid,uid=10001,gid=10001,size=16m
+      - /app/backups:rw,nosuid,uid=10001,gid=10001,size=16m
+      - /app/instance:rw,nosuid,uid=10001,gid=10001,size=8m
+      - /home/app:rw,nosuid,uid=10001,gid=10001,size=16m
+    depends_on:
+      rmm-demo-db: { condition: service_healthy }
+      rmm-demo-cache: { condition: service_healthy }
+    environment:     # no SMTP, MQTT, MDM or payment settings: nothing reaches a real system
+      FLASK_ENV: development
+      DATABASE_URL: postgresql://rmm:${RMM_DB_PASSWORD:-}@rmm-demo-db:5432/rmm_demo
+      REDIS_URL: redis://:${RMM_REDIS_PASSWORD:-}@rmm-demo-cache:6379/0
+      CELERY_BROKER_URL: redis://:${RMM_REDIS_PASSWORD:-}@rmm-demo-cache:6379/0
+      CELERY_RESULT_BACKEND: redis://:${RMM_REDIS_PASSWORD:-}@rmm-demo-cache:6379/1
+      SECRET_KEY: ${RMM_SECRET_KEY:-}
+      JWT_SECRET_KEY: ${RMM_JWT_SECRET_KEY:-}
+      ORG_REGISTRATION_TOKEN: ${RMM_ORG_TOKEN:-}
+      SUPERADMIN_EMAIL: ${RMM_SUPERADMIN_EMAIL:-superadmin@rmm-demo.invalid}
+      SUPERADMIN_PASSWORD: ${RMM_SUPERADMIN_PASSWORD:-}
+      SEED_ADMIN_EMAIL: ${RMM_DEMO_ADMIN_EMAIL:-admin@rmm-demo.test}
+      SEED_ADMIN_PASSWORD: ${RMM_DEMO_ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${DEMO_SCHEME:-https}://rmm.${DEMO_DOMAIN}
+      DASHBOARD_URL: ${DEMO_SCHEME:-https}://rmm.${DEMO_DOMAIN}
+      # The AI assistant is off unless you give a key AND switch it on (RMM_AI_ENABLED=1). Agentic tools and triage stay off either way.
+      ANTHROPIC_API_KEY: ${RMM_ANTHROPIC_API_KEY:-}
+      AI_ASSISTANT_ENABLED: ${RMM_AI_ENABLED:-0}
+      AI_ASSISTANT_AGENTIC_ENABLED: "0"
+      AI_TRIAGE_ENABLED: "0"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [rmm_data, app_rmm, rmm_out]
+
+  rmm-demo:
+    profiles: ["apps"]
+    build:
+      context: ${APPS_ROOT:-../..}/RemoteManagementSystem
+      dockerfile: ../${DASHBOARD_DIR:-ProjectsDashboard}/deploy/apps/rmm/Dockerfile.ui
+    image: pd-rmm-ui
+    container_name: pd-rmm-demo
+    restart: unless-stopped
+    <<: *demo-limits
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=64m
+      - /app/static:rw,nosuid,uid=10001,gid=10001,size=8m
+      - /home/app:rw,nosuid,uid=10001,gid=10001,size=32m
+    depends_on:
+      rmm-demo-api: { condition: service_healthy }
+    environment:
+      API_BASE_URL: http://rmm-demo-api:5000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+    networks: [app_rmm]
 
   # CRM demo: its own Postgres (never shared with production) plus the app as a production build (see deploy/apps/crm/Dockerfile).
   crm-demo-db:
@@ -438,6 +561,9 @@ networks:
   app_imageapp: { internal: true }
   app_airfinder: { internal: true }
   app_claudeos: {}
+  app_rmm: { internal: true }
+  rmm_data: { internal: true }
+  rmm_out: {}
   app_crm: { internal: true }
   app_cw: {}
   crm: { internal: true }
@@ -451,4 +577,5 @@ volumes:
   caddy_config:
   airfinder_demo_data:
   claudeos_demo_data:
+  rmm_demo_pgdata:
   crm_demo_pgdata:

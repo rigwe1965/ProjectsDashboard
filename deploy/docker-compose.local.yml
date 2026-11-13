@@ -27,6 +27,10 @@ services:
   claudeos-demo:
     environment:
       ALLOWED_ORIGINS: http://claudeos.demo.localhost:8080
+  rmm-demo-api:
+    environment:
+      CORS_ORIGINS: http://rmm.demo.localhost:8080
+      DASHBOARD_URL: http://rmm.demo.localhost:8080
   crm-demo:
     environment:
       NEXTAUTH_URL: http://crm.demo.localhost:8080
