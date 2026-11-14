@@ -98,6 +98,19 @@ The console runs *inside* a container and has no access to Docker, so its Start/
 containers here (they show status only). Manage containers with `docker compose`. This is deliberate: giving a
 web-facing service the Docker socket would give it control of the whole server.
 
+**Optional: Start/Stop/Restart/Log buttons.** A small helper on the host, `deploy/ctl/pd-ctl.py`, can do that work without giving the
+console Docker access. It listens on a unix socket that only the console container mounts, needs a shared token, speaks four verbs
+(start, stop, restart, logs) and acts only on demo containers named in the registry (never the gateway, console, Caddy or database).
+Set it up once:
+```bash
+T=$(openssl rand -hex 32)
+echo "PD_CTL_TOKEN=$T" | sudo tee /etc/pd-ctl.env >/dev/null && sudo chmod 600 /etc/pd-ctl.env
+sed -i "s/^PD_CTL_TOKEN=.*/PD_CTL_TOKEN=$T/" deploy/.env                  # or add the line
+sudo cp deploy/ctl/pd-ctl.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now pd-ctl
+cd deploy && docker compose up -d console
+```
+Leave `PD_CTL_TOKEN` empty and the console stays status-only, exactly as before.
+
 ## Everyday operations
 ```bash
 docker compose ps                         # health of every service
