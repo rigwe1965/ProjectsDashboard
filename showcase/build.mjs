@@ -267,7 +267,7 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}">
-<link rel="icon" href="data:,"><link rel="stylesheet" href="${root}${cssFile}"><style>:root{--accent:${esc(accent)}}</style></head>
+<link rel="icon" href="${root}favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="${root}${cssFile}"><style>:root{--accent:${esc(accent)}}</style></head>
 <body><div class="wrap">
 <div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}">Request a demo</a></div>
 ${body}
@@ -282,6 +282,17 @@ mkdirSync(dist, { recursive: true });
 // The stylesheet's name carries a hash of its content, so it can be cached for a year (immutable): an edit changes the name, and the pages
 // (which are not cached without checking) point visitors at the new one. See showcase/serve.mjs and deploy/Caddyfile for the headers.
 writeFileSync(join(dist, cssFile), css);
+
+// Favicon: the same row of product colours as the logo mark. An SVG favicon is served from this site, which the Content-Security-Policy allows (img-src 'self').
+const stripe = products.map((p, i) => `<rect x="${i * (32 / Math.max(products.length, 1))}" y="0" width="${32 / Math.max(products.length, 1)}" height="32" fill="${esc(p.accent)}"/>`).join('');
+writeFileSync(join(dist, 'favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><clipPath id="r"><rect width="32" height="32" rx="7"/></clipPath><g clip-path="url(#r)">${stripe}</g></svg>\n`);
+// robots.txt always; sitemap.xml only when site.json has siteUrl (a sitemap needs absolute addresses). Demo links live on other hostnames and are not listed.
+const siteUrl = String(site.siteUrl || '').replace(/\/+$/, '');
+writeFileSync(join(dist, 'robots.txt'), `User-agent: *\nAllow: /\n${siteUrl ? `\nSitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
+if (siteUrl) {
+  const paths = ['/', ...products.map((p) => `/${p.id}/`), ...(security ? ['/security/'] : [])];
+  writeFileSync(join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${esc(siteUrl + p)}</loc></url>`).join('\n')}\n</urlset>\n`);
+}
 
 // Home: the tagline, then one colour panel per product. The panel under the pointer opens to show its pitch.
 writeFileSync(join(dist, 'index.html'), shell(`${site.brand}: ${site.tagline}`, site.intro, '#2b4acb', `

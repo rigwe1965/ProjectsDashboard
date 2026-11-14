@@ -65,3 +65,19 @@ test('the Security page is built from security.json: plain HTML with no scripts,
   assert.doesNotMatch(page, /demo-gateway\/|\.mjs/, 'the internal source names are not published');
   for (const [p, href] of [['index.html', 'security/index.html'], ['crm/index.html', '../security/index.html'], ['security/index.html', '../security/index.html']]) assert.ok(read(p).includes(`href="${href}"`), `${p} links to Security`);
 });
+
+test('showcase build: favicon, robots.txt and a sitemap that lists every page (and no demo hostnames)', () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
+  const dist = fileURLToPath(new URL('../../showcase/dist/', import.meta.url));
+  const read = (p) => readFileSync(dist + p, 'utf8');
+  const site = JSON.parse(readFileSync(fileURLToPath(new URL('../../showcase/site.json', import.meta.url)), 'utf8'));
+  assert.match(read('favicon.svg'), /^<svg /, 'the favicon is an SVG');
+  assert.match(read('index.html'), /<link rel="icon" href="favicon\.svg"/);
+  assert.match(read('crm/index.html'), /<link rel="icon" href="\.\.\/favicon\.svg"/, 'product pages point one level up');
+  assert.match(read('robots.txt'), /^User-agent: \*\nAllow: \//);
+  const base = site.siteUrl.replace(/\/+$/, '');
+  const map = read('sitemap.xml');
+  assert.ok(read('robots.txt').includes(`Sitemap: ${base}/sitemap.xml`), 'robots.txt points at the sitemap');
+  for (const p of ['/', '/crm/', '/security/']) assert.ok(map.includes(`<loc>${base}${p}</loc>`), `sitemap lists ${p}`);
+  assert.doesNotMatch(map, /\.demo\./, 'demo hostnames are not listed');
+});

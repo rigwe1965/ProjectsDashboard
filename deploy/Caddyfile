@@ -40,6 +40,12 @@
 	file_server
 }
 
+# www.example.com sends visitors to the bare domain (needs a www DNS record pointing at this server)
+www.{$SITE_DOMAIN} {
+	import security_headers
+	redir https://{$SITE_DOMAIN}{uri} permanent
+}
+
 # Owner console (password + 2-step code; it refuses to start without a password when not on localhost)
 {$ADMIN_DOMAIN} {
 	import security_headers
