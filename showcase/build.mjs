@@ -18,8 +18,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 // When site.json has a plain https bookingUrl, the demo buttons open that booking page instead.
 const bookingUrl = /^https:\/\/[^\s@]+$/.test(site.bookingUrl || '') ? site.bookingUrl : '';
 const demoLink = () => (bookingUrl ? esc(bookingUrl) : '#contact');
-// An explicit "Email us" button (the Security page's) still opens a message with its own subject, when there is an address.
-const mail = (subject) => (site.contactEmail ? `mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent(subject)}` : '#contact');
+// "Email us" buttons scroll to the page's contact section, which shows the address with Gmail, Outlook and mail-app links (a bare mailto:
+// opens nothing for a visitor without a mail app). So "Request a demo" and "Book a demo call" open the booking page; "Email us" does not.
+const emailUs = '#contact';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Specimens: one line-art illustration per product, drawn in white so it sits on the product's colour.
@@ -302,7 +303,7 @@ writeFileSync(join(dist, 'index.html'), shell(`${site.brand}: ${site.tagline}`, 
 <section id="products" class="strip" aria-label="Products">${products.map((p) => `
 <a class="tab" style="--accent:${esc(p.accent)}" href="${p.id}/index.html"><div class="in"><h2>${esc(p.name)}</h2><p>${esc(p.summary)}</p><span class="more">See ${esc(p.name)} &rarr;</span></div>${specimen(p.id)}</a>`).join('')}
 </section>
-<section class="cta ink"><div><h2>Not sure which one fits?</h2><p>Tell us what your business does and we'll point you to the right product.</p></div><a class="btn light" href="${demoLink('Which product fits my business?')}">Email us</a></section>
+<section class="cta ink"><div><h2>Not sure which one fits?</h2><p>Tell us what your business does and we'll point you to the right product.</p></div><a class="btn light" href="${emailUs}">Email us</a></section>
 ${contactBlock()}`, ''));
 
 for (const p of products) {
@@ -326,7 +327,7 @@ if (security) {
   writeFileSync(join(dist, 'security', 'index.html'), shell(`Security | ${site.brand}`, security.intro, '#2b4acb', `
 <header class="home"><h1>${esc(security.title)}</h1><p>${esc(security.intro)}</p></header>${sections}
 <section class="sec"><h2>${esc(security.notYet.title)}</h2><p class="lead">${esc(security.notYet.text)}</p></section>
-<section class="cta ink"><div><h2>${esc(security.report.title)}</h2><p>${esc(security.report.text)}</p></div><a class="btn light" href="${mail('Security question')}">Email us</a></section>
+<section class="cta ink"><div><h2>${esc(security.report.title)}</h2><p>${esc(security.report.text)}</p></div><a class="btn light" href="${emailUs}">Email us</a></section>
 <p class="updated" style="margin:28px 0 0;color:var(--mute);font-size:14px">Last reviewed ${esc(security.updated)}.</p>
 ${contactBlock('../')}`, '../'));
 }
