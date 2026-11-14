@@ -25,3 +25,16 @@ for (const [name, text] of [...recipes, ...extra]) {
     for (const l of instructions.filter((x) => /^\s*FROM\s/i.test(x))) assert.match(l, /@sha256:[0-9a-f]{64}/, `unpinned: ${l}`);
   });
 }
+
+// Demo-only patches applied inside the images. Each stops the build when the line it changes has moved, so these tests check the
+// patch is still written and still matches what the app's source really contains (the apps are siblings of this repo).
+const read = (p) => readFileSync(new URL(p, appsDir), 'utf8');
+test('claudeos: worker-thread fetches and the shared rate limit are patched, and the patch targets exist in the app', () => {
+  const docker = read('claudeos/Dockerfile');
+  assert.match(docker, /pd_seq_executor/);
+  assert.match(docker, /"50000\/day", "5000\/hour"/);
+  const appRoot = new URL('../../../ClaudeOS/', appsDir);
+  if (!existsSync(new URL('dashboard/_pages/_overview.py', appRoot))) return; // ClaudeOS checkout not next to this repo (CI)
+  for (const f of ['_overview', '_projects', '_tickets']) assert.match(readFileSync(new URL(`dashboard/_pages/${f}.py`, appRoot), 'utf8'), /^from concurrent\.futures import ThreadPoolExecutor, as_completed$/m, f);
+  assert.equal((readFileSync(new URL('core/api/limiter.py', appRoot), 'utf8').match(/"500\/day", "100\/hour"/g) || []).length, 3);
+});
