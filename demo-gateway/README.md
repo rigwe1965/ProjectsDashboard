@@ -62,3 +62,14 @@ A chat panel next to the demo, at `/_pd/guide` on the demo's own address. It is 
 | `GUIDE_PER_MINUTE` | 6 | guide messages per link per minute |
 | `GUIDE_DAILY_CAP_USD` | 2 | the most the guide may cost in one UTC day, all links together (estimated from token counts; 0 turns the guide off) |
 | `GUIDE_MAX_MESSAGE_CHARS` | 500 | longest message a customer may send the guide |
+
+## Booking reminders (cal.com, not in this repo)
+
+Booking runs on cal.com, so the reminder email is a cal.com workflow, not code here. It was set up and tested on 2026-11-14:
+
+- Workflow **24h reminder** (cal.com → Workflows)
+- Trigger: 24 hours before the event starts
+- Action: send email to attendees (cal.com's default reminder text)
+- Active on the one booking link the site uses
+
+If the booking link is renamed or replaced, open the workflow and select the new link under "Active on booking links", otherwise reminders stop. Changes only take effect after you click Save.
