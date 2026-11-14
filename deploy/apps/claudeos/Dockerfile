@@ -15,6 +15,41 @@ COPY . .
 # demo shows the sample client (acme-logistics) instead, to match the sample namespaces seeded by seed_namespaces.py.
 RUN grep -rlE 'reci|Reci|RECI|Rigwe' agents/definitions dashboard/_pages/_admin.py dashboard/_pages/_memory.py dashboard/components/login_form.py     | xargs -r sed -i -e 's/RECI Transport Ltd/Acme Logistics Ltd/g; s/RECI Transport/Acme Logistics/g; s/Reci Transport/Acme Logistics/g; s/reci-transport/acme-logistics/g; s/RECI fleet/Acme fleet/g; s/what Rigwe needs/what the user needs/g; s/tags: \[transport, reci, ops, nigeria\]/tags: [transport, acme, ops]/'
 
+# Two demo-only fixes to the app's code (the app's own folder is never modified; this edits the copy inside the image). Each one stops the
+# build if the line it changes is no longer there, so a change in the app cannot silently undo it (tests/unit/dockerfiles.test.mjs).
+# 1. The overview, projects and tickets pages fetch in worker threads. A worker cannot see the signed-in session, so without a developer API
+#    key (the demo has none) every one of those calls answers 401 and the page shows "API unreachable" with empty lists. Run them one after
+#    another on the page's own thread instead.
+COPY <<'PY' /app/pd_seq_executor.py
+import concurrent.futures as _cf
+
+Future = _cf.Future
+as_completed = _cf.as_completed  # re-exported: the pages import both names from here
+
+
+class ThreadPoolExecutor:
+    """Same calls as concurrent.futures.ThreadPoolExecutor, but each job runs at once on the calling thread."""
+    def __init__(self, *args, **kwargs): pass
+    def __enter__(self): return self
+    def __exit__(self, *exc): return False
+
+    def submit(self, fn, *args, **kwargs):
+        f = Future()
+        try:
+            f.set_result(fn(*args, **kwargs))
+        except BaseException as e:  # the caller sees it from .result(), as with a real worker
+            f.set_exception(e)
+        return f
+PY
+RUN for f in dashboard/_pages/_overview.py dashboard/_pages/_projects.py dashboard/_pages/_tickets.py; do \
+      grep -qx 'from concurrent.futures import ThreadPoolExecutor, as_completed' "$f" || { echo "demo patch: expected import not found in $f" >&2; exit 1; }; \
+      sed -i 's/^from concurrent.futures import ThreadPoolExecutor, as_completed$/from pd_seq_executor import ThreadPoolExecutor, as_completed/' "$f"; \
+    done
+# 2. The API allows 100 requests an hour per client address, but every request comes from inside this container (127.0.0.1), so all visitors
+#    and the health check (180 an hour on its own) share one budget and get 429. Raise the shared default; routes with their own limit keep it.
+RUN test "$(grep -c '"500/day", "100/hour"' core/api/limiter.py)" = 3 || { echo "demo patch: limiter defaults not found" >&2; exit 1; } \
+ && sed -i 's#"500/day", "100/hour"#"50000/day", "5000/hour"#' core/api/limiter.py
+
 # Fail closed: an empty secret must stop the demo, never silently fall back to an app default. (The API itself refuses to start without an
 # Anthropic key, so that one is required too.) One container runs both parts:
 # the API (waitress, loopback only) and the Streamlit dashboard (the only thing the gateway can reach). If either stops, the container
