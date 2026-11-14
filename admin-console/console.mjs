@@ -26,6 +26,7 @@ import { logger } from '../lib/log.mjs';
 import { EVENTS, EVENT_FILTERS } from '../lib/events.mjs';
 import { num, fireAndForget, maskSecrets, cachedFor, MINUTE, HOUR } from '../lib/util.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
+import { createCtlClient } from '../lib/ctl-client.mjs';
 import { createStatusCache } from './status-cache.mjs';
 import { assertSafeToListen } from './listen-safety.mjs';
 import { createLogin } from './login.mjs';
@@ -64,7 +65,10 @@ export async function createConsole(opts = {}) {
     bindHost: process.env.ADMIN_BIND || '127.0.0.1',
     // ADMIN_APP_CONTROL=off: this console only shows status (the hosted container has no Docker access and its logs are elsewhere), so Start, Stop and
     // Log are hidden and refused.
-    appControl: process.env.ADMIN_APP_CONTROL !== 'off',
+    // ADMIN_CTL_SOCKET + ADMIN_CTL_TOKEN: a restricted controller on the host (deploy/ctl/pd-ctl.py) does the container work instead, so the
+    // console still holds no Docker access. With it, Start, Stop, Restart and Log work for registered demo containers.
+    ctl: process.env.ADMIN_CTL_SOCKET && process.env.ADMIN_CTL_TOKEN ? createCtlClient({ socketPath: process.env.ADMIN_CTL_SOCKET, token: process.env.ADMIN_CTL_TOKEN }) : null,
+    appControl: process.env.ADMIN_APP_CONTROL !== 'off' || !!(process.env.ADMIN_CTL_SOCKET && process.env.ADMIN_CTL_TOKEN),
     allowedHosts: (process.env.ADMIN_ALLOWED_HOSTS || '127.0.0.1,localhost').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean),
     scheme: process.env.ADMIN_SCHEME || 'http',
     allowHttp: process.env.ADMIN_ALLOW_HTTP === '1',
@@ -177,15 +181,20 @@ export async function createConsole(opts = {}) {
     return json(res, 200, loadRegistry().apps.filter((a) => !a.hidden).map((a) => ({
       id: a.id, name: a.name, tagline: a.tagline, stack: a.stack, demo: a.demo, note: a._note, controls: o.appControl,
       processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional, openPath: p.openPath || '/',
-        ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }) })),
+        ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }),
+        ...(o.ctl && p.container ? { managed: !!(rows.find((r) => r.app === a.id && r.proc === p.name)?.up) } : {}) })), // with the controller, a running container can be stopped or restarted
     })), statusError ? { 'x-status-error': statusError } : {});
   }
 
-  function appLogs({ res, url, m }) {
+  async function appLogs({ res, url, m }) {
     if (!o.appControl) return json(res, 403, { error: 'Logs are not shown in this setup. Use docker compose logs on the server.' });
     const app = findApp(m[1]);
     const proc = app?.processes.find((p) => p.name === url.searchParams.get('proc'));
     if (!proc) return json(res, 404, { error: 'unknown app/process' });
+    if (o.ctl && proc.container) {
+      const r = await o.ctl('logs', proc.container, { lines: 200 });
+      return json(res, 200, { log: r.ok ? maskSecrets(r.output) : '', ...(r.ok ? {} : { error: 'Could not read the log: ' + r.output }) });
+    }
     return json(res, 200, { log: maskSecrets(tail(join(dataDir, 'logs', `${app.id}-${proc.name}.log`))) });
   }
 
@@ -201,6 +210,15 @@ export async function createConsole(opts = {}) {
     busy.add(app.id);
     audit({ ev: EVENTS.adminApp(action), app: app.id, ip: ipOf(req), ...(only ? { proc: only } : {}) });
     try {
+      if (o.ctl) {
+        const targets = app.processes.filter((p) => p.container && (!only || p.name === only));
+        if (!targets.length) return json(res, 400, { error: 'nothing to control here' });
+        const parts = [];
+        for (const p of targets) { const x = await o.ctl(action, p.container); parts.push({ name: p.name, ok: x.ok, output: x.output }); }
+        const ok = parts.every((x) => x.ok);
+        if (!ok) logger.warn('controller command failed', { action, app: app.id });
+        return json(res, ok ? 200 : 502, { ok, output: parts.map((x) => `${x.name}: ${x.ok ? 'ok' : 'FAILED ' + x.output}`).join(', ') });
+      }
       // start/restart can legitimately wait up to 60 s per process for the app to answer
       const r = await o.supervisor([action, app.id, ...(only ? [`--only=${only}`] : [])], action === 'stop' ? 2 * MINUTE : 5 * MINUTE);
       if (!r.ok) logger.warn('supervisor command failed', { action, app: app.id, timedOut: !!r.timedOut });

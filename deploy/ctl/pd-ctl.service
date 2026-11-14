@@ -1,0 +1,23 @@
+# Host helper for the admin console's container buttons. Install:
+#   sudo cp deploy/ctl/pd-ctl.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now pd-ctl
+# Needs /etc/pd-ctl.env (mode 600, one line: PD_CTL_TOKEN=<value>), the same value as PD_CTL_TOKEN in deploy/.env. It gets nothing else from .env. It can only start/stop/restart/read logs of demo containers in the registry.
+[Unit]
+Description=Projects Dashboard container controller (restricted)
+After=docker.service
+Requires=docker.service
+
+[Service]
+User=deploy
+Group=docker
+EnvironmentFile=/etc/pd-ctl.env
+RuntimeDirectory=pd-ctl
+RuntimeDirectoryMode=0750
+ExecStart=/usr/bin/python3 -I /home/deploy/ProjectsDashboard/deploy/ctl/pd-ctl.py --registry /home/deploy/ProjectsDashboard/registry/apps.hosted.json --socket /run/pd-ctl/ctl.sock
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
