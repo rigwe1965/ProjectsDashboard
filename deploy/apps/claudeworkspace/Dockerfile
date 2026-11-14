@@ -17,13 +17,6 @@ RUN npm install -g --no-audit --no-fund pnpm@9.15.0 && pnpm --version
 WORKDIR /app
 
 COPY . .
-# Demo-only fix (this edits the copy inside the image; the app's folder is never modified, and the build stops if the line is not found):
-# the demo vehicles use Wikimedia photos, but the apps' Content-Security-Policy only allows Supabase and Unsplash images, so the browser
-# blocks every vehicle photo. Allow that one host for images.
-RUN for f in apps/web/middleware.ts apps/admin/middleware.ts; do \
-      grep -q 'https://images.unsplash.com"' "$f" || { echo "demo patch: img-src not found in $f" >&2; exit 1; }; \
-      sed -i 's#https://images.unsplash.com"#https://images.unsplash.com https://upload.wikimedia.org"#' "$f"; \
-    done
 # Only the two web apps and what they depend on (the Expo mobile app is not needed).
 RUN pnpm install --frozen-lockfile --filter "@reci/web..." --filter "@reci/admin..." \
  && mkdir -p node_modules && ln -s /app/apps/web/node_modules/@supabase node_modules/@supabase

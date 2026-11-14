@@ -38,9 +38,3 @@ test('claudeos: worker-thread fetches and the shared rate limit are patched, and
   for (const f of ['_overview', '_projects', '_tickets']) assert.match(readFileSync(new URL(`dashboard/_pages/${f}.py`, appRoot), 'utf8'), /^from concurrent\.futures import ThreadPoolExecutor, as_completed$/m, f);
   assert.equal((readFileSync(new URL('core/api/limiter.py', appRoot), 'utf8').match(/"500\/day", "100\/hour"/g) || []).length, 3);
 });
-test('claudeworkspace: the vehicle-photo host is added to both apps\' img-src, and the patch target exists in the app', () => {
-  assert.match(read('claudeworkspace/Dockerfile'), /upload\.wikimedia\.org/);
-  const appRoot = new URL('../../../ClaudeWorkspace/reci-transport/', appsDir);
-  if (!existsSync(new URL('apps/web/middleware.ts', appRoot))) return;
-  for (const a of ['web', 'admin']) assert.ok(readFileSync(new URL(`apps/${a}/middleware.ts`, appRoot), 'utf8').includes('https://images.unsplash.com"'), a);
-});
