@@ -140,7 +140,9 @@ services:
       ADMIN_APP_CONTROL: "off"          # no Docker access in here: Start, Stop and Log are hidden and refused (use docker compose)
       ADMIN_REQUIRE_TOTP: "1"          # the console refuses to listen beyond this machine until 2-step codes are enabled (see README)
       ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
-    volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "console_data:/data"]
+      ADMIN_CTL_SOCKET: /run/pd-ctl/ctl.sock   # the host helper deploy/ctl/pd-ctl.py (Start/Stop/Restart/Log); inactive while PD_CTL_TOKEN is empty
+      ADMIN_CTL_TOKEN: ${PD_CTL_TOKEN:-}
+    volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "console_data:/data", "/run/pd-ctl:/run/pd-ctl"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-H", "Host: 127.0.0.1", "http://172.30.0.3:4100/_pd/healthz"]   # the console only answers the host names it is allowed to serve
       interval: 15s
