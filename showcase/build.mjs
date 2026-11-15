@@ -146,17 +146,17 @@ a{color:inherit}
 h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 
 .top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 0}
-.brand{display:flex;align-items:center;gap:12px;font:400 22px/1 var(--display);letter-spacing:-.02em;text-decoration:none}
+.brand{display:flex;align-items:center;gap:12px;font:350 21px/1 var(--display);letter-spacing:-.02em;text-decoration:none}
 .mark{display:grid;grid-template-columns:repeat(3,7px);gap:3px}
 .mark i{width:7px;height:7px;border-radius:50%}
 .links{display:flex;flex-wrap:wrap;gap:4px 6px;margin-left:auto}
 .links a{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;font-size:14px;color:var(--mute);text-decoration:none}
 .links a:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--dot)}
 .links a:hover{background:var(--surface);color:var(--ink)}
-.nav-cta{padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--paper);font-weight:500;font-size:14px;text-decoration:none;white-space:nowrap}
+.nav-cta{padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--paper);font-weight:450;font-size:13.5px;text-decoration:none;white-space:nowrap}
 .nav-cta:hover{opacity:.88}
 
-.btn{display:inline-block;padding:12px 22px;border-radius:999px;font-weight:500;font-size:15px;text-decoration:none;border:1.5px solid transparent}
+.btn{display:inline-block;padding:12px 22px;border-radius:999px;font-weight:450;font-size:14px;text-decoration:none;border:1.5px solid transparent}
 .btn.solid{background:var(--ink);color:var(--paper)}
 .btn.outline{border-color:var(--line);color:var(--ink)}
 .btn.light{background:#fff;color:var(--accent)}
@@ -175,9 +175,9 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 .tab:hover,.tab:focus-visible{flex-grow:3.4}
 .strip:hover .tab:first-child:not(:hover){flex-grow:1}
 .tab .in{position:relative;z-index:1;padding:26px;display:flex;flex-direction:column;gap:12px}
-.tab h2{font-size:26px;line-height:1.05;letter-spacing:-.02em;font-weight:400;white-space:nowrap}
+.tab h2{font-size:24px;line-height:1.05;letter-spacing:-.015em;font-weight:350;white-space:nowrap}
 .tab p{margin:0;font-size:15px;line-height:1.45;max-width:34ch}
-.tab .more{font-weight:500;font-size:14px}
+.tab .more{font-weight:450;font-size:13.5px}
 .tab .spec{position:absolute;right:-70px;bottom:-26px;width:540px;height:auto;pointer-events:none}
 /* shut: a flat colour with the name set upright along the side */
 .tab h2{writing-mode:vertical-rl;transform:rotate(180deg);align-self:flex-start;font-size:26px}
@@ -198,33 +198,33 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 @keyframes rise{from{opacity:0;transform:translateY(22px) rotate(1.8deg)}to{opacity:1;transform:rotate(-1deg)}}
 
 .sec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.1fr);gap:20px 56px;padding:60px 0 0}
-.sec h2{font-size:clamp(22px,2.4vw,30px);letter-spacing:-.02em;font-weight:400}
-.lead{font:400 clamp(20px,2.4vw,28px)/1.35 var(--display);letter-spacing:-.02em;margin:0;max-width:30ch}
+.sec h2{font-size:clamp(20px,2vw,26px);letter-spacing:-.015em;font-weight:350}
+.lead{font:350 clamp(18px,2vw,24px)/1.4 var(--display);letter-spacing:-.02em;margin:0;max-width:30ch}
 .sheet{list-style:none;margin:0;padding:0}
-.sheet li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:6px 32px;padding:18px 0;border-top:1px solid var(--line)}
+.sheet li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:6px 32px;padding:15px 0;border-top:1px solid var(--line)}
 .sheet li:last-child{border-bottom:1px solid var(--line)}
-.sheet h3{font-size:18px;letter-spacing:-.01em;font-weight:400}
-.sheet p{margin:0;color:var(--mute)}
+.sheet h3{font-size:16px;letter-spacing:-.005em;font-weight:350}
+.sheet p{margin:0;color:var(--mute);font-size:15px}
 .benefits{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:28px}
-.benefits div{border-left:3px solid var(--accent);padding:2px 0 2px 20px;font:400 clamp(18px,1.8vw,22px)/1.3 var(--display);letter-spacing:-.02em}
+.benefits div{border-left:3px solid var(--accent);padding:2px 0 2px 20px;font:350 clamp(16px,1.5vw,19px)/1.35 var(--display);letter-spacing:-.02em}
 
 .cta{margin:72px 0 0;border-radius:34px;background:var(--accent);color:#fff;padding:44px 48px;display:flex;flex-wrap:wrap;gap:28px 40px;align-items:flex-end;justify-content:space-between}
 .cta.ink{background:var(--ink);color:var(--paper)}
 .cta h2{font-size:clamp(28px,3.8vw,48px);line-height:1.02;letter-spacing:-.03em;font-weight:350;max-width:16ch}
-.cta p{margin:12px 0 0;max-width:46ch;opacity:.92;font-size:16px}
+.cta p{margin:10px 0 0;max-width:46ch;opacity:.92;font-size:15px}
 .cta .btn.light{background:#fff;color:var(--accent)}
 .cta.ink .btn.light{color:var(--ink)}
 
 .more-from{padding:48px 0 0}
-.more-from h2{font-size:18px;letter-spacing:-.015em;margin-bottom:12px;font-weight:400}
+.more-from h2{font-size:18px;letter-spacing:-.015em;margin-bottom:10px;font-weight:350}
 .pills{display:flex;flex-wrap:wrap;gap:10px}
-.pill{display:flex;align-items:center;gap:10px;padding:8px 16px;border:1px solid var(--line);border-radius:999px;text-decoration:none;font-weight:500;font-size:14px;background:var(--surface)}
+.pill{display:flex;align-items:center;gap:10px;padding:7px 14px;border:1px solid var(--line);border-radius:999px;text-decoration:none;font-weight:450;font-size:13.5px;background:var(--surface)}
 .pill:before{content:"";width:10px;height:10px;border-radius:50%;background:var(--dot)}
 .pill:hover{border-color:var(--ink)}
 
 #contact{scroll-margin-top:20px;padding:48px 0 0}
-#contact h2{font-size:22px;letter-spacing:-.02em;font-weight:400;margin-bottom:6px}
-.who{color:var(--mute);margin:0}
+#contact h2{font-size:19px;letter-spacing:-.015em;font-weight:350;margin-bottom:6px}
+.who{color:var(--mute);margin:0;font-size:15px}
 .addr{color:var(--ink);font-weight:600;user-select:all;cursor:copy;border-bottom:1px dashed var(--mute)}
 #contact:target h2{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:6px}
 footer{margin-top:56px;border-top:1px solid var(--line);padding:16px 0 24px;color:var(--mute);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between;align-items:center}
