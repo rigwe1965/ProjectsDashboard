@@ -3,11 +3,20 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:   # Actions tab -> CI -> Run workflow: run everything, Windows included, on any branch
+# A newer push to the same pull request cancels the older run, so only the latest commit uses minutes.
+# Runs on main are never cancelled.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 # The workflow only reads the repository; nothing here needs to write to it.
 permissions:
   contents: read
 jobs:
+  # Windows minutes count double on the free plan, so on pull requests this job is skipped (a skipped job does not block a merge).
+  # It still runs on every push to main and on demand (workflow_dispatch). Linux covers the same tests on pull requests.
   windows:
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest   # where the dashboard runs day to day
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
