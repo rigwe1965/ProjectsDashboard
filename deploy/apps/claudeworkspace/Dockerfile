@@ -8,7 +8,7 @@
 # Lint is skipped in the build because the app has a failing lint rule of its own; type checking still runs. The backend is a
 # hosted Supabase project reached over the internet: use a separate, empty demo project, never the production one.
 # Payments, email, AI and monitoring keys are not set.
-FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
+FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates tini && rm -rf /var/lib/apt/lists/*
 # pnpm through npm, at the version the app pins (packageManager in its package.json). Node 25 and later no longer ship corepack,
