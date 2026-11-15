@@ -3,7 +3,7 @@
 # The build context is the RMM's TOP folder (seed.py reads ../scripts_library). The dashboard UI has its own recipe (Dockerfile.ui):
 # the two parts pin different redis libraries, so they cannot share an image.
 #   docker build -f deploy/apps/rmm/Dockerfile -t pd-rmm-api ../RemoteManagementSystem
-FROM python:3.11-slim@sha256:07d4824036af339fa1b6ef769cc99d9c10a141769538b52b3b597c84f7a7b535
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 WORKDIR /app
 COPY api/requirements.txt ./
