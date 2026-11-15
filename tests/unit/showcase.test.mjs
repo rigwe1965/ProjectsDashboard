@@ -81,3 +81,30 @@ test('showcase build: favicon, robots.txt and a sitemap that lists every page (a
   for (const p of ['/', '/crm/', '/security/']) assert.ok(map.includes(`<loc>${base}${p}</loc>`), `sitemap lists ${p}`);
   assert.doesNotMatch(map, /\.demo\./, 'demo hostnames are not listed');
 });
+
+test('Terms of Use and Privacy Policy are built from legal.json: plain HTML with no scripts, linked from every footer, in the sitemap, and they promise nothing the site does not do', () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
+  const dist = fileURLToPath(new URL('../../showcase/dist/', import.meta.url));
+  const read = (p) => readFileSync(dist + p, 'utf8');
+  const legal = JSON.parse(readFileSync(fileURLToPath(new URL('../../showcase/legal.json', import.meta.url)), 'utf8'));
+  for (const [dir, doc] of [['terms', legal.terms], ['privacy', legal.privacy]]) {
+    const page = read(`${dir}/index.html`);
+    assert.match(page, new RegExp(`<title>${doc.title} [|] `));
+    assert.doesNotMatch(page, /<script|onclick=|javascript:/i);
+    assert.match(page, /Last reviewed \d{4}-\d\d-\d\d/);
+    for (const i of doc.sections.flatMap((s) => s.items)) assert.ok(page.includes(i.label.replaceAll("'", '&#39;')), 'shown: ' + i.label);
+  }
+  for (const [p, root] of [['index.html', ''], ['crm/index.html', '../'], ['terms/index.html', '../'], ['privacy/index.html', '../'], ['security/index.html', '../']]) {
+    const page = read(p);
+    assert.ok(page.includes(`href="${root}terms/index.html">Terms of Use</a>`), `${p} links to the Terms of Use`);
+    assert.ok(page.includes(`href="${root}privacy/index.html">Privacy Policy</a>`), `${p} links to the Privacy Policy`);
+  }
+  const sitemap = read('sitemap.xml');
+  assert.match(sitemap, /\/terms\//); assert.match(sitemap, /\/privacy\//);
+  const all = JSON.stringify(legal).toLowerCase();
+  for (const word of ['guarantee', '100%', 'unhackable', 'bank-grade', 'fully secure', 'certified', 'compliant']) assert.ok(!all.includes(word), `"${word}" is not used`);
+  // The privacy text says "no cookies and no scripts": the page really has none, and the web server's policy allows none.
+  assert.match(JSON.stringify(legal.privacy), /no cookies/i);
+  assert.doesNotMatch(read('index.html'), /<script/i);
+  assert.match(readFileSync(fileURLToPath(new URL('../../deploy/Caddyfile', import.meta.url)), 'utf8'), /Content-Security-Policy "default-src 'none'; style-src/, 'the showcase policy loads nothing from other sites');
+});

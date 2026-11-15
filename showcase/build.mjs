@@ -9,6 +9,8 @@ const here = dirname(fileURLToPath(import.meta.url));
 const site = JSON.parse(readFileSync(join(here, 'site.json'), 'utf8'));
 const products = JSON.parse(readFileSync(join(here, 'products.json'), 'utf8')).products.filter((p) => p.published);
 const dist = join(here, 'dist');
+// The public Terms of Use and Privacy Policy are written from legal.json when that file exists (see its _note).
+const legal = existsSync(join(here, 'legal.json')) ? JSON.parse(readFileSync(join(here, 'legal.json'), 'utf8')) : null;
 // The public Security page is written from security.json when that file exists (see its _note).
 const security = existsSync(join(here, 'security.json')) ? JSON.parse(readFileSync(join(here, 'security.json'), 'utf8')) : null;
 
@@ -136,7 +138,7 @@ const css = `
 @media (prefers-color-scheme:dark){:root{--paper:#0A1020;--surface:#111A2E;--ink:#EAF0FA;--mute:#9DAAC4;--line:#202C44}}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.6 var(--text);-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.55 var(--text);-webkit-font-smoothing:antialiased}
 a{color:inherit}
 :focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:8px}
 .hero :focus-visible,.cta :focus-visible,.tab:focus-visible{outline-color:#fff}
@@ -144,17 +146,17 @@ a{color:inherit}
 h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 
 .top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:20px 0}
-.brand{display:flex;align-items:center;gap:12px;font:700 23px/1 var(--display);letter-spacing:-.02em;text-decoration:none}
+.brand{display:flex;align-items:center;gap:12px;font:400 22px/1 var(--display);letter-spacing:-.02em;text-decoration:none}
 .mark{display:grid;grid-template-columns:repeat(3,7px);gap:3px}
 .mark i{width:7px;height:7px;border-radius:50%}
 .links{display:flex;flex-wrap:wrap;gap:4px 6px;margin-left:auto}
-.links a{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;font-size:15px;color:var(--mute);text-decoration:none}
+.links a{display:flex;align-items:center;gap:8px;padding:7px 12px;border-radius:999px;font-size:14px;color:var(--mute);text-decoration:none}
 .links a:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--dot)}
 .links a:hover{background:var(--surface);color:var(--ink)}
-.nav-cta{padding:9px 18px;border-radius:999px;background:var(--ink);color:var(--paper);font-weight:600;font-size:15px;text-decoration:none;white-space:nowrap}
+.nav-cta{padding:8px 16px;border-radius:999px;background:var(--ink);color:var(--paper);font-weight:500;font-size:14px;text-decoration:none;white-space:nowrap}
 .nav-cta:hover{opacity:.88}
 
-.btn{display:inline-block;padding:14px 26px;border-radius:999px;font-weight:600;font-size:16px;text-decoration:none;border:1.5px solid transparent}
+.btn{display:inline-block;padding:12px 22px;border-radius:999px;font-weight:500;font-size:15px;text-decoration:none;border:1.5px solid transparent}
 .btn.solid{background:var(--ink);color:var(--paper)}
 .btn.outline{border-color:var(--line);color:var(--ink)}
 .btn.light{background:#fff;color:var(--accent)}
@@ -163,19 +165,19 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 .btn.outline:hover{border-color:var(--ink)}
 .row{display:flex;flex-wrap:wrap;gap:12px}
 
-.home{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px 40px;align-items:end;padding:28px 0 36px}
-.home h1{grid-column:1/-1;font-size:clamp(40px,6.6vw,96px);line-height:.96;letter-spacing:-.045em;font-weight:700}
-.home p{font-size:clamp(17px,1.7vw,21px);color:var(--mute);max-width:46ch;margin:0}
+.home{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:22px 40px;align-items:end;padding:20px 0 28px}
+.home h1{grid-column:1/-1;font-size:clamp(34px,5.4vw,76px);line-height:1;letter-spacing:-.035em;font-weight:350}
+.home p{font-size:clamp(16px,1.5vw,19px);color:var(--mute);max-width:46ch;margin:0}
 
-.strip{display:flex;gap:10px;height:min(580px,74vh);min-height:460px;margin:0 0 72px}
+.strip{display:flex;gap:10px;height:min(580px,74vh);min-height:460px;margin:0 0 56px}
 .tab{position:relative;flex:1 1 0;min-width:0;overflow:hidden;border-radius:30px;background:var(--accent);color:#fff;text-decoration:none;transition:flex-grow .55s cubic-bezier(.2,.7,.2,1)}
 .tab:first-child{flex-grow:3.4}
 .tab:hover,.tab:focus-visible{flex-grow:3.4}
 .strip:hover .tab:first-child:not(:hover){flex-grow:1}
 .tab .in{position:relative;z-index:1;padding:26px;display:flex;flex-direction:column;gap:12px}
-.tab h2{font-size:30px;line-height:1.05;letter-spacing:-.03em;font-weight:700;white-space:nowrap}
-.tab p{margin:0;font-size:16px;line-height:1.45;max-width:34ch}
-.tab .more{font-weight:600;font-size:15px}
+.tab h2{font-size:26px;line-height:1.05;letter-spacing:-.02em;font-weight:400;white-space:nowrap}
+.tab p{margin:0;font-size:15px;line-height:1.45;max-width:34ch}
+.tab .more{font-weight:500;font-size:14px}
 .tab .spec{position:absolute;right:-70px;bottom:-26px;width:540px;height:auto;pointer-events:none}
 /* shut: a flat colour with the name set upright along the side */
 .tab h2{writing-mode:vertical-rl;transform:rotate(180deg);align-self:flex-start;font-size:26px}
@@ -186,46 +188,51 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 .strip:hover .tab:first-child:not(:hover) h2{writing-mode:vertical-rl;transform:rotate(180deg);font-size:26px;white-space:nowrap}
 .strip:hover .tab:first-child:not(:hover) p,.strip:hover .tab:first-child:not(:hover) .more,.strip:hover .tab:first-child:not(:hover) .spec{opacity:0;visibility:hidden}
 
-.hero{margin:6px 0 0;background:var(--accent);color:#fff;border-radius:38px;padding:60px 56px;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:44px;align-items:center;overflow:hidden}
-.hero h1{font-size:clamp(38px,5.6vw,76px);line-height:.98;letter-spacing:-.04em;font-weight:700}
-.hero p{font-size:clamp(17px,1.8vw,20px);line-height:1.5;margin:22px 0 30px;max-width:44ch;opacity:.93}
+.hero{margin:6px 0 0;background:var(--accent);color:#fff;border-radius:38px;padding:48px 48px;display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:44px;align-items:center;overflow:hidden}
+.hero h1{font-size:clamp(32px,4.6vw,62px);line-height:1;letter-spacing:-.03em;font-weight:350}
+.hero p{font-size:clamp(16px,1.5vw,18px);line-height:1.5;margin:18px 0 26px;max-width:44ch;opacity:.93}
 .window{border-radius:24px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.3);box-shadow:0 36px 60px -34px rgba(0,0,0,.5);overflow:hidden;transform:rotate(-1deg);animation:rise .8s cubic-bezier(.2,.7,.2,1) both}
 .window .bar{display:flex;gap:6px;padding:12px 16px}
 .window .bar i{width:9px;height:9px;border-radius:50%;background:rgba(255,255,255,.5)}
 .window .spec{display:block;width:100%;height:auto}
 @keyframes rise{from{opacity:0;transform:translateY(22px) rotate(1.8deg)}to{opacity:1;transform:rotate(-1deg)}}
 
-.sec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.1fr);gap:20px 56px;padding:84px 0 0}
-.sec h2{font-size:clamp(26px,3vw,36px);letter-spacing:-.03em;font-weight:700}
-.lead{font:500 clamp(24px,3vw,36px)/1.28 var(--display);letter-spacing:-.02em;margin:0;max-width:30ch}
+.sec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2.1fr);gap:20px 56px;padding:60px 0 0}
+.sec h2{font-size:clamp(22px,2.4vw,30px);letter-spacing:-.02em;font-weight:400}
+.lead{font:400 clamp(20px,2.4vw,28px)/1.35 var(--display);letter-spacing:-.02em;margin:0;max-width:30ch}
 .sheet{list-style:none;margin:0;padding:0}
-.sheet li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:6px 32px;padding:24px 0;border-top:1px solid var(--line)}
+.sheet li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:6px 32px;padding:18px 0;border-top:1px solid var(--line)}
 .sheet li:last-child{border-bottom:1px solid var(--line)}
-.sheet h3{font-size:22px;letter-spacing:-.02em;font-weight:600}
+.sheet h3{font-size:18px;letter-spacing:-.01em;font-weight:400}
 .sheet p{margin:0;color:var(--mute)}
 .benefits{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:28px}
-.benefits div{border-left:3px solid var(--accent);padding:2px 0 2px 20px;font:600 clamp(20px,2.2vw,26px)/1.25 var(--display);letter-spacing:-.02em}
+.benefits div{border-left:3px solid var(--accent);padding:2px 0 2px 20px;font:400 clamp(18px,1.8vw,22px)/1.3 var(--display);letter-spacing:-.02em}
 
-.cta{margin:96px 0 0;border-radius:38px;background:var(--accent);color:#fff;padding:60px 56px;display:flex;flex-wrap:wrap;gap:28px 40px;align-items:flex-end;justify-content:space-between}
+.cta{margin:72px 0 0;border-radius:34px;background:var(--accent);color:#fff;padding:44px 48px;display:flex;flex-wrap:wrap;gap:28px 40px;align-items:flex-end;justify-content:space-between}
 .cta.ink{background:var(--ink);color:var(--paper)}
-.cta h2{font-size:clamp(32px,4.8vw,62px);line-height:1;letter-spacing:-.04em;font-weight:700;max-width:14ch}
-.cta p{margin:16px 0 0;max-width:46ch;opacity:.92;font-size:18px}
+.cta h2{font-size:clamp(28px,3.8vw,48px);line-height:1.02;letter-spacing:-.03em;font-weight:350;max-width:16ch}
+.cta p{margin:12px 0 0;max-width:46ch;opacity:.92;font-size:16px}
 .cta .btn.light{background:#fff;color:var(--accent)}
 .cta.ink .btn.light{color:var(--ink)}
 
-.more-from{padding:64px 0 0}
-.more-from h2{font-size:22px;letter-spacing:-.02em;margin-bottom:16px;font-weight:700}
+.more-from{padding:48px 0 0}
+.more-from h2{font-size:18px;letter-spacing:-.015em;margin-bottom:12px;font-weight:400}
 .pills{display:flex;flex-wrap:wrap;gap:10px}
-.pill{display:flex;align-items:center;gap:10px;padding:10px 18px;border:1px solid var(--line);border-radius:999px;text-decoration:none;font-weight:600;font-size:15px;background:var(--surface)}
+.pill{display:flex;align-items:center;gap:10px;padding:8px 16px;border:1px solid var(--line);border-radius:999px;text-decoration:none;font-weight:500;font-size:14px;background:var(--surface)}
 .pill:before{content:"";width:10px;height:10px;border-radius:50%;background:var(--dot)}
 .pill:hover{border-color:var(--ink)}
 
-#contact{scroll-margin-top:20px;padding:64px 0 0}
-#contact h2{font-size:26px;letter-spacing:-.02em;font-weight:700;margin-bottom:8px}
+#contact{scroll-margin-top:20px;padding:48px 0 0}
+#contact h2{font-size:22px;letter-spacing:-.02em;font-weight:400;margin-bottom:6px}
 .who{color:var(--mute);margin:0}
-.addr{color:var(--ink);font-weight:700;user-select:all;cursor:copy;border-bottom:1px dashed var(--mute)}
+.addr{color:var(--ink);font-weight:600;user-select:all;cursor:copy;border-bottom:1px dashed var(--mute)}
 #contact:target h2{text-decoration:underline;text-decoration-thickness:3px;text-underline-offset:6px}
-footer{margin-top:72px;border-top:1px solid var(--line);padding:26px 0 44px;color:var(--mute);font-size:14px;display:flex;flex-wrap:wrap;gap:8px 24px;justify-content:space-between;align-items:center}
+footer{margin-top:56px;border-top:1px solid var(--line);padding:16px 0 24px;color:var(--mute);font-size:13px;display:flex;flex-wrap:wrap;gap:6px 20px;justify-content:space-between;align-items:center}
+footer .legal{display:flex;flex-wrap:wrap;margin-left:auto}
+footer .legal a{padding:0 12px;border-left:1px solid var(--line);text-decoration:none;line-height:1.1}
+footer .legal a:first-child{border-left:0}
+footer .legal a:hover{color:var(--ink);text-decoration:underline}
+.updated{margin:24px 0 0;color:var(--mute);font-size:13px}
 
 @media (max-width:900px){
   .links{display:none}.nav-cta{margin-left:auto}
@@ -277,7 +284,7 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <body><div class="wrap">
 <div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}"${demoAttrs}>Request a demo</a></div>
 ${body}
-<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span>${security ? `<a href="${root}security/index.html">Security</a>` : ''}<span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
+<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span><nav class="legal" aria-label="Legal">${security ? `<a href="${root}security/index.html">Security</a>` : ''}${legal ? `<a href="${root}terms/index.html">Terms of Use</a><a href="${root}privacy/index.html">Privacy Policy</a>` : ''}</nav><span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
 </div></body></html>`;
 
 const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2>${bookingUrl ? `<p class="who"><a href="${esc(bookingUrl)}"${demoAttrs}>Book a demo call</a>, or email us.</p>` : ''}<p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). Send it with <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=${encodeURIComponent(site.contactEmail)}&amp;su=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Gmail</a>, <a href="https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(site.contactEmail)}&amp;subject=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Outlook</a> or <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
@@ -296,7 +303,7 @@ writeFileSync(join(dist, 'favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg
 const siteUrl = String(site.siteUrl || '').replace(/\/+$/, '');
 writeFileSync(join(dist, 'robots.txt'), `User-agent: *\nAllow: /\n${siteUrl ? `\nSitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
 if (siteUrl) {
-  const paths = ['/', ...products.map((p) => `/${p.id}/`), ...(security ? ['/security/'] : [])];
+  const paths = ['/', ...products.map((p) => `/${p.id}/`), ...(security ? ['/security/'] : []), ...(legal ? ['/terms/', '/privacy/'] : [])];
   writeFileSync(join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${esc(siteUrl + p)}</loc></url>`).join('\n')}\n</urlset>\n`);
 }
 
@@ -331,7 +338,19 @@ if (security) {
 <header class="home"><h1>${esc(security.title)}</h1><p>${esc(security.intro)}</p></header>${sections}
 <section class="sec"><h2>${esc(security.notYet.title)}</h2><p class="lead">${esc(security.notYet.text)}</p></section>
 <section class="cta ink"><div><h2>${esc(security.report.title)}</h2><p>${esc(security.report.text)}</p></div><a class="btn light" href="${emailUs}">Email us</a></section>
-<p class="updated" style="margin:28px 0 0;color:var(--mute);font-size:14px">Last reviewed ${esc(security.updated)}.</p>
+<p class="updated">Last reviewed ${esc(security.updated)}.</p>
 ${contactBlock('../')}`, '../'));
 }
-console.log(`Built ${products.length + 1 + (security ? 1 : 0)} pages into ${dist}`);
+// Terms of Use and Privacy Policy: plain text from legal.json, same layout as the Security page; nothing here is a script.
+if (legal) {
+  for (const [dir, doc] of [['terms', legal.terms], ['privacy', legal.privacy]]) {
+    mkdirSync(join(dist, dir), { recursive: true });
+    const secs = doc.sections.map((sec) => `
+<section class="sec"><h2>${esc(sec.title)}</h2><ul class="sheet">${sec.items.map((i) => `<li><h3>${esc(i.label)}</h3><p>${esc(i.text)}</p></li>`).join('')}</ul></section>`).join('');
+    writeFileSync(join(dist, dir, 'index.html'), shell(`${doc.title} | ${site.brand}`, doc.intro, '#2b4acb', `
+<header class="home"><h1>${esc(doc.title)}</h1><p>${esc(doc.intro)}</p></header>${secs}
+<p class="updated">Last reviewed ${esc(legal.updated)}.</p>
+${contactBlock('../')}`, '../'));
+  }
+}
+console.log(`Built ${products.length + 1 + (security ? 1 : 0) + (legal ? 2 : 0)} pages into ${dist}`);
