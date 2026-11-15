@@ -184,7 +184,7 @@ export async function createConsole(opts = {}) {
       processes: a.processes.map((p) => ({ name: p.name, port: p.port, optional: !!p.optional, openPath: p.openPath || '/',
         ...(rows.find((r) => r.app === a.id && r.proc === p.name) || { up: false, managed: false, url: null }),
         ...(o.ctl && p.container ? { managed: !!(rows.find((r) => r.app === a.id && r.proc === p.name)?.up) } : {}) })), // with the controller, a running container can be stopped or restarted
-    })), statusError ? { 'x-status-error': statusError } : {});
+    })), { ...(statusError ? { 'x-status-error': statusError } : {}), ...(o.ctl ? { 'x-console-hosted': '1' } : {}) });
   }
 
   async function appLogs({ res, url, m }) {

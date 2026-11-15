@@ -157,7 +157,7 @@ footer{max-width:1140px;margin:56px auto 36px;padding:0 20px;color:var(--mute);f
   <div class="head">
     <h1 id="headline">Your apps</h1>
     <p>Start, stop and watch your applications, and give customers a time-limited look at a demo. Stopping this console never stops your apps.</p>
-    <div class="legend" aria-label="What the dots mean"><span><i class="dot run"></i>Running, and started from here</span><span><i class="dot ext"></i>Running, started elsewhere</span><span><i class="dot"></i>Stopped</span></div>
+    <div class="legend" aria-label="What the dots mean"><span><i class="dot run"></i><span id="lg-run">Running, and started from here</span></span><span id="lg-ext"><i class="dot ext"></i>Running, started elsewhere</span><span><i class="dot"></i>Stopped</span></div>
   </div>
 
   <section class="block" id="apps" aria-label="Apps">
@@ -277,24 +277,30 @@ function card(app, compact){
       !compact && app.demo?.supported ? el('span', { class: 'chip', title: app.demo.notes }, 'Customer demo available') : null));
 }
 
+let hosted = false; // from a /api/apps response header: the console runs on the server, where Docker Compose starts everything
 function render(){
-  const mine = apps.filter(a => !/-demo$/.test(a.id)), copies = apps.filter(a => /-demo$/.test(a.id));
-  grid.replaceChildren(...mine.map(a => card(a, false)));
+  // Hosted: only the demo copies are deployed, so list them directly (not behind the collapsed fold) and drop the "started from here/elsewhere" wording.
+  const mine = hosted ? apps : apps.filter(a => !/-demo$/.test(a.id)), copies = hosted ? [] : apps.filter(a => /-demo$/.test(a.id));
+  document.getElementById('lg-run').textContent = hosted ? 'Running' : 'Running, and started from here';
+  document.getElementById('lg-ext').hidden = hosted;
+  document.getElementById('copies').hidden = hosted;
+  grid.replaceChildren(...mine.map(a => card(a, hosted)));
   copygrid.replaceChildren(...copies.map(a => card(a, true)));
   const running = mine.filter(a => { const r = a.processes.filter(p => !p.optional); return r.length && r.every(p => p.up); }).length;
-  document.getElementById('headline').textContent = mine.length ? (running === mine.length ? 'All ' + mine.length + ' apps are running' : running + ' of ' + mine.length + ' apps are running') : 'Your apps';
+  document.getElementById('headline').textContent = mine.length ? (running === mine.length ? 'All ' + mine.length + (hosted ? ' demos' : ' apps') + ' are running' : running + ' of ' + mine.length + (hosted ? ' demos' : ' apps') + ' are running') : 'Your apps';
 }
 
 async function load(){
   try {
     const r = await fetch('/api/apps');
     if (r.status === 401) throw await lost(r);
-    const text = JSON.stringify(await r.json());
+    hosted = r.headers.get('x-console-hosted') === '1';
+    const text = JSON.stringify(await r.json()) + (hosted ? '#hosted' : ''); // a change of mode also rebuilds the cards
     const err = r.headers.get('x-status-error');
     setUpdated(err ? 'Status check failed (' + err + '), states may be wrong' : 'Updated ' + new Date().toLocaleTimeString(), !!err);
     // Rebuild the cards only when something changed or an action is running: a page that is replaced every few seconds can swallow a
     // click that was pressed just before the rebuild.
-    if (text !== appsText || working.size) { appsText = text; apps = JSON.parse(text); render(); }
+    if (text !== appsText || working.size) { appsText = text; apps = JSON.parse(text.replace(/#hosted$/, '')); render(); }
   }
   catch (e) { if (e.message === 'signed out') return; setUpdated('Console unreachable. Check that it is still running.', true); }
 }
