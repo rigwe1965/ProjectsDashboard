@@ -350,7 +350,7 @@ async function loadDemos(){
     const b = demoBusy.has(id);
     return el('span', { class: 'service' },
       dot(up ? (managed ? 'run' : 'ext') : ''), label + ' ' + (up ? (managed ? 'running' : 'running elsewhere') : 'stopped'),
-      d.appControl !== false && !up ? el('button', { onclick: () => demoAct(id, 'start', label), disabled: b ? '' : null }, b ? 'Working…' : 'Start') : null,
+      d.appControl !== false && !up && !(id === 'gateway' && d.hosted) ? el('button', { onclick: () => demoAct(id, 'start', label), disabled: b ? '' : null }, b ? 'Working…' : 'Start') : null,
       d.appControl !== false && managed ? el('button', { class: 'stop', onclick: () => demoAct(id, 'stop', label), disabled: b ? '' : null }, 'Stop') : null);
   };
   const services = el('div', { class: 'group' }, el('h3', {}, 'Demo services'),

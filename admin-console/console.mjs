@@ -79,6 +79,7 @@ export async function createConsole(opts = {}) {
     store: null, // the store to use; null = the process-wide one
     supervisor: defaultSupervisor,
     gatewayPort: ports.gateway,
+    gatewayHost: process.env.ADMIN_GATEWAY_HOST || '127.0.0.1', // hosted: the gateway is another container on the compose network
     statusReuseMs: 2000, // how long one status check answers further requests
     ...opts,
   };
@@ -227,11 +228,11 @@ export async function createConsole(opts = {}) {
   }
 
   async function demosList({ res }) {
-    const gatewayUp = await portInUse(o.gatewayPort);
+    const gatewayUp = await portInUse(o.gatewayPort, 800, o.gatewayHost);
     const { rows } = await statusRows();
     const grantList = await loadGrants();
     const products = await Promise.all(Object.entries(demoApps()).map(async ([product, a]) => ({
-      product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: rows.some((r) => r.app === a.id && r.managed),
+      product, instance: a.id, name: a.name, up: rows.some((r) => r.app === a.id && r.up), managed: o.ctl && a.processes.some((p) => p.container) ? rows.some((r) => r.app === a.id && r.up) : rows.some((r) => r.app === a.id && r.managed),
       canReset: !!a.reset && !a.perLink, resetting: !!a.reset && !a.perLink && await isResetting(store, product), lastReset: a.reset && !a.perLink ? await lastResetAt(store, product) : null,
       perLink: !!a.perLink, seats: a.perLink?.max ?? 0,
       ...(a.perLink ? copySummary(await listInstances(store, product)) : { copies: 0, stuck: 0, copyList: [] }),
@@ -244,7 +245,7 @@ export async function createConsole(opts = {}) {
     const sums = new Map((await store.activity.summary()).map((s) => [s.grantId, s]));
     const guideSums = new Map((await store.guideUsage.summary()).map((s) => [s.grantId, s]));
     const links = (await loadGrants()).map((g) => ({ ...publicGrant(g), activity: activityView(g, sums.get(g.id)), guide: guideView(g, guideSums.get(g.id)) })).reverse();
-    return json(res, 200, { gatewayUp, gatewayManaged, appControl: o.appControl, gatewayPort: o.gatewayPort, products, grants: links });
+    return json(res, 200, { gatewayUp, hosted: !!o.ctl, gatewayManaged, appControl: o.appControl, gatewayPort: o.gatewayPort, products, grants: links });
   }
 
   // One link's activity day by day, and its busiest pages (the owner's detail view).
