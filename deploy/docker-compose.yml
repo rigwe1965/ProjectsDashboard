@@ -248,6 +248,7 @@ services:
       CLAUDEOS_DEMO_PASSWORD: ${CLAUDEOS_DEMO_PASSWORD:-}
       ANTHROPIC_API_KEY: ${CLAUDEOS_ANTHROPIC_API_KEY:-}
       ALLOWED_ORIGINS: ${DEMO_SCHEME:-https}://claudeos.${DEMO_DOMAIN}
+      ANONYMIZED_TELEMETRY: "False"      # ChromaDB's usage ping: nothing should leave the demo, and its analytics call errors at start-up on this version
     volumes: [claudeos_demo_data:/app/data]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8601/_stcore/health', timeout=3); urllib.request.urlopen('http://127.0.0.1:5100/api/v1/health', timeout=3)"]
