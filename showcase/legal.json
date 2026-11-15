@@ -1,0 +1,129 @@
+{
+  "_note": "The public Terms of Use and Privacy Policy (showcase/build.mjs writes dist/terms/index.html and dist/privacy/index.html from this). Plain text only. Say only what is true of the site and the demos today; when a practice changes, change the text and `updated`. This is a plain-language draft, not legal advice: have it reviewed before relying on it, and add the legal notice (Impressum) a commercial site in Germany needs.",
+  "updated": "2026-11-15",
+  "terms": {
+    "title": "Terms of Use",
+    "intro": "These terms cover this website and the product demos we set up for you. They are short on purpose. If anything is unclear, ask us before you use a demo.",
+    "sections": [
+      {
+        "title": "About these terms",
+        "items": [
+          { "label": "Who they apply to", "text": "They apply to anyone who visits this website or opens a demo link we have sent. By using either, you agree to them. If you do not agree, please do not use them." },
+          { "label": "Who we are", "text": "Facyke makes small business software and runs this site. You can reach us at the email address at the bottom of any page." }
+        ]
+      },
+      {
+        "title": "Demos",
+        "items": [
+          { "label": "A way to try the software", "text": "A demo is for evaluating a product. It is not a purchase, a trial licence or a service we promise to keep running. Buying a product is always a separate agreement." },
+          { "label": "Sample data only", "text": "Demos run on made-up data. Please do not type real personal, customer or confidential information into one. The page before each demo says this again." },
+          { "label": "Links are for one customer", "text": "A demo link is made for you and one product. Do not pass it on or post it publicly. It expires, and we can end it at any time, with or without a reason." },
+          { "label": "Shared demos are shared", "text": "Some demos are used by several visitors at once and are put back to their starting data afterwards. What you change there may be seen by others and will be lost." }
+        ]
+      },
+      {
+        "title": "Fair use",
+        "items": [
+          { "label": "What we ask you not to do", "text": "Do not attack, probe or overload the website or a demo, try to get around its limits or access controls, reach anything beyond your own demo, or use automated tools to collect content from it. If you find a security problem, please tell us instead: the Security page says how." },
+          { "label": "If you break these rules", "text": "We may end your link or block access without notice." }
+        ]
+      },
+      {
+        "title": "The AI demo guide",
+        "items": [
+          { "label": "It can be wrong", "text": "Where a demo has a chat guide, it is an AI assistant, not a person. Treat its answers as hints and check anything important with us. It does not give legal, financial or other professional advice." },
+          { "label": "What you type is sent on", "text": "Your messages to the guide are sent to Anthropic, the company that runs the AI, to produce an answer. The Privacy Policy and the page before the demo explain this." }
+        ]
+      },
+      {
+        "title": "Our content",
+        "items": [
+          { "label": "Who owns what", "text": "The website, the demos and the software behind them belong to us or our licensors. You may look at them and use a demo for evaluation. You may not copy, resell or reverse-engineer them, except where the law allows it regardless of what we say." },
+          { "label": "Feedback", "text": "If you tell us what you think of a product, we may use your ideas to improve it, without owing you anything for it." }
+        ]
+      },
+      {
+        "title": "Liability and the law",
+        "items": [
+          { "label": "Provided as it is", "text": "The website and demos are provided as they are, without promises that they will always be available, error-free or fit for a particular purpose. Information on this site describes our products in general and can change." },
+          { "label": "Our responsibility", "text": "Nothing in these terms limits liability that cannot be limited by law, for example for intent, gross negligence, or injury to life, body or health. Beyond that, to the extent the law allows, we are not responsible for indirect losses that come from using a demo." },
+          { "label": "Which law applies", "text": "German law applies, without taking away any consumer protection that the law of your own country gives you and that cannot be set aside by agreement." }
+        ]
+      },
+      {
+        "title": "Changes",
+        "items": [
+          { "label": "Updates to these terms", "text": "We may change these terms as the site and products change. The date at the bottom shows when they were last reviewed. Using the site after a change means you accept the new version." }
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "title": "Privacy Policy",
+    "intro": "This page says what personal data we handle when you visit this website or use a demo, why, who else sees it, and what you can ask us to do. We try to collect as little as we can.",
+    "sections": [
+      {
+        "title": "Who is responsible",
+        "items": [
+          { "label": "Facyke", "text": "Facyke runs this website and the demos. For any question about your data, write to us at the email address at the bottom of any page." }
+        ]
+      },
+      {
+        "title": "This website",
+        "items": [
+          { "label": "No cookies, no tracking", "text": "These pages set no cookies and run no scripts. There are no analytics, advertising tools, social buttons, or fonts and images loaded from other companies." },
+          { "label": "Server logs", "text": "Like any web server, ours may keep short-lived technical records of requests (time, the page asked for, your network address and browser type). We use them to keep the site running and secure, and do not use them to build profiles of visitors." },
+          { "label": "Where it runs", "text": "The website runs on a server of our hosting provider, Hetzner, in the European Union. Cloudflare provides our domain name service and forwards email sent to our address; the website's own traffic does not pass through Cloudflare." }
+        ]
+      },
+      {
+        "title": "Demos",
+        "items": [
+          { "label": "When you open a demo link", "text": "We note the time, your network address and your browser type when a demo link is opened or refused. These records are deleted after 90 days. We use them to keep the demos secure and to see whether a link was used." },
+          { "label": "How a demo is used", "text": "Per day we count how many requests were made, how long you were active and which parts of the demo were used most. We do not record what you type into a demo." },
+          { "label": "Your name on a link", "text": "If we made the link for you, we may keep your name or company next to it so we know whom it belongs to. Ask us and we delete the link's records and remove your name." },
+          { "label": "More detail", "text": "The Security page lists what we record and what we do not, and is kept up to date with the software." }
+        ]
+      },
+      {
+        "title": "The AI demo guide",
+        "items": [
+          { "label": "Only where it is switched on", "text": "Some demo links include a chat guide. The page before the demo tells you if yours does." },
+          { "label": "Sent to Anthropic", "text": "What you type to the guide is sent to Anthropic, which runs the AI, to get an answer. Anthropic may process it outside the European Economic Area. We do not save your questions or its answers in our database or logs; only counts are kept. Please do not put personal or confidential details into the guide." }
+        ]
+      },
+      {
+        "title": "Booking a call and writing to us",
+        "items": [
+          { "label": "Booking", "text": "The Request a demo buttons open our booking page at cal.com, a separate company with its own privacy policy. What you enter there, such as your name and email address, goes to them and to us so we can hold the call." },
+          { "label": "Email", "text": "If you email us, we use your message and address only to answer you and to follow up on your request. Mail to our address is handled by our email provider and forwarded to us. We keep it as long as we need it for that purpose." }
+        ]
+      },
+      {
+        "title": "Why we may use your data",
+        "items": [
+          { "label": "Our reasons", "text": "To run and secure the website and demos, we rely on our legitimate interest in doing so (Article 6(1)(f) GDPR). To answer your messages and arrange a demo, we act on your request (Article 6(1)(b)). We do not sell your data or use it for advertising." }
+        ]
+      },
+      {
+        "title": "Who receives it",
+        "items": [
+          { "label": "Service providers", "text": "Only those named on this page: our hosting provider, Cloudflare for domain and email forwarding, cal.com when you book, and Anthropic when you use the AI guide. They act for us or for themselves as described, and we share nothing with anyone else unless the law requires it." }
+        ]
+      },
+      {
+        "title": "Your rights",
+        "items": [
+          { "label": "What you can ask", "text": "You can ask us for a copy of your data, to correct it, to delete it, to restrict how we use it, or to hand it to you in a usable form. You can object to uses based on our legitimate interest. Write to us and we answer within one month." },
+          { "label": "Complaints", "text": "You may complain to a data protection authority, for example the one in your country or where you live." }
+        ]
+      },
+      {
+        "title": "Changes",
+        "items": [
+          { "label": "Updates to this policy", "text": "When what we do changes, we change this page and its date. The date at the bottom shows when it was last reviewed." }
+        ]
+      }
+    ]
+  }
+}
