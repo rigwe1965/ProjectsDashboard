@@ -17,6 +17,9 @@ const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 // is shown there as text (click it to select it) and the mailto: link is a second choice.
 // When site.json has a plain https bookingUrl, the demo buttons open that booking page instead.
 const bookingUrl = /^https:\/\/[^\s@]+$/.test(site.bookingUrl || '') ? site.bookingUrl : '';
+// The booking page is another site (and a single-page app that adds its own history entries), so it opens in a new tab: the visitor
+// keeps this site where it was and closes the tab to come back. The '#contact' fallback stays in the same tab.
+const demoAttrs = bookingUrl ? ' target="_blank" rel="noopener noreferrer"' : '';
 const demoLink = () => (bookingUrl ? esc(bookingUrl) : '#contact');
 // "Email us" buttons scroll to the page's contact section, which shows the address with Gmail, Outlook and mail-app links (a bare mailto:
 // opens nothing for a visitor without a mail app). So "Request a demo" and "Book a demo call" open the booking page; "Email us" does not.
@@ -272,12 +275,12 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <title>${esc(title)}</title><meta name="description" content="${esc(desc)}">
 <link rel="icon" href="${root}favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="${root}${cssFile}"><style>:root{--accent:${esc(accent)}}</style></head>
 <body><div class="wrap">
-<div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}">Request a demo</a></div>
+<div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}"${demoAttrs}>Request a demo</a></div>
 ${body}
 <footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span>${security ? `<a href="${root}security/index.html">Security</a>` : ''}<span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
 </div></body></html>`;
 
-const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2>${bookingUrl ? `<p class="who"><a href="${esc(bookingUrl)}">Book a demo call</a>, or email us.</p>` : ''}<p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). Send it with <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=${encodeURIComponent(site.contactEmail)}&amp;su=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Gmail</a>, <a href="https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(site.contactEmail)}&amp;subject=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Outlook</a> or <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
+const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2>${bookingUrl ? `<p class="who"><a href="${esc(bookingUrl)}"${demoAttrs}>Book a demo call</a>, or email us.</p>` : ''}<p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). Send it with <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=${encodeURIComponent(site.contactEmail)}&amp;su=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Gmail</a>, <a href="https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(site.contactEmail)}&amp;subject=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Outlook</a> or <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
 
 const cssFile = `style.${createHash('sha256').update(css).digest('hex').slice(0, 10)}.css`;
 rmSync(dist, { recursive: true, force: true });
@@ -299,7 +302,7 @@ if (siteUrl) {
 
 // Home: the tagline, then one colour panel per product. The panel under the pointer opens to show its pitch.
 writeFileSync(join(dist, 'index.html'), shell(`${site.brand}: ${site.tagline}`, site.intro, '#2b4acb', `
-<header class="home"><h1>${esc(site.tagline)}</h1><p>${esc(site.intro)}</p><div class="row"><a class="btn solid" href="#products">See the products</a><a class="btn outline" href="${demoLink('Demo request')}">Request a demo</a></div></header>
+<header class="home"><h1>${esc(site.tagline)}</h1><p>${esc(site.intro)}</p><div class="row"><a class="btn solid" href="#products">See the products</a><a class="btn outline" href="${demoLink('Demo request')}"${demoAttrs}>Request a demo</a></div></header>
 <section id="products" class="strip" aria-label="Products">${products.map((p) => `
 <a class="tab" style="--accent:${esc(p.accent)}" href="${p.id}/index.html"><div class="in"><h2>${esc(p.name)}</h2><p>${esc(p.summary)}</p><span class="more">See ${esc(p.name)} &rarr;</span></div>${specimen(p.id)}</a>`).join('')}
 </section>
@@ -310,12 +313,12 @@ for (const p of products) {
   const others = products.filter((o) => o.id !== p.id);
   mkdirSync(join(dist, p.id), { recursive: true });
   writeFileSync(join(dist, p.id, 'index.html'), shell(`${p.name} | ${site.brand}`, p.summary, p.accent, `
-<header class="hero"><div><h1>${esc(p.headline)}</h1><p>${esc(p.summary)}</p><div class="row"><a class="btn light" href="${demoLink(`Demo request: ${p.name}`)}">Request a demo</a><a class="btn line" href="#features">See features</a></div></div>
+<header class="hero"><div><h1>${esc(p.headline)}</h1><p>${esc(p.summary)}</p><div class="row"><a class="btn light" href="${demoLink(`Demo request: ${p.name}`)}"${demoAttrs}>Request a demo</a><a class="btn line" href="#features">See features</a></div></div>
 <div class="window"><div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>${specimen(p.id)}</div></header>
 <section class="sec"><h2>Who it's for</h2><p class="lead">${esc(p.audience)}</p></section>
 <section class="sec" id="features"><h2>What you get</h2><ul class="sheet">${p.features.map(([t, d]) => `<li><h3>${esc(t)}</h3><p>${esc(d)}</p></li>`).join('')}</ul></section>
 <section class="sec"><h2>Why teams choose it</h2><div class="benefits">${p.benefits.map((b) => `<div>${esc(b)}</div>`).join('')}</div></section>
-<section class="cta"><div><h2>See ${esc(p.name)} in action</h2><p>We'll set up a private demo with sample data, so you can explore it without any risk.</p></div><a class="btn light" href="${demoLink(`Demo request: ${p.name}`)}">Request a demo</a></section>
+<section class="cta"><div><h2>See ${esc(p.name)} in action</h2><p>We'll set up a private demo with sample data, so you can explore it without any risk.</p></div><a class="btn light" href="${demoLink(`Demo request: ${p.name}`)}"${demoAttrs}>Request a demo</a></section>
 <section class="more-from"><h2>More from ${esc(site.brand)}</h2><div class="pills">${others.map((o) => `<a class="pill" style="--dot:${esc(o.accent)}" href="../${o.id}/index.html">${esc(o.name)}</a>`).join('')}</div></section>
 ${contactBlock('../')}`, '../'));
 }
