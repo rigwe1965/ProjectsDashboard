@@ -45,6 +45,7 @@ h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance}
 .head p{margin:12px 0 0;color:var(--mute);max-width:56ch}
 .legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:16px;font-size:13px;color:var(--mute)}
 .legend span{display:inline-flex;align-items:center;gap:7px}
+.legend span[hidden]{display:none}
 
 /* status dot: colour + the word beside it, never colour alone */
 .dot{width:9px;height:9px;border-radius:50%;background:var(--off);flex:none}
@@ -264,7 +265,7 @@ function card(app, compact){
         dot(kind), el('span', { class: 'pname' }, p.name), el('span', { class: 'port' }, ':' + p.port),
         p.up && p.managed && !p.optional ? null : el('span', { class: 'state' }, word + (p.optional ? ', optional' : '')),
         el('span', { class: 'sp' }),
-        p.up ? el('a', { class: 'btn', href: `http://127.0.0.1:${p.port}${p.openPath || '/'}`, target: '_blank', rel: 'noopener' }, 'Open') : null,
+        p.up && !hosted ? el('a', { class: 'btn', href: `http://127.0.0.1:${p.port}${p.openPath || '/'}`, target: '_blank', rel: 'noopener' }, 'Open') : null,
         app.controls !== false && p.optional && !p.up ? el('button', { onclick: () => act(app, 'start', p.name), disabled: pb || busy ? '' : null }, 'Start') : null,
         app.controls !== false && p.managed ? el('button', { class: 'stop', onclick: () => act(app, 'stop', p.name), disabled: pb || busy ? '' : null }, 'Stop') : null,
         app.controls !== false ? el('button', { class: 'quiet', onclick: () => showLog(app, p.name), 'aria-label': 'View log of ' + p.name }, 'Log') : null);
