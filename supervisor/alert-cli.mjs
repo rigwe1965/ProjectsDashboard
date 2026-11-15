@@ -1,10 +1,13 @@
 // Send a test alert to ALERT_WEBHOOK_URL.   npm run alert:test
-import { makeWebhookSender } from '../lib/alerts.mjs';
+import { makeWebhookSender, makeEmailSender, sendToAll } from '../lib/alerts.mjs';
 
-if (!process.env.ALERT_WEBHOOK_URL) { console.error('ALERT_WEBHOOK_URL is not set. Set it in the console\'s environment (see README, "Alerts").'); process.exit(1); }
+const senders = [];
 try {
-  const send = makeWebhookSender(process.env.ALERT_WEBHOOK_URL);
+  if (process.env.ALERT_WEBHOOK_URL) senders.push(makeWebhookSender(process.env.ALERT_WEBHOOK_URL));
+  if (process.env.RESEND_API_KEY && process.env.ALERT_EMAIL_TO) senders.push(makeEmailSender({ apiKey: process.env.RESEND_API_KEY, from: process.env.ALERT_EMAIL_FROM || 'alerts@facyke.com', to: process.env.ALERT_EMAIL_TO }));
+  if (!senders.length) { console.error('Neither ALERT_WEBHOOK_URL nor RESEND_API_KEY + ALERT_EMAIL_TO is set. Set them in the environment of the console (see README, "Alerts").'); process.exit(1); }
+  const send = sendToAll(senders);
   const ok = await send('ProjectsDashboard: test alert', 'If you can read this, alerts reach you.');
-  console.log(ok ? `Test alert sent to ${send.host}.` : `The service at ${send.host} did not accept the message (check the URL).`);
+  console.log(ok ? `Test alert sent via ${send.host}.` : `No channel (${send.host}) accepted the message (check the URL, key and addresses).`);
   process.exitCode = ok ? 0 : 1;
 } catch (e) { console.error(e.message); process.exitCode = 1; }
