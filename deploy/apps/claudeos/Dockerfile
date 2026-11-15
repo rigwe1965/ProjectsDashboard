@@ -2,7 +2,7 @@
 # context) and never modified. Its real .env, databases, vault and logs are excluded by Dockerfile.dockerignore, so the demo can
 # never contain production data or secrets.
 #   docker build -f deploy/apps/claudeos/Dockerfile -t pd-claudeos ../ClaudeOS
-FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 WORKDIR /app
 COPY requirements.txt ./
