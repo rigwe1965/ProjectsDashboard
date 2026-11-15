@@ -87,7 +87,7 @@ test('Terms of Use and Privacy Policy are built from legal.json: plain HTML with
   const dist = fileURLToPath(new URL('../../showcase/dist/', import.meta.url));
   const read = (p) => readFileSync(dist + p, 'utf8');
   const legal = JSON.parse(readFileSync(fileURLToPath(new URL('../../showcase/legal.json', import.meta.url)), 'utf8'));
-  for (const [dir, doc] of [['terms', legal.terms], ['privacy', legal.privacy]]) {
+  for (const [dir, doc] of [['terms', legal.terms], ['privacy', legal.privacy], ['impressum', legal.impressum]]) {
     const page = read(`${dir}/index.html`);
     assert.match(page, new RegExp(`<title>${doc.title} [|] `));
     assert.doesNotMatch(page, /<script|onclick=|javascript:/i);
@@ -98,9 +98,10 @@ test('Terms of Use and Privacy Policy are built from legal.json: plain HTML with
     const page = read(p);
     assert.ok(page.includes(`href="${root}terms/index.html">Terms of Use</a>`), `${p} links to the Terms of Use`);
     assert.ok(page.includes(`href="${root}privacy/index.html">Privacy Policy</a>`), `${p} links to the Privacy Policy`);
+    assert.ok(page.includes(`href="${root}impressum/index.html">Impressum</a>`), `${p} links to the Impressum`);
   }
   const sitemap = read('sitemap.xml');
-  assert.match(sitemap, /\/terms\//); assert.match(sitemap, /\/privacy\//);
+  assert.match(sitemap, /\/terms\//); assert.match(sitemap, /\/privacy\//); assert.match(sitemap, /\/impressum\//);
   const all = JSON.stringify(legal).toLowerCase();
   for (const word of ['guarantee', '100%', 'unhackable', 'bank-grade', 'fully secure', 'certified', 'compliant']) assert.ok(!all.includes(word), `"${word}" is not used`);
   // The privacy text says "no cookies and no scripts": the page really has none, and the web server's policy allows none.
