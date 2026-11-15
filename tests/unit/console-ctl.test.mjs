@@ -45,6 +45,13 @@ test('with a controller: apps are controllable, actions go to the container, log
   assert.doesNotMatch(log, new RegExp(FAKE), 'secrets in the log are masked');
 });
 
+test('the apps response tells the page it is hosted (x-console-hosted) only when a controller is configured', async () => {
+  const hosted = await boot({ ctl, appControl: true });
+  assert.equal((await hosted.get('/api/apps')).headers['x-console-hosted'], '1');
+  const local = await boot({ ctl: null, appControl: true });
+  assert.equal((await local.get('/api/apps')).headers['x-console-hosted'], undefined);
+});
+
 test('a failing controller call is reported as a failure, not success', async () => {
   const { post } = await boot({ ctl: async () => ({ ok: false, output: 'boom' }), appControl: true });
   const r = await post('/api/apps/box/restart');
