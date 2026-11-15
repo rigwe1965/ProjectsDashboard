@@ -501,6 +501,7 @@ services:
       SUPABASE_SERVICE_ROLE_KEY: ${CW_SUPABASE_SERVICE_ROLE_KEY:-}
       NEXT_PUBLIC_APP_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}
       NEXT_PUBLIC_ADMIN_URL: ${DEMO_SCHEME:-https}://claudeworkspace.${DEMO_DOMAIN}/admin
+      INTERNAL_APP_URL: http://127.0.0.1:3102   # the vehicle page fetches its own API server-side; the public URL goes through the gateway and answers 401
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     pids_limit: 512
