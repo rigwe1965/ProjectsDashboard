@@ -284,7 +284,7 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <body><div class="wrap">
 <div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}"${demoAttrs}>Request a demo</a></div>
 ${body}
-<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span><nav class="legal" aria-label="Legal">${security ? `<a href="${root}security/index.html">Security</a>` : ''}${legal ? `<a href="${root}terms/index.html">Terms of Use</a><a href="${root}privacy/index.html">Privacy Policy</a>` : ''}</nav><span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
+<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span><nav class="legal" aria-label="Legal">${security ? `<a href="${root}security/index.html">Security</a>` : ''}${legal ? `<a href="${root}terms/index.html">Terms of Use</a><a href="${root}privacy/index.html">Privacy Policy</a>${legal.impressum ? `<a href="${root}impressum/index.html">Impressum</a>` : ''}` : ''}</nav><span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
 </div></body></html>`;
 
 const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2>${bookingUrl ? `<p class="who"><a href="${esc(bookingUrl)}"${demoAttrs}>Book a demo call</a>, or email us.</p>` : ''}<p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). Send it with <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=${encodeURIComponent(site.contactEmail)}&amp;su=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Gmail</a>, <a href="https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(site.contactEmail)}&amp;subject=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Outlook</a> or <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
@@ -303,7 +303,7 @@ writeFileSync(join(dist, 'favicon.svg'), `<svg xmlns="http://www.w3.org/2000/svg
 const siteUrl = String(site.siteUrl || '').replace(/\/+$/, '');
 writeFileSync(join(dist, 'robots.txt'), `User-agent: *\nAllow: /\n${siteUrl ? `\nSitemap: ${siteUrl}/sitemap.xml\n` : ''}`);
 if (siteUrl) {
-  const paths = ['/', ...products.map((p) => `/${p.id}/`), ...(security ? ['/security/'] : []), ...(legal ? ['/terms/', '/privacy/'] : [])];
+  const paths = ['/', ...products.map((p) => `/${p.id}/`), ...(security ? ['/security/'] : []), ...(legal ? ['/terms/', '/privacy/', ...(legal.impressum ? ['/impressum/'] : [])] : [])];
   writeFileSync(join(dist, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${paths.map((p) => `  <url><loc>${esc(siteUrl + p)}</loc></url>`).join('\n')}\n</urlset>\n`);
 }
 
@@ -343,7 +343,7 @@ ${contactBlock('../')}`, '../'));
 }
 // Terms of Use and Privacy Policy: plain text from legal.json, same layout as the Security page; nothing here is a script.
 if (legal) {
-  for (const [dir, doc] of [['terms', legal.terms], ['privacy', legal.privacy]]) {
+  for (const [dir, doc] of [['terms', legal.terms], ['privacy', legal.privacy], ...(legal.impressum ? [['impressum', legal.impressum]] : [])]) {
     mkdirSync(join(dist, dir), { recursive: true });
     const secs = doc.sections.map((sec) => `
 <section class="sec"><h2>${esc(sec.title)}</h2><ul class="sheet">${sec.items.map((i) => `<li><h3>${esc(i.label)}</h3><p>${esc(i.text)}</p></li>`).join('')}</ul></section>`).join('');
@@ -353,4 +353,4 @@ if (legal) {
 ${contactBlock('../')}`, '../'));
   }
 }
-console.log(`Built ${products.length + 1 + (security ? 1 : 0) + (legal ? 2 : 0)} pages into ${dist}`);
+console.log(`Built ${products.length + 1 + (security ? 1 : 0) + (legal ? 2 + (legal.impressum ? 1 : 0) : 0)} pages into ${dist}`);
