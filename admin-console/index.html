@@ -351,11 +351,11 @@ async function loadDemos(){
     return el('span', { class: 'service' },
       dot(up ? (managed ? 'run' : 'ext') : ''), label + ' ' + (up ? (managed ? 'running' : 'running elsewhere') : 'stopped'),
       d.appControl !== false && !up && !(id === 'gateway' && d.hosted) ? el('button', { onclick: () => demoAct(id, 'start', label), disabled: b ? '' : null }, b ? 'Working…' : 'Start') : null,
-      d.appControl !== false && managed ? el('button', { class: 'stop', onclick: () => demoAct(id, 'stop', label), disabled: b ? '' : null }, 'Stop') : null);
+      d.appControl !== false && managed && !(id === 'gateway' && d.hosted) ? el('button', { class: 'stop', onclick: () => demoAct(id, 'stop', label), disabled: b ? '' : null }, 'Stop') : null);
   };
   const services = el('div', { class: 'group' }, el('h3', {}, 'Demo services'),
     el('div', { class: 'services' },
-      ctl('gateway', 'Gateway :' + d.gatewayPort, d.gatewayUp, d.gatewayManaged),
+      ctl('gateway', 'Gateway :' + d.gatewayPort, d.gatewayUp, d.gatewayManaged || (d.hosted && d.gatewayUp)), // hosted: Compose runs the gateway, so up means running
       d.products.map(p => [p.perLink ? null : ctl(p.instance, p.product, p.up, p.managed),
         p.canReset ? el('button', { onclick: () => demoReset(p), disabled: (demoBusy.has(p.instance) || p.resetting) ? '' : null, title: 'Put this demo back to its seeded sample data' + (p.inUse ? ' (' + p.inUse + ' customer link' + (p.inUse === 1 ? '' : 's') + ' still active)' : '') }, p.resetting ? 'Resetting ' + p.product + '…' : 'Reset ' + p.product + ' data') : null])));
   const accountLines = d.products.filter(p => p.accounts.length || p.perLink).map(p =>
