@@ -1,7 +1,7 @@
 # The dashboard image: demo gateway, admin console and the supervisor CLI. Build context = repository root.
 #   docker build -f deploy/Dockerfile -t projects-dashboard .
 # One image, several roles; the compose file picks the command (gateway or console).
-FROM node:26-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072
+FROM node:26-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc
 
 # iproute2 (ss) and procps (ps): the supervisor's Linux driver uses them. tini: reaps child processes and forwards
 # SIGTERM so `docker stop` shuts the services down cleanly. curl: health checks.
