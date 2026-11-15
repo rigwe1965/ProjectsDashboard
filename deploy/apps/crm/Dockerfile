@@ -7,7 +7,7 @@
 # file supplies harmless stand-ins (see docker-compose.yml): mail goes to a port nobody listens on (nothing is ever sent), and
 # rate limits are kept by the crm-demo-ratelimit service. The MFA and cron keys are derived below from the demo's own auth
 # secret. Demo only: never use this recipe for real customer data.
-FROM node:26-bookworm-slim@sha256:add5c17c14752c54d2f3d519ec46a3815684d41c33f198bcb09fb998f7dcbf68
+FROM node:26-bookworm-slim@sha256:5df79989ed685e09f0a98019db4cebfb22fb9df1a53c0161664a011f7ff6b0f1
 
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates tini && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
