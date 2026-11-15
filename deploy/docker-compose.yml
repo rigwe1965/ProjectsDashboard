@@ -140,7 +140,7 @@ services:
       ADMIN_APP_CONTROL: "off"          # no Docker access in here: Start, Stop and Log are hidden and refused (use docker compose)
       ADMIN_REQUIRE_TOTP: "1"          # the console refuses to listen beyond this machine until 2-step codes are enabled (see README)
       ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
-      ADMIN_GATEWAY_HOST: gateway
+      ADMIN_GATEWAY_HOST: 172.30.0.4   # the gateway binds only this edge address; the name "gateway" resolves elsewhere
       ADMIN_CTL_SOCKET: /run/pd-ctl/ctl.sock   # the host helper deploy/ctl/pd-ctl.py (Start/Stop/Restart/Log); inactive while PD_CTL_TOKEN is empty
       ADMIN_CTL_TOKEN: ${PD_CTL_TOKEN:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}          # email alerts through Resend: need RESEND_API_KEY and ALERT_EMAIL_TO; unset = off
