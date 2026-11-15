@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeWebhookSender, createAlerter, runChecks } from '../../lib/alerts.mjs';
+import { makeWebhookSender, makeEmailSender, sendToAll, createAlerter, runChecks } from '../../lib/alerts.mjs';
 
 const clock = () => { let t = 1_000_000; const now = () => t; now.add = (ms) => { t += ms; }; return now; };
 const recorder = () => { const sent = []; const send = async (title, text) => { sent.push({ title, text }); return true; }; send.sent = sent; return send; };
@@ -117,4 +117,23 @@ test('alerter: if it goes down again before BACK was delivered, the failure is r
   assert.equal(await a.observe('x', true), 'unsent');       // BACK lost
   assert.equal(await a.observe('x', false), null, 'one failed check is still not reported');
   assert.equal(await a.observe('x', true), 'back', 'the held BACK goes out when the thing is up again');
+});
+
+test('email sender: posts to Resend with the key, from, to and subject; false on a non-2xx or a network error', async () => {
+  const calls = [];
+  const ok = makeEmailSender({ apiKey: 're_test', from: 'alerts@facyke.com', to: 'a@x.com, b@x.com', fetchImpl: async (url, init) => { calls.push({ url, init }); return { ok: true }; } });
+  assert.equal(await ok('Subject', 'Body'), true);
+  assert.equal(calls[0].url, 'https://api.resend.com/emails');
+  assert.equal(calls[0].init.headers.authorization, 'Bearer re_test');
+  assert.deepEqual(JSON.parse(calls[0].init.body), { from: 'alerts@facyke.com', to: ['a@x.com', 'b@x.com'], subject: 'Subject', text: 'Body' });
+  assert.equal(await makeEmailSender({ apiKey: 'k', from: 'a@x.com', to: 'b@x.com', fetchImpl: async () => ({ ok: false }) })('s', 't'), false);
+  assert.equal(await makeEmailSender({ apiKey: 'k', from: 'a@x.com', to: 'b@x.com', fetchImpl: async () => { throw new Error('net'); } })('s', 't'), false);
+});
+
+test('email sender: refuses missing settings and bad addresses; sendToAll succeeds when any channel does', async () => {
+  assert.throws(() => makeEmailSender({ apiKey: '', from: 'a@x.com', to: 'b@x.com' }), /need RESEND_API_KEY/);
+  assert.throws(() => makeEmailSender({ apiKey: 'k', from: 'a@x.com', to: 'not-an-address' }), /not a valid address/);
+  const bad = async () => false, good = async () => true;
+  assert.equal(await sendToAll([bad, good])('t', 'x'), true);
+  assert.equal(await sendToAll([bad, bad])('t', 'x'), false);
 });

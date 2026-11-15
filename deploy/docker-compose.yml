@@ -142,6 +142,10 @@ services:
       ADMIN_PUBLIC_URL: https://${ADMIN_DOMAIN}
       ADMIN_CTL_SOCKET: /run/pd-ctl/ctl.sock   # the host helper deploy/ctl/pd-ctl.py (Start/Stop/Restart/Log); inactive while PD_CTL_TOKEN is empty
       ADMIN_CTL_TOKEN: ${PD_CTL_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}          # email alerts through Resend: need RESEND_API_KEY and ALERT_EMAIL_TO; unset = off
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      ALERT_EMAIL_FROM: ${ALERT_EMAIL_FROM:-alerts@facyke.com}
+      ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "console_data:/data", "/run/pd-ctl:/run/pd-ctl"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "-H", "Host: 127.0.0.1", "http://172.30.0.3:4100/_pd/healthz"]   # the console only answers the host names it is allowed to serve
