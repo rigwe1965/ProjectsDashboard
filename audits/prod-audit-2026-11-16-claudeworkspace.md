@@ -1,6 +1,6 @@
 # Production audit: ClaudeWorkspace / RECI Transport (car rental), 2026-11-16
 
-Status: audit complete and fixes deployed, except the customer-site production deploy (see "Deployment status" at the end).
+Status: audit complete and all fixes deployed to the Hetzner demo and to Vercel production (see "Deployment status" at the end).
 
 ## Environment
 - Source: monorepo rigwe1965/RECI (private), `ClaudeWorkspace/reci-transport` locally. Customer web (Next.js 15, port 3002), admin portal (`/admin`), mobile app (Expo, not deployed), Supabase (Postgres + RLS + Auth), Stripe, Resend, Anthropic.
@@ -62,6 +62,7 @@ Checks on the merged deploy branch: utils vitest 24, web jest 31, tsc web and ad
 
 ## Deployment status (2026-11-16)
 - Hetzner demo: DEPLOYED. Source replaced by the deploy branch (old copy kept at `/srv/apps/ClaudeWorkspace/reci-transport.bak-20261116`, old image tagged `pd-claudeworkspace:rollback-20261116`). Both containers now run Next.js 15.5.29 and are healthy. Verified live with a temporary link: the forced change now finishes and opens the dashboard, a short password and the temporary password are refused, the staff user cannot reach Users (403), calendar returns 200 even with a raw `+01:00`, licence and damage review lists return 200, dated vehicle search (new 30-minute filter) returns vehicles, calendar icons load, no CSP errors. The temporary staff user was deleted. The demo has not been reset yet (other demo links must end first).
-- Production ADMIN (Vercel): DEPLOYED (deployment `dpl_5ZqtkuD48Ndyu96CbYau7GFEM9ou`, `admin-bfiustuai-obinwanne1s-projects.vercel.app`). Rollback: promote the previous admin deployment `admin-nhqx6l2ir`. Smoke test: new CSP is served, anonymous callers still get 401 on every admin API including clear-reset.
-- Production WEB (Vercel): NOT deployed. It carries the 30-minute rule, the qs/dompurify refresh and the Sentry CSP fix. Waiting for the owner's explicit approval; rollback target would be `web-mtjr9dqpq`.
-- Still open: the demo reset; a real end-to-end check of the licence and damage queues needs one AI upload with data; owner decisions on the existing-user password overwrite and the 8-character minimum.
+- Production (Vercel), final state 2026-11-16: ADMIN deployment `admin-213wwjcfy` (rollback: promote `admin-nhqx6l2ir`) and WEB deployment `dpl_EhHBmVvgV46EgbF5ZSj7AxiMLSQd` / `web-in60tv0uw` (rollback: promote `web-mtjr9dqpq`), both from the deploy branch with PRs #3, #4, #5 and #6. Smoke tests: new CSP served on both, dated vehicle search works with the 30-minute filter, anonymous callers still get 401 on account and admin APIs, Stripe webhook 400 without signature, payments/intent 422 for an empty body.
+- PR #6 (`fix/password-min-12-no-overwrite`): creating a staff user for an existing email is refused (409) instead of replacing that account's password and role; admin reset screen and Settings need 12 characters (customer sign-up still 8; Supabase's own minimum is a dashboard setting, not changed).
+- Demo rebuilt again with the final code and healthy. Not reset (other people's links are active); the owner can run the demo reset when those links end.
+- Still open: a real end-to-end check of the licence and damage queues needs one AI upload with data.
