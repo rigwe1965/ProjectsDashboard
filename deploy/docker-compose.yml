@@ -346,6 +346,10 @@ services:
       AI_ASSISTANT_ENABLED: ${RMM_AI_ENABLED:-0}
       AI_ASSISTANT_AGENTIC_ENABLED: "0"
       AI_TRIAGE_ENABLED: "0"
+      # Behind the dashboard the API sees one proxy hop: the visitor address the dashboard forwards (sign-in lockout and audit log work per visitor).
+      TRUSTED_PROXY_COUNT: "1"
+      # The demo has no Celery worker, so build reports inside the request (otherwise Generate Report says success and makes no file).
+      REPORTS_INLINE: "1"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/api/health', timeout=3)"]
       interval: 20s
@@ -371,6 +375,8 @@ services:
       rmm-demo-api: { condition: service_healthy }
     environment:
       API_BASE_URL: http://rmm-demo-api:5000
+      # Streamlit sits behind the demo gateway and Caddy, so it sees "visitor, caddy": the visitor is the 2nd entry from the right.
+      DASHBOARD_TRUSTED_PROXY_COUNT: "2"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
       interval: 20s
