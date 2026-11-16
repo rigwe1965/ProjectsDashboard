@@ -58,7 +58,7 @@ A chat panel next to the demo, at `/_pd/guide` on the demo's own address. It is 
 | `GATEWAY_ACTIVITY_FLUSH_SECONDS` | 30 | how often the per-link activity counts are written to the database |
 | `ANTHROPIC_API_KEY` | none | key for the AI guide (use a dedicated key with a spend limit set in the Anthropic Console). Without it the guide is off. Only the gateway is given it |
 | `DEMO_GUIDE` | on | `off` turns the AI guide off whatever else is set |
-| `GUIDE_MODEL` | `claude-haiku-5-5` | the model that answers; must be one the price table knows (`guide/budget.mjs`), so its cost can be capped |
+| `GUIDE_MODEL` | `claude-haiku-5-5` | the model that answers; must be one the price table knows (`guide/budget.mjs`), so its cost can be capped. Allowed: `claude-haiku-5-5`, `claude-sonnet-5-5`, `claude-opus-5-5` (checked live 2026-11-16; a typical short answer cost about $0.00005, $0.0009 and $0.0023 respectively). The daily cap protects the key whichever you pick; an unknown name stops the gateway at startup instead of running unpriced. |
 | `GUIDE_PER_MINUTE` | 6 | guide messages per link per minute |
 | `GUIDE_DAILY_CAP_USD` | 2 | the most the guide may cost in one UTC day, all links together (estimated from token counts; 0 turns the guide off) |
 | `GUIDE_MAX_MESSAGE_CHARS` | 500 | longest message a customer may send the guide |
