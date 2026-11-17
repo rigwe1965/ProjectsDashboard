@@ -1,0 +1,2610 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Facyke / ProjectsDashboard Onboarding Book</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{--bg:#f6f8fb;--paper:#fff;--ink:#17202e;--muted:#5a6779;--line:#dde3ec;--accent:#1f4fd8;--accent-soft:#e6edfc;--code-bg:#eef2f8;--note:#fdf1dc;--note-line:#a15c07;
+--font-display:'Space Grotesk','Segoe UI',system-ui,sans-serif;--font-body:'Inter','Segoe UI',system-ui,sans-serif;--font-mono:'JetBrains Mono',Consolas,monospace}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f141c;--paper:#161d28;--ink:#e6ebf3;--muted:#9aa7b9;--line:#263142;--accent:#7fa2ff;--accent-soft:#1b2744;--code-bg:#1c2533;--note:#2e2412;--note-line:#f0b45a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0f141c;--paper:#161d28;--ink:#e6ebf3;--muted:#9aa7b9;--line:#263142;--accent:#7fa2ff;--accent-soft:#1b2744;--code-bg:#1c2533;--note:#2e2412;--note-line:#f0b45a;color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:16px}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.65;margin:0;padding:24px max(16px,env(safe-area-inset-right)) 64px max(16px,env(safe-area-inset-left))}
+.wrap{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:40px}
+@media(max-width:900px){.wrap{grid-template-columns:minmax(0,1fr);gap:16px}}
+nav.toc{position:sticky;top:16px;align-self:start;max-height:calc(100vh - 32px);overflow:auto;font-size:14px}
+@media(max-width:900px){nav.toc{position:static;max-height:none}nav.toc details>summary{cursor:pointer}}
+nav.toc .book{font-family:var(--font-display);font-weight:700;font-size:18px;line-height:1.25;margin:0 0 4px}
+nav.toc .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+nav.toc ol{list-style:none;margin:0;padding:0}
+nav.toc ol ol{margin:2px 0 8px}
+nav.toc a{display:block;padding:4px 8px;border-radius:6px;color:var(--muted);text-decoration:none}
+nav.toc a.part{font-weight:600;color:var(--ink);margin-top:6px}
+nav.toc a span{font-family:var(--font-mono);font-size:12px;margin-right:6px}
+nav.toc a:hover,nav.toc a:focus-visible{background:var(--accent-soft);color:var(--accent);outline:none}
+.tools{display:flex;gap:8px;margin:0 0 12px}
+button{font:inherit;font-size:13px;padding:5px 10px;border:1px solid var(--line);background:var(--paper);color:var(--ink);border-radius:6px;cursor:pointer}
+main{min-width:0}
+.cover{background:var(--accent);color:#fff;border-radius:12px;padding:40px 32px;margin-bottom:24px}
+.cover h1{font-family:var(--font-display);font-size:clamp(28px,5vw,44px);line-height:1.1;margin:0 0 10px;text-wrap:balance}
+.cover p{margin:0;max-width:60ch;opacity:.92;font-size:17px}
+section{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:26px 28px;margin-bottom:20px}
+section.l1{background:transparent;border:0;padding:18px 0 0}
+section.l1 h1{font-family:var(--font-display);font-size:30px;margin:0;padding-bottom:8px;border-bottom:3px solid var(--accent)}
+@media(max-width:600px){section{padding:18px 16px}}
+h2{font-family:var(--font-display);font-size:26px;line-height:1.2;margin:0 0 14px;text-wrap:balance}
+h3{font-family:var(--font-display);font-size:20px;margin:28px 0 8px;padding-top:6px}
+h4{font-size:16px;margin:20px 0 6px}
+p{margin:0 0 12px;overflow-wrap:anywhere}
+p.ex{background:var(--accent-soft);border-left:4px solid var(--accent);padding:10px 14px;border-radius:0 8px 8px 0}
+ul,ol{margin:0 0 14px;padding-left:24px}
+li{margin:3px 0;overflow-wrap:anywhere}
+li input{margin-right:6px}
+a{color:var(--accent)}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--code-bg);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+td code{white-space:nowrap}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:8px;padding:14px;overflow:auto;margin:0 0 16px;font-size:13px;line-height:1.5}
+pre code{background:none;padding:0;overflow-wrap:normal}
+pre.mermaid{background:var(--paper);text-align:center}
+blockquote{margin:0 0 16px;padding:10px 14px;background:var(--note);border-left:4px solid var(--note-line);border-radius:0 8px 8px 0}
+.tablewrap{overflow-x:auto;margin:0 0 16px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+th{background:var(--code-bg);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
+@media print{nav.toc,.tools{display:none}.wrap{display:block}body{background:#fff;padding:0}section{border:0;break-inside:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+<p class="book">The Facyke / ProjectsDashboard Onboarding Book</p>
+<p class="sub">Management Â· Technical Â· Support</p>
+<div class="tools"><button id="theme" type="button">Dark / light</button><button onclick="window.print()" type="button">Print</button></div>
+<details open><summary>Contents</summary><ol>
+<li><a href="#how-to-use-this-book">How to use this book</a></li>
+<li><a href="#contents">Contents</a></li>
+<li><a class="part" href="#part-1-understanding-the-project">Part 1: Understanding the project</a><ol>
+<li><a href="#1-the-idea-in-plain-words">1. The idea in plain words</a></li>
+<li><a href="#2-the-company-and-its-six-products">2. The company and its six products</a></li>
+<li><a href="#3-glossary-the-words-you-will-hear">3. Glossary: the words you will hear</a></li>
+<li><a href="#4-the-big-picture-how-the-parts-fit">4. The big picture: how the parts fit</a></li>
+</ol></li>
+<li><a class="part" href="#part-2-where-it-runs-hosting">Part 2: Where it runs (hosting)</a><ol>
+<li><a href="#5-two-places-it-can-run-your-pc-and-the-server">5. Two places it can run: your PC and the server</a></li>
+<li><a href="#6-the-hosted-setup-explained">6. The hosted setup explained</a></li>
+<li><a href="#7-money-what-things-cost">7. Money: what things cost</a></li>
+</ol></li>
+<li><a class="part" href="#part-3-for-management">Part 3: For management</a><ol>
+<li><a href="#8-what-management-needs-to-know">8. What management needs to know</a></li>
+<li><a href="#9-day-1-walk-through">9. Day 1 walk-through</a></li>
+<li><a href="#10-reading-the-numbers-who-is-really-interested">10. Reading the numbers: who is really interested?</a></li>
+<li><a href="#11-selling-per-deployment-licences">11. Selling per deployment: licences</a></li>
+<li><a href="#12-risks-and-open-decisions">12. Risks and open decisions</a></li>
+</ol></li>
+<li><a class="part" href="#part-4-technical-handbook">Part 4: Technical handbook</a><ol>
+<li><a href="#13-the-parts-in-detail">13. The parts in detail</a></li>
+<li><a href="#14-everyday-commands">14. Everyday commands</a></li>
+<li><a href="#15-updating-the-live-server-safely">15. Updating the live server safely</a></li>
+<li><a href="#16-security-how-the-project-protects-itself">16. Security: how the project protects itself</a></li>
+<li><a href="#17-tests-ci-and-the-way-we-change-code">17. Tests, CI and the way we change code</a></li>
+<li><a href="#18-the-ai-features-and-keys">18. The AI features and keys</a></li>
+</ol></li>
+<li><a class="part" href="#part-5-support-playbook">Part 5: Support playbook</a><ol>
+<li><a href="#19-how-to-handle-any-support-request">19. How to handle any support request</a></li>
+<li><a href="#20-issue-catalogue">20. Issue catalogue</a></li>
+</ol></li>
+<li><a class="part" href="#part-6-where-each-project-stands">Part 6: Where each project stands</a><ol>
+<li><a href="#21-project-by-project-state-at-the-end-of-17-november-2026">21. Project by project (state at the end of 17 November 2026)</a></li>
+<li><a href="#22-what-changed-on-17-november-2026">22. What changed on 17 November 2026</a></li>
+</ol></li>
+<li><a class="part" href="#appendix-a-checklists">Appendices</a><ol>
+<li><a href="#appendix-a-checklists">Appendix A: Checklists</a></li>
+<li><a href="#appendix-b-cheat-sheet">Appendix B: Cheat sheet</a></li>
+<li><a href="#appendix-c-where-to-find-things">Appendix C: Where to find things</a></li>
+<li><a href="#appendix-d-the-golden-rules">Appendix D: The golden rules</a></li>
+<li><a href="#appendix-e-frequently-asked-questions">Appendix E: Frequently asked questions</a></li>
+</ol></li>
+</ol></details>
+</nav>
+<main>
+<div class="cover"><h1>The Facyke / ProjectsDashboard Onboarding Book</h1><p>Everything a new person needs to understand, run, support and manage this project, from day one.</p></div>
+<p><strong>Everything a new person needs to understand, run, support and manage this project, from day one.</strong></p>
+<p><em>Written 17 November 2026 and fully updated the same evening with everything changed that day (see chapters 21 and 22). It is for the repository <code>rigwe1965/ProjectsDashboard</code>. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.</em></p>
+<section class="l2">
+<h2 id="how-to-use-this-book">How to use this book</h2>
+<p>This book is written for people who have <strong>never seen the project</strong>. You do not need to know programming to read Parts 1, 2 and 3. Every idea is explained in plain words first, then shown with examples.</p>
+<p>Pick your path:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>You are…</th>
+<th>Read first</th>
+<th>Then</th>
+<th>Keep open while working</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A manager / owner</strong></td>
+<td>Part 1 (the idea), Part 3 (management)</td>
+<td>Part 2 chapter 6 (hosting in plain words), chapter 12 (risks)</td>
+<td>Appendix A (checklists)</td>
+</tr>
+<tr>
+<td><strong>A technical person</strong> (developer, operator)</td>
+<td>Part 1, Part 2</td>
+<td>Part 4 (technical handbook)</td>
+<td>Appendix B (cheat sheet)</td>
+</tr>
+<tr>
+<td><strong>A support person</strong></td>
+<td>Part 1 chapters 1–3, Part 5 (support playbook)</td>
+<td>Part 4 chapters 13–14 when you need more</td>
+<td>Part 5 issue catalogue</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>The rule of five examples.</strong> Wherever this book explains a problem or an idea, it gives <strong>three to five worked examples</strong>, each in the same shape, so you can recognise your own situation:</p>
+<blockquote>
+<p><strong>Situation</strong> (what someone says or sees) → <strong>Cause</strong> (why it happens) → <strong>Fix</strong> (what you do) → <strong>Lesson</strong> (what to remember)</p>
+</blockquote>
+<p><strong>Your first day in one list</strong></p>
+<ol>
+<li>Read chapters 1 and 2 (20 minutes). You will know what the company sells and why this project exists.</li>
+<li>Read chapter 3 (the glossary) and chapter 4 (the picture). Now the words in the rest of the book make sense.</li>
+<li>Do the "Day 1 walk-through" in chapter 9. You will create a demo link and revoke it yourself.</li>
+<li>Skim Part 5's table of contents so you know where to look when something breaks.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="contents">Contents</h2>
+<p><strong>Part 1: Understanding the project</strong>
+1. <a href="#1-the-idea-in-plain-words">The idea in plain words</a>
+2. <a href="#2-the-company-and-its-six-products">The company and its six products</a>
+3. <a href="#3-glossary-the-words-you-will-hear">Glossary: the words you will hear</a>
+4. <a href="#4-the-big-picture-how-the-parts-fit">The big picture: how the parts fit</a></p>
+<p><strong>Part 2: Where it runs (hosting)</strong>
+5. <a href="#5-two-places-it-can-run-your-pc-and-the-server">Two places it can run: your PC and the server</a>
+6. <a href="#6-the-hosted-setup-explained">The hosted setup explained</a>
+7. <a href="#7-money-what-things-cost">Money: what things cost</a></p>
+<p><strong>Part 3: For management</strong>
+8. <a href="#8-what-management-needs-to-know">What management needs to know</a>
+9. <a href="#9-day-1-walk-through">Day 1 walk-through</a>
+10. <a href="#10-reading-the-numbers-who-is-really-interested">Reading the numbers: who is really interested?</a>
+11. <a href="#11-selling-per-deployment-licences">Selling per deployment: licences</a>
+12. <a href="#12-risks-and-open-decisions">Risks and open decisions</a></p>
+<p><strong>Part 4: Technical handbook</strong>
+13. <a href="#13-the-parts-in-detail">The parts in detail</a>
+14. <a href="#14-everyday-commands">Everyday commands</a>
+15. <a href="#15-updating-the-live-server-safely">Updating the live server safely</a>
+16. <a href="#16-security-how-the-project-protects-itself">Security: how the project protects itself</a>
+17. <a href="#17-tests-ci-and-the-way-we-change-code">Tests, CI and the way we change code</a>
+18. <a href="#18-the-ai-features-and-keys">The AI features and keys</a></p>
+<p><strong>Part 5: Support playbook</strong>
+19. <a href="#19-how-to-handle-any-support-request">How to handle any support request</a>
+20. <a href="#20-issue-catalogue">Issue catalogue (with 3–5 examples each)</a></p>
+<p><strong>Part 6: Where each project stands</strong>
+21. <a href="#21-project-by-project-state-at-the-end-of-17-november-2026">Project by project (state at the end of 17 November 2026)</a>
+22. <a href="#22-what-changed-on-17-november-2026">What changed on 17 November 2026</a></p>
+<p><strong>Appendices</strong>
+- <a href="#appendix-a-checklists">A. Checklists</a>
+- <a href="#appendix-b-cheat-sheet">B. Cheat sheet</a>
+- <a href="#appendix-c-where-to-find-things">C. Where to find things</a>
+- <a href="#appendix-d-the-golden-rules">D. The golden rules</a>
+- <a href="#appendix-e-frequently-asked-questions">E. Frequently asked questions</a></p>
+<hr />
+</section>
+<section class="l1">
+<h1 id="part-1-understanding-the-project">Part 1: Understanding the project</h1>
+</section>
+<section class="l2">
+<h2 id="1-the-idea-in-plain-words">1. The idea in plain words</h2>
+<h3 id="the-problem">The problem</h3>
+<p>The owner builds software products: a CRM, a car-rental system, an IT-management tool and others. To sell software, people must be able to <strong>try it</strong>. But you cannot hand a stranger the keys to the real system that holds your own data. And you cannot spend every day setting up a private test copy by hand.</p>
+<h3 id="the-solution-a-showroom-with-a-doorman">The solution: a showroom with a doorman</h3>
+<p>Think of a car dealership.</p>
+<ul>
+<li>The <strong>cars you drive every day</strong> are your <em>real apps</em>. Nobody else touches them.</li>
+<li>The <strong>showroom cars</strong> are <em>demo copies</em>: same model, sample data, safe to be sat in and fiddled with.</li>
+<li>The <strong>doorman</strong> (the <em>gateway</em>) checks each visitor's <em>appointment card</em> (a <em>demo link</em>): is it valid, has it expired, has it been used too often? Only then does the visitor get into the showroom, and only into the one car they came for.</li>
+<li>The <strong>manager's office</strong> (the <em>admin console</em>) is where you see which cars are running, hand out appointment cards, and read who visited.</li>
+<li>The <strong>shop window</strong> (the <em>showcase</em>) is the public website that shows what you sell.</li>
+<li>The <strong>mechanic</strong> (the <em>supervisor</em>) starts and stops the cars.</li>
+<li>The <strong>list on the wall</strong> (the <em>registry</em>) says which cars exist, where they are parked, and how to start each one.</li>
+</ul>
+<p><strong>ProjectsDashboard is all of those parts together.</strong> It does not contain the products themselves. It <em>points at them</em>, starts them, protects them, and lets customers try them.</p>
+<h3 id="the-one-sentence-to-remember">The one sentence to remember</h3>
+<blockquote>
+<p>ProjectsDashboard lets the owner give a customer a <strong>time-limited, safe link</strong> to try one product's <strong>sample-data copy</strong>, watch whether they use it, and then close it, all without ever touching the real apps.</p>
+</blockquote>
+<h3 id="five-everyday-examples-of-the-idea-at-work">Five everyday examples of the idea at work</h3>
+<p class="ex"><strong>Example 1: The prospect.</strong> A sales lead, Dana at Acme Ltd, wants to see the CRM. The owner creates a link for 48 hours and at most 3 visits, and writes "Prepared for Dana at Acme". Dana clicks it, reads a short notice that this is a demo with sample data, clicks a button, and is inside the CRM demo. After two days the link stops working by itself.</p>
+<p class="ex"><strong>Example 2: The forwarded link.</strong> Dana forwards the link to a colleague. The owner had switched on "lock to first browser". The colleague's browser is refused, and the refusal shows up in the Activity list. The owner sees the forwarding attempt and can decide whether to send the colleague their own link.</p>
+<p class="ex"><strong>Example 3: The nosy email scanner.</strong> Many companies' email systems automatically open links in emails to check them for viruses. If that used up a visit, Dana's link would be spent before she read the email. So <strong>just looking at the link page never uses a visit</strong>. Only clicking the button does.</p>
+<p class="ex"><strong>Example 4: The owner's own data stays safe.</strong> While Acme tries the CRM demo and types in fake contacts, the owner's real CRM (different port, different database) never changes. Even if Acme deleted every record in the demo, the real CRM is untouched.</p>
+<p class="ex"><strong>Example 5: Closing early.</strong> Acme says "no thanks" on day one. The owner presses <em>Revoke</em>. At that instant the link dies, even for a page that is currently open, because the gateway re-checks the link on every request.</p>
+<h3 id="what-this-project-is-not">What this project is NOT</h3>
+<ul>
+<li>It is <strong>not</strong> the products. Each product (CRM etc.) is a separate project with its own folder, settings, database and repository.</li>
+<li>It is <strong>not</strong> a place to store customer data. The only personal data it keeps is a customer label you type, plus the address and browser type of people who opened a link (kept 90 days).</li>
+<li>It is <strong>not</strong> secure by magic. Chapter 16 explains what is protected and what is not.</li>
+</ul>
+<hr />
+</section>
+<section class="l2">
+<h2 id="2-the-company-and-its-six-products">2. The company and its six products</h2>
+<p>The brand is <strong>Facyke</strong>. The website is <code>facyke.com</code>. (The brand used to be spelled <em>faiyke</em>; some internal names such as <code>faiyke-ai</code> still use the old spelling on purpose. Do not "fix" them without checking.)</p>
+<h3 id="the-six-products">The six products</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Product</th>
+<th>Internal id</th>
+<th>What it is, in one sentence</th>
+<th>Who buys it</th>
+<th>How the demo works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>CRM</strong></td>
+<td><code>crm</code></td>
+<td>Contacts, companies, deals and tasks in one place for small sales and support teams</td>
+<td>Small businesses</td>
+<td>One shared demo, reset between customers</td>
+</tr>
+<tr>
+<td><strong>Remote Management (RMM)</strong></td>
+<td><code>rmm</code></td>
+<td>Monitor devices, patch them, answer alerts and support users</td>
+<td>IT service providers</td>
+<td>One shared demo with <em>simulated</em> devices; pages that would need a real agent explain this instead of pretending (chapter 21)</td>
+</tr>
+<tr>
+<td><strong>CarRental</strong> (internal name <em>ClaudeWorkspace</em>, code name <em>RECI</em>)</td>
+<td><code>claudeworkspace</code></td>
+<td>A booking site where customers rent cars, plus an admin portal for the team</td>
+<td>Car-hire companies</td>
+<td>One shared demo on a separate demo database</td>
+</tr>
+<tr>
+<td><strong>Airfinder</strong></td>
+<td><code>airfinder</code></td>
+<td>Flight search and booking, with search by plain-language request</td>
+<td>Travel agencies</td>
+<td>A private copy for every link</td>
+</tr>
+<tr>
+<td><strong>Image Optimizer</strong> (<em>ImageApp</em>)</td>
+<td><code>imageapp</code></td>
+<td>Upload an image, tune quality/format/size with live preview</td>
+<td>Anyone</td>
+<td>A private copy for every link</td>
+</tr>
+<tr>
+<td><strong>ClaudeOS</strong></td>
+<td><code>claudeos</code></td>
+<td>One dashboard for AI skills, agents and workflows, with shared memory and client workspaces</td>
+<td>Teams using Claude</td>
+<td>A private copy for every link</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p><strong>Why three names for one product?</strong> <em>CarRental</em> is the name on the website. <em>ClaudeWorkspace</em> is the name of the folder and the registry id. <em>RECI</em> is the name of the code repository and of the first customer's brand. When someone says "RECI", they mean CarRental. Always check which one a document means.</p>
+</blockquote>
+<h3 id="how-the-company-makes-money-the-business-idea">How the company makes money (the business idea)</h3>
+<ol>
+<li><strong>Showcase + demo links</strong> bring in interest. A prospect sees the public page, asks for a demo, and gets a link.</li>
+<li><strong>Activity numbers</strong> (chapter 10) tell the owner who actually used the demo, so sales time goes to people who are really interested.</li>
+<li><strong>Two ways to sell</strong></li>
+<li><strong>CRM</strong> is sold as a service with plans and included AI.</li>
+<li><strong>RMM, CarRental and ClaudeOS</strong> are sold <em>one copy per customer</em> ("per deployment"): each customer gets their own copy that they (or Facyke) run. They bring their own Anthropic key and choose their own Claude model, so the AI cost is theirs. Chapter 11 explains the licence idea.</li>
+</ol>
+<h3 id="five-examples-which-product-would-i-show">Five examples: "which product would I show?"</h3>
+<ol>
+<li><em>A florist with three staff wants to keep track of customers and follow-ups.</em> → <strong>CRM</strong>.</li>
+<li><em>An IT shop looks after 200 office computers for local firms and drowns in alert emails.</em> → <strong>Remote Management</strong>.</li>
+<li><em>A man owns 12 cars and wants customers to book online.</em> → <strong>CarRental</strong>.</li>
+<li><em>A travel agent wants customers to type "cheapest flight to Lagos in March" and get answers.</em> → <strong>Airfinder</strong>.</li>
+<li><em>A designer keeps shrinking pictures for a website and wants quality never to degrade.</em> → <strong>Image Optimizer</strong>.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="3-glossary-the-words-you-will-hear">3. Glossary: the words you will hear</h2>
+<p>Keep this page handy. Words are in the order you will meet them.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Word</th>
+<th>Plain meaning</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>App / product</strong></td>
+<td>One of the six things we sell</td>
+<td>"The CRM"</td>
+</tr>
+<tr>
+<td><strong>Real app</strong></td>
+<td>Your own copy with your own data. Customers never see it</td>
+<td>CRM on port 3101 on the owner's PC</td>
+</tr>
+<tr>
+<td><strong>Demo instance / demo copy</strong></td>
+<td>A separate copy with its own database and sample data</td>
+<td><code>crm-demo</code> on port 3111</td>
+</tr>
+<tr>
+<td><strong>Registry</strong></td>
+<td>The list of all apps and demos: where, how to start, which port</td>
+<td><code>registry/apps.json</code></td>
+</tr>
+<tr>
+<td><strong>Supervisor</strong></td>
+<td>The command-line tool that starts, stops and checks apps</td>
+<td><code>node supervisor/index.mjs status</code></td>
+</tr>
+<tr>
+<td><strong>Admin console</strong></td>
+<td>The owner-only web page for controlling everything</td>
+<td><code>admin.facyke.com</code></td>
+</tr>
+<tr>
+<td><strong>Gateway</strong></td>
+<td>The doorman: checks demo links and passes customers through</td>
+<td>Port 4300 locally</td>
+</tr>
+<tr>
+<td><strong>Showcase</strong></td>
+<td>The public product website</td>
+<td><code>facyke.com</code></td>
+</tr>
+<tr>
+<td><strong>Link / grant</strong></td>
+<td>The time-limited ticket for one customer and one product (the code calls it a <em>grant</em>)</td>
+<td>"Grant a1b2c3d4 for Acme Ltd"</td>
+</tr>
+<tr>
+<td><strong>Token</strong></td>
+<td>The long random secret part of the link. Shown once; only a <em>hash</em> is stored</td>
+<td><code>/d/&lt;long-random-token&gt;</code></td>
+</tr>
+<tr>
+<td><strong>Revoke</strong></td>
+<td>Cancel a link immediately</td>
+<td>Button in console</td>
+</tr>
+<tr>
+<td><strong>Shared demo</strong></td>
+<td>One demo copy used by every customer of that product, reset to sample data between customers</td>
+<td>CRM, RMM, CarRental</td>
+</tr>
+<tr>
+<td><strong>Private copy per link</strong></td>
+<td>Each link gets its own fresh copy, deleted afterwards</td>
+<td>ImageApp, Airfinder, ClaudeOS</td>
+</tr>
+<tr>
+<td><strong>Seat</strong></td>
+<td>One private copy slot. If all seats are in use, new visitors wait</td>
+<td>ImageApp has 4 seats locally</td>
+</tr>
+<tr>
+<td><strong>Reset</strong></td>
+<td>Put a shared demo back to its sample data</td>
+<td><code>reset-demos.sh</code></td>
+</tr>
+<tr>
+<td><strong>demoReady</strong></td>
+<td>Registry flag meaning "this demo has its own data; the gateway may serve it"</td>
+<td>Never set to true without checking</td>
+</tr>
+<tr>
+<td><strong>Process</strong></td>
+<td>One running program of an app (an app can have several)</td>
+<td>ClaudeOS has <code>api</code> and <code>ui</code></td>
+</tr>
+<tr>
+<td><strong>Health check</strong></td>
+<td>A web address that answers "I'm alive"</td>
+<td><code>/api/health</code></td>
+</tr>
+<tr>
+<td><strong>Port</strong></td>
+<td>A numbered door on a computer. Each program uses its own</td>
+<td>4100 console, 4200 showcase, 4300 gateway</td>
+</tr>
+<tr>
+<td><strong>Audit log</strong></td>
+<td>The permanent diary of who did what and when</td>
+<td>Link created, opened, refused</td>
+</tr>
+<tr>
+<td><strong>Activity</strong></td>
+<td>Per-link usage counts (requests, active minutes) with no personal content</td>
+<td>"Engaged", "Came back"</td>
+</tr>
+<tr>
+<td><strong>2-step code (TOTP)</strong></td>
+<td>The 6-digit code from an authenticator app, needed with the password</td>
+<td>Console sign-in</td>
+</tr>
+<tr>
+<td><strong>ADMIN_DATA_KEY</strong></td>
+<td>A secret that locks the stored 2-step secret in the database</td>
+<td>Lose it → re-enrol 2-step</td>
+</tr>
+<tr>
+<td><strong>Environment variable (env)</strong></td>
+<td>A setting given to a program from outside its code</td>
+<td><code>ALERT_WEBHOOK_URL</code></td>
+</tr>
+<tr>
+<td><strong>.env file</strong></td>
+<td>A file of secret settings. Never committed to git</td>
+<td><code>deploy/.env</code></td>
+</tr>
+<tr>
+<td><strong>Docker / container</strong></td>
+<td>A sealed box that holds a program and everything it needs</td>
+<td><code>crm-demo</code> container</td>
+</tr>
+<tr>
+<td><strong>Docker Compose</strong></td>
+<td>One file (<code>docker-compose.yml</code>) that describes and starts all containers</td>
+<td><code>docker compose up -d</code></td>
+</tr>
+<tr>
+<td><strong>Caddy</strong></td>
+<td>The front door of the server: gets HTTPS certificates and routes traffic</td>
+<td>Needs no manual certificate work</td>
+</tr>
+<tr>
+<td><strong>Postgres</strong></td>
+<td>The database used on the server</td>
+<td>Holds links, sessions, audit</td>
+</tr>
+<tr>
+<td><strong>SQLite</strong></td>
+<td>The simple one-file database used on the owner's PC</td>
+<td><code>data/dashboard.db</code></td>
+</tr>
+<tr>
+<td><strong>Hetzner</strong></td>
+<td>The company whose server we rent in Helsinki</td>
+<td>Server <code>facyke-prod</code></td>
+</tr>
+<tr>
+<td><strong>Cloudflare</strong></td>
+<td>Where the domain <code>facyke.com</code> is registered and its DNS is managed</td>
+<td>DNS-only records</td>
+</tr>
+<tr>
+<td><strong>DNS</strong></td>
+<td>The internet's phone book: turns <code>admin.facyke.com</code> into a server address</td>
+<td>A records</td>
+</tr>
+<tr>
+<td><strong>MCP server</strong></td>
+<td>A helper that lets an AI assistant look at the dashboard</td>
+<td><code>npm run mcp</code></td>
+</tr>
+<tr>
+<td><strong>AI guide</strong></td>
+<td>The chat box beside a demo that answers "how do I…?"</td>
+<td>Opt-in per link</td>
+</tr>
+<tr>
+<td><strong>CI</strong></td>
+<td>Automatic checks that run on GitHub when code is pushed</td>
+<td>Lint + tests</td>
+</tr>
+<tr>
+<td><strong>PR (pull request)</strong></td>
+<td>A proposed code change that others can review before it is merged</td>
+<td>"PR #50"</td>
+</tr>
+<tr>
+<td><strong>Licence (FKL1)</strong></td>
+<td>A signed line of text that switches on a product copy for one customer</td>
+<td>Chapter 11</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section class="l2">
+<h2 id="4-the-big-picture-how-the-parts-fit">4. The big picture: how the parts fit</h2>
+<h3 id="the-parts">The parts</h3>
+<pre class="mermaid">flowchart TD
+  R[&quot;Registry&lt;br/&gt;registry/apps.json&lt;br/&gt;(the list of apps)&quot;]
+  R --&gt; S[&quot;Supervisor&lt;br/&gt;start · stop · check&quot;]
+  R --&gt; C[&quot;Admin console&lt;br/&gt;owner only&quot;]
+  R --&gt; G[&quot;Demo gateway&lt;br/&gt;checks customer links&quot;]
+  S --&gt; A[&quot;Real apps&lt;br/&gt;your data&quot;]
+  S --&gt; D[&quot;Demo copies&lt;br/&gt;sample data&quot;]
+  G --&gt; D
+  C --&gt; S
+  C --&gt; DB[(&quot;Store&lt;br/&gt;SQLite locally&lt;br/&gt;Postgres on server&quot;)]
+  G --&gt; DB
+  SH[&quot;Showcase&lt;br/&gt;public product pages&quot;]
+  M[&quot;MCP server&lt;br/&gt;for an AI assistant&quot;] --&gt; DB
+</pre>
+<h3 id="a-customers-journey-step-by-step">A customer's journey, step by step</h3>
+<pre><code class="language-text"> Owner                    Gateway                      Demo copy
+   |  1. create link         |                              |
+   |------------------------&gt;|  (stores a HASH of token)    |
+   |  2. sends link by email |                              |
+   |                         |                              |
+ Customer                    |                              |
+   |  3. opens link (GET)    |                              |
+   |------------------------&gt;|  shows notice + button       |
+   |                         |  (spends NOTHING)            |
+   |  4. clicks button (POST)|                              |
+   |------------------------&gt;|  checks: valid? expired?     |
+   |                         |  uses left? right browser?   |
+   |                         |  → gives a random session    |
+   |                         |    cookie (not the link)     |
+   |  5. uses the demo       |  re-checks every request     |
+   |------------------------&gt;|-----------------------------&gt;|
+   |                         |                              |
+   |  6. link expires/revoked: next request is refused      |
+</code></pre>
+<h3 id="ports-at-a-glance-on-the-owners-pc">Ports at a glance (on the owner's PC)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Port</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Admin console</td>
+<td>4100</td>
+</tr>
+<tr>
+<td>Showcase preview</td>
+<td>4200</td>
+</tr>
+<tr>
+<td>Demo gateway</td>
+<td>4300</td>
+</tr>
+<tr>
+<td>Real CRM / demo CRM</td>
+<td>3101 / 3111</td>
+</tr>
+<tr>
+<td>Real CarRental web, admin / demo</td>
+<td>3102, 3103 / 3112, 3113</td>
+</tr>
+<tr>
+<td>Real Airfinder / demo</td>
+<td>5200 / 5210</td>
+</tr>
+<tr>
+<td>Real ImageApp / demo</td>
+<td>5400 / 5410</td>
+</tr>
+<tr>
+<td>Real ClaudeOS api, ui / demo</td>
+<td>5100, 8601 / 5110, 8611</td>
+</tr>
+<tr>
+<td>Real RMM api, ui / demo</td>
+<td>5300, 8701 / 5310, 8711</td>
+</tr>
+</tbody>
+</table></div>
+<p>Port <strong>3000</strong> is reserved because an unrelated program on the PC uses it. The dashboard never starts anything there.</p>
+<h3 id="the-folders">The folders</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Folder</th>
+<th>What is inside</th>
+<th>Touch it?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>registry/</code></td>
+<td><code>apps.json</code> (local) and an example for hosting</td>
+<td>Yes, to add/change an app</td>
+</tr>
+<tr>
+<td><code>supervisor/</code></td>
+<td>Start/stop code, backup and alert commands, demo reset helpers</td>
+<td>Developers</td>
+</tr>
+<tr>
+<td><code>admin-console/</code></td>
+<td>The owner web page and sign-in tools</td>
+<td>Developers</td>
+</tr>
+<tr>
+<td><code>demo-gateway/</code></td>
+<td>The doorman, link manager, AI guide</td>
+<td>Developers</td>
+</tr>
+<tr>
+<td><code>showcase/</code></td>
+<td>Public site text (<code>site.json</code>, <code>products.json</code>, <code>security.json</code>) and the builder</td>
+<td>Yes, to change public text</td>
+</tr>
+<tr>
+<td><code>mcp/</code></td>
+<td>The assistant helper</td>
+<td>Developers</td>
+</tr>
+<tr>
+<td><code>lib/</code></td>
+<td>Shared code: storage, sign-in, backups, alerts, licence checks</td>
+<td>Developers</td>
+</tr>
+<tr>
+<td><code>licensing/</code></td>
+<td>Licence format, issuing tool</td>
+<td>Owner/developer</td>
+</tr>
+<tr>
+<td><code>deploy/</code></td>
+<td>Docker Compose, Caddy, per-app recipes, server helper scripts</td>
+<td>Operators</td>
+</tr>
+<tr>
+<td><code>guides/</code></td>
+<td>The AI guide texts (<code>crm.md</code>, <code>rmm.md</code>)</td>
+<td>Yes, to improve the guide</td>
+</tr>
+<tr>
+<td><code>docs/</code></td>
+<td>Plans and books (this book lives here)</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>audits/</code></td>
+<td>Written security and code reviews</td>
+<td>Read</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>Automatic tests</td>
+<td>Developers</td>
+</tr>
+<tr>
+<td><code>data/</code></td>
+<td>Runtime data (database, logs, demo copies). <strong>Ignored by git. Never commit.</strong></td>
+<td>No (except via tools)</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p><strong>Important.</strong> The folders inside this project with the same names as the apps (<code>CRM</code>, <code>ClaudeOS</code>, …) are <strong>old stale copies</strong>, ignored by git. The real source for each app is its own folder on the Desktop (<code>C:\Users\rigwe\Desktop\&lt;App&gt;</code>).</p>
+</blockquote>
+<hr />
+</section>
+<section class="l1">
+<h1 id="part-2-where-it-runs-hosting">Part 2: Where it runs (hosting)</h1>
+</section>
+<section class="l2">
+<h2 id="5-two-places-it-can-run-your-pc-and-the-server">5. Two places it can run: your PC and the server</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Owner's PC (local)</strong></th>
+<th><strong>The server (hosted)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Who can reach it</td>
+<td>Only this PC (<code>localhost</code>)</td>
+<td>Anyone on the internet, with a valid link</td>
+</tr>
+<tr>
+<td>Database</td>
+<td>SQLite file <code>data/dashboard.db</code></td>
+<td>Postgres container</td>
+</tr>
+<tr>
+<td>How it starts</td>
+<td>Double-click <code>start-console.bat</code> etc., or <code>npm run …</code></td>
+<td><code>docker compose up -d</code> (always on)</td>
+</tr>
+<tr>
+<td>Customer links look like</td>
+<td><code>http://crm.localhost:4300/d/&lt;token&gt;</code> (this PC only)</td>
+<td><code>https://crm.demo.facyke.com/d/&lt;token&gt;</code> (public)</td>
+</tr>
+<tr>
+<td>Demos run as</td>
+<td>Programs on the PC, started by the supervisor</td>
+<td>Sealed Docker containers</td>
+</tr>
+<tr>
+<td>When the PC is off</td>
+<td>Everything stops</td>
+<td>The server keeps running</td>
+</tr>
+<tr>
+<td>Used for</td>
+<td>Development, testing, the owner's real apps</td>
+<td>Customers</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="five-examples-which-one-is-this-about">Five examples: "which one is this about?"</h3>
+<ol>
+<li><em>"My link says the site can't be reached."</em> → The link was made locally (<code>localhost</code>). It only works on the owner's PC. Create the link in the <strong>hosted</strong> console (<code>admin.facyke.com</code>).</li>
+<li><em>"I changed the showcase text but the public site did not change."</em> → You changed local files. The public site changes only after the new code reaches the server (chapter 15).</li>
+<li><em>"The alert says the database is down."</em> → Which console sent it? The PC's console checks the PC's processes; the server's console checks the server's.</li>
+<li><em>"I forgot the PC off and the demo died."</em> → The demo was on the PC. Hosted demos do not depend on the PC.</li>
+<li><em>"I need to test a risky change."</em> → Do it locally first. Never experiment on the live server.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="6-the-hosted-setup-explained">6. The hosted setup explained</h2>
+<p>This chapter explains the live system, step by step, with the reason for each choice.</p>
+<h3 id="61-the-shape-of-it">6.1 The shape of it</h3>
+<pre><code class="language-text">                        the internet
+                             |
+                   Caddy  (ports 80 and 443)    ← automatic HTTPS
+        ┌────────────────────┼──────────────────────┐
+   facyke.com        admin.facyke.com       &lt;product&gt;.demo.facyke.com
+   (showcase)        (owner console)        (customer demos)
+                             |                      |
+                          console               gateway ──► demo containers
+                             └────── Postgres ──────┘          (one per product,
+                                                               each on its own network)
+</code></pre>
+<p>Everything runs on <strong>one rented server</strong> using Docker Compose. Only Caddy's ports 80 and 443 are open to the world.</p>
+<h3 id="62-the-ingredients-and-why-each-exists">6.2 The ingredients and why each exists</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Ingredient</th>
+<th>What we use</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Domain</strong></td>
+<td><code>facyke.com</code>, registered at <strong>Cloudflare</strong> (2 years, auto-renew on)</td>
+<td>One name for everything. Cloudflare has honest pricing and good DNS</td>
+</tr>
+<tr>
+<td><strong>DNS records</strong></td>
+<td><code>@</code> (the site), <code>admin</code>, <code>*.demo</code> (wildcard), <code>www</code>, all <strong>DNS-only (grey cloud)</strong> pointing to the server</td>
+<td>Wildcard means every product gets its own address without new setup. Grey cloud means Cloudflare only gives addresses and does <em>not</em> sit in front of the traffic, so Caddy handles certificates itself</td>
+</tr>
+<tr>
+<td><strong>Server</strong></td>
+<td><strong>Hetzner Cloud</strong>, server name <code>facyke-prod</code>, type CPX22 (2 CPU, 4 GB RAM, 80 GB disk), Helsinki, Ubuntu 24.04</td>
+<td>The owner is in Germany; Hetzner is cheap, European and reliable. About €20 a month, billed hourly</td>
+</tr>
+<tr>
+<td><strong>Front door</strong></td>
+<td><strong>Caddy</strong></td>
+<td>Gets and renews free HTTPS certificates automatically</td>
+</tr>
+<tr>
+<td><strong>Containers</strong></td>
+<td><strong>Docker Compose</strong></td>
+<td>One file describes the whole system; easy to rebuild or move</td>
+</tr>
+<tr>
+<td><strong>Database</strong></td>
+<td><strong>Postgres</strong> (container)</td>
+<td>Holds links, sessions, audit log; backed up daily</td>
+</tr>
+<tr>
+<td><strong>Email alerts</strong></td>
+<td><strong>Resend</strong>, sender <code>alerts@facyke.com</code></td>
+<td>The server emails the owner when something is down</td>
+</tr>
+<tr>
+<td><strong>AI key</strong></td>
+<td>A dedicated key from the Anthropic workspace <strong><code>facyke-demos</code></strong> with a <strong>$5 per month limit</strong></td>
+<td>Demo visitors' AI actions cost money; the limit caps the damage</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="63-where-things-live-on-the-server">6.3 Where things live on the server</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Place</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/home/deploy/ProjectsDashboard</code></td>
+<td><strong>The live copy.</strong> <code>deploy/.env</code> (secrets) and <code>registry/apps.hosted.json</code> live here. Compose project name <code>projects-dashboard</code></td>
+</tr>
+<tr>
+<td><code>/srv/apps/*</code></td>
+<td>Clones of every repository. These are the <em>build source</em> for the demo containers (<code>APPS_ROOT=/srv/apps</code>)</td>
+</tr>
+<tr>
+<td><code>/home/deploy</code></td>
+<td>Home of the non-root user <code>deploy</code> (the one we log in as)</td>
+</tr>
+<tr>
+<td><code>/etc/pd-ctl.env</code></td>
+<td>The token for the small helper that powers the console's Start/Stop buttons</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Every repository is now public</strong> (CRM, RMM, ClaudeOS, ImageApp, Airfinder, ProjectsDashboard and, since 17 Nov 2026, RECI/CarRental). Public means GitHub's automatic checks run for free, and it means nothing secret may ever be committed (chapter 16). The CarRental source on the server was copied over separately (a tarball), not pulled from git, so making its repository public changed nothing on the server.</p>
+<h3 id="64-how-https-works-for-demos-and-a-classic-failure">6.4 How HTTPS works for demos (and a classic failure)</h3>
+<p>The first time anyone visits <code>crm.demo.facyke.com</code>, Caddy asks the certificate authority for a certificate for exactly that name. But first Caddy asks the gateway "is this a real demo product?" (<code>/_pd/tls-ask</code>). The gateway says yes <strong>only</strong> for registry demos marked <code>demoReady</code>. This stops attackers from making the server request certificates for made-up names.</p>
+<blockquote>
+<p><strong>Real example from our history (14 Nov 2026).</strong> The <code>claudeos</code> and <code>rmm</code> addresses failed with a TLS error. The live server was running old code that did not yet know those two demos were ready, so Caddy refused to get certificates for them. Updating the server fixed it. <em>Lesson: a TLS error on a new demo address usually means "the gateway does not think this is a ready demo", not "HTTPS is broken".</em></p>
+</blockquote>
+<h3 id="65-why-each-demo-has-its-own-sealed-box">6.5 Why each demo has its own sealed box</h3>
+<p>A demo is <em>untrusted ground</em>: strangers click around in it. So every demo container is locked down:</p>
+<ul>
+<li><strong>Read-only root filesystem.</strong> It can only write to its own small volumes.</li>
+<li><strong>No special powers</strong> (no capabilities) and <strong>limits</strong> on CPU, memory and process count.</li>
+<li><strong>Its own network.</strong> A demo cannot talk to the other demos, to Postgres, or to the internet at large.</li>
+<li><strong>No path to the server itself.</strong> Containers cannot reach the cloud provider's metadata address or the server's SSH port (a small service, <code>docker-egress-guard</code>, enforces this).</li>
+<li><strong>No real secrets.</strong> Each app recipe excludes real <code>.env</code> files, databases and caches from the build. Demos start empty and have no email, payment or monitoring keys.</li>
+<li><strong>The gateway and console listen on fixed private addresses</strong> only, so a demo cannot call them.</li>
+</ul>
+<h3 id="66-what-keeps-the-server-healthy">6.6 What keeps the server healthy</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Daily database backup</strong> (<code>db-backup</code> service)</td>
+<td><code>pg_dump</code> every day, 14 newest kept, inside a Docker volume on the same machine. Copy some off the server now and then</td>
+</tr>
+<tr>
+<td><strong>Console alerts</strong></td>
+<td>Every minute the console checks the database and the processes. After 2 failures in a row it sends a message (ntfy phone push <strong>and</strong> email), repeats every 6 hours, and says when it recovers</td>
+</tr>
+<tr>
+<td><strong>Reset timer</strong></td>
+<td><code>deploy/reset-demos.sh</code> puts shared demos back to sample data when no customer link is active. It must be run on a schedule (every ten minutes). Verify the timer exists after any server rebuild</td>
+</tr>
+<tr>
+<td><strong>Auto-restart</strong></td>
+<td>After a reboot all containers come back by themselves (tested 14 Nov 2026)</td>
+</tr>
+<tr>
+<td><strong>SSH is key-only</strong></td>
+<td>No passwords, root login off, 3 attempts maximum</td>
+</tr>
+<tr>
+<td><strong>Firewall (<code>ufw</code>)</strong></td>
+<td>Only the needed ports are open</td>
+</tr>
+<tr>
+<td><strong>Swap space</strong></td>
+<td>4 GB of swap, because six demos together use most of the 4 GB RAM</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="67-the-start-stop-restart-log-buttons-on-the-hosted-console">6.7 The Start / Stop / Restart / Log buttons on the hosted console</h3>
+<p>The console runs <em>inside</em> a container and must not control Docker directly (that would hand a web-facing program control of the whole server). Instead a tiny helper on the host, <strong><code>pd-ctl</code></strong>, offers exactly four actions (start, stop, restart, logs), only for the demo containers named in the registry, never for the gateway, console, Caddy or database, and only to the console through a private socket with a shared token.</p>
+<h3 id="68-examples-what-does-hosting-mean-for">6.8 Examples: "what does hosting mean for…?"</h3>
+<ol>
+<li><strong>Power cut at the owner's house.</strong> The hosted demos keep working. Only the local console and local apps stop.</li>
+<li><strong>A customer in Lagos opens a link at 3 a.m. German time.</strong> Works. The gateway checks the link and starts or serves the demo. The owner is not needed.</li>
+<li><strong>Someone tries <code>https://madeup.demo.facyke.com</code>.</strong> The wildcard DNS sends them to Caddy, Caddy asks the gateway, the gateway says "not a product", and no certificate is requested.</li>
+<li><strong>A demo is hacked by a visitor.</strong> The visitor finds themselves in a read-only box with no network and no secrets. The worst case is that one demo is broken until the next reset.</li>
+<li><strong>The server is rebuilt from scratch.</strong> Everything is recreated from the repository plus <code>deploy/.env</code>. That is why <code>deploy/.env</code> must be backed up somewhere private, and why Postgres backups matter.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="7-money-what-things-cost">7. Money: what things cost</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Cost</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Hetzner server <code>facyke-prod</code></td>
+<td>about <strong>€20 / month</strong> (incl. VAT), billed hourly</td>
+<td>Biggest regular cost</td>
+</tr>
+<tr>
+<td>Domain <code>facyke.com</code></td>
+<td>Paid at Cloudflare for 2 years; auto-renew on</td>
+<td>Renewal date: check Cloudflare</td>
+</tr>
+<tr>
+<td>Anthropic demo key</td>
+<td><strong>Hard limit $5 / month</strong> (workspace <code>facyke-demos</code>)</td>
+<td>Used by ClaudeOS and RMM demos. When it runs out, AI features in those demos fail until the next month or a raised limit</td>
+</tr>
+<tr>
+<td>AI guide</td>
+<td>About <strong>$0.003 per product per full test run</strong> on Haiku 5.5; per-link cost shown in the console</td>
+<td>Off unless a link opts in and a key is set on the gateway</td>
+</tr>
+<tr>
+<td>Resend email</td>
+<td>Free tier is enough for alerts</td>
+<td>Domain verified in the EU region</td>
+</tr>
+<tr>
+<td>GitHub</td>
+<td>Free plan. Every repository is public, so <strong>Actions run free</strong>. (The earlier problem, private-repository minutes running out on 15 Nov 2026, no longer matters: nothing is private.)</td>
+<td>See chapter 17</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="five-examples-of-money-questions">Five examples of money questions</h3>
+<ol>
+<li><em>"Why did the ClaudeOS demo suddenly say its AI is unavailable?"</em> → The $5 monthly Anthropic limit may be used up. Check the Anthropic Console (workspace <code>facyke-demos</code>) before assuming a bug.</li>
+<li><em>"Can we run more demos on this server?"</em> → RAM is the limit. After all six demos about 2.4 GB were available and 0.8 GB of swap was in use. Another heavy demo means a larger server (hourly billing makes upgrading cheap to try).</li>
+<li><em>"Is the site down because we didn't pay?"</em> → Hetzner bills monthly for hourly use; a failed payment emails the account owner first. The domain auto-renews. Check both billing pages before panicking.</li>
+<li><em>"We want to give a prospect the AI guide."</em> → Each guided link has a message allowance and a daily cap (<code>$2/day</code> by default), and the console shows the estimated cost per link.</li>
+<li><em>"Do customers cost us anything while they browse the CRM demo?"</em> → Only server capacity. The CRM demo has no AI key, so no per-click cost.</li>
+</ol>
+<hr />
+</section>
+<section class="l1">
+<h1 id="part-3-for-management">Part 3: For management</h1>
+</section>
+<section class="l2">
+<h2 id="8-what-management-needs-to-know">8. What management needs to know</h2>
+<h3 id="81-the-five-things-the-system-gives-you">8.1 The five things the system gives you</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>You get…</th>
+<th>Which means…</th>
+<th>Where</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A public shop window</strong></td>
+<td>Six product pages and a Security page, always online</td>
+<td><code>facyke.com</code></td>
+</tr>
+<tr>
+<td><strong>Safe trials</strong></td>
+<td>A customer can try a product with no risk to real data</td>
+<td>Demo links</td>
+</tr>
+<tr>
+<td><strong>Evidence of interest</strong></td>
+<td>You can see who opened a link and who really used it</td>
+<td>Console → "Links you have sent"</td>
+</tr>
+<tr>
+<td><strong>A first sales helper</strong></td>
+<td>An optional AI chat beside the demo answers "how do I…?" and sends pricing questions to you</td>
+<td>AI guide</td>
+</tr>
+<tr>
+<td><strong>Early warning</strong></td>
+<td>A phone push and an email when something stops working</td>
+<td>Alerts</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="82-who-does-what-roles">8.2 Who does what (roles)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Does</th>
+<th>Needs access to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Owner</strong></td>
+<td>Creates and revokes links, reads activity, decides who gets a demo, signs licences</td>
+<td>Console (password + 2-step code), Cloudflare, Hetzner, Anthropic, GitHub, Resend</td>
+</tr>
+<tr>
+<td><strong>Operator / developer</strong></td>
+<td>Updates the server, fixes bugs, runs tests</td>
+<td>Server SSH key, GitHub, the repository</td>
+</tr>
+<tr>
+<td><strong>Support person</strong></td>
+<td>Answers customers, checks links and demo state, escalates</td>
+<td>Console (view and create/revoke links if allowed)</td>
+</tr>
+<tr>
+<td><strong>Customer / prospect</strong></td>
+<td>Opens a link, tries a demo</td>
+<td>Only their link</td>
+</tr>
+</tbody>
+</table></div>
+<blockquote>
+<p>Never share the owner's logins. Give each person their own access where the service allows it, and take access away the day someone leaves (checklist in Appendix A).</p>
+</blockquote>
+<h3 id="83-the-weekly-management-routine-20-minutes">8.3 The weekly management routine (20 minutes)</h3>
+<ol>
+<li><strong>Open the console</strong> → look at app status. Everything green?</li>
+<li><strong>Links you have sent</strong> → who is <em>Not opened</em> for more than two days (send a nudge), who is <em>Engaged</em> or <em>Came back</em> (call them).</li>
+<li><strong>Activity</strong> → any refusals or repeated bad links? (Someone may be probing, or a customer is confused.)</li>
+<li><strong>Backups</strong> → is there a recent backup? (Console on the PC: the newest file in the backup folder; server: <code>db-backup</code> volume.)</li>
+<li><strong>Money</strong> → the Anthropic workspace <code>facyke-demos</code> spending against its $5 limit; Hetzner invoice.</li>
+<li><strong>Open items</strong> → read chapter 12 and tick off anything that has been done.</li>
+</ol>
+<h3 id="84-management-examples">8.4 Management examples</h3>
+<p class="ex"><strong>Example 1: "Which prospect should I call today?"</strong>
+- <em>Situation:</em> Five links were sent last week.
+- <em>What you see:</em> Console shows Acme <em>Came back</em> (used on 3 days, 42 active minutes), Beta <em>Opened</em> (1 minute), Gamma <em>Not opened</em>, Delta <em>Engaged</em> (14 minutes, 1 day), Echo <em>Not opened</em> and expired.
+- <em>Decision:</em> Call Acme first (strong interest), follow up Delta, send Beta a "need help getting started?" note, send Gamma a reminder, offer Echo a fresh link.
+- <em>Lesson:</em> The Activity column turns a guess into a ranking.</p>
+<p class="ex"><strong>Example 2: "A prospect says they never got the link."</strong>
+- <em>Situation:</em> Gamma says they did not receive anything.
+- <em>What you check:</em> Console shows "Not opened". The link exists and is active.
+- <em>Cause:</em> Likely the email went to spam, or it was sent to the wrong address.
+- <em>Fix:</em> Revoke the old link, create a new one, send it by another route (chat message). Because links can never be recovered, creating a new one is always the right move.
+- <em>Lesson:</em> A link is shown once. If lost, replace it; never try to "find" it.</p>
+<p class="ex"><strong>Example 3: "How much does a prospect's AI chat cost me?"</strong>
+- <em>Situation:</em> You turned on the AI guide for a big prospect (200 messages).
+- <em>What you see:</em> The console shows messages used and an estimated cost per link, typically a fraction of a cent per few messages on Haiku 5.5.
+- <em>Decision:</em> Keep it on for serious prospects; leave it off (0 messages) for casual ones.
+- <em>Lesson:</em> The guide is opt-in per link, with a daily cap and a monthly spending limit on the key, so cost can never run away.</p>
+<p class="ex"><strong>Example 4: "A competitor is poking at our demos."</strong>
+- <em>Situation:</em> The Activity feed shows many refused opens from one address.
+- <em>Cause:</em> The gateway limits opens per address and bans addresses that keep presenting bad links.
+- <em>What happens by itself:</em> After 10 bad links in 10 minutes the address is refused for a while; the audit log summarises repeats instead of filling up.
+- <em>Management action:</em> None needed. Note it; if it continues, an operator can block the address at the server firewall.
+- <em>Lesson:</em> The system defends itself; management's job is to notice and decide.</p>
+<p class="ex"><strong>Example 5: "May I give a customer the real app instead?"</strong>
+- <em>Situation:</em> A customer is impatient and wants "just the real thing".
+- <em>Answer:</em> No, never. Real apps hold the owner's real data. For a customer who has bought, the right path is a <strong>separate deployment</strong> with its own data (and, for RMM / CarRental / ClaudeOS, a licence, chapter 11).
+- <em>Lesson:</em> The golden rule (Appendix D) exists to protect the owner's data and to keep promises made on the Security page.</p>
+<hr />
+</section>
+<section class="l2">
+<h2 id="9-day-1-walk-through">9. Day 1 walk-through</h2>
+<p>Do this once, in order. It teaches you the whole system by using it. Allow one hour. Use the <strong>local</strong> setup first (your PC) unless someone has given you access to the hosted console.</p>
+<h3 id="step-0-what-you-need">Step 0: What you need</h3>
+<ul>
+<li>Windows with <strong>Node.js 22 or newer</strong> (the project uses Node's built-in SQLite).</li>
+<li>The repository cloned, then <code>npm install</code> run once in its folder.</li>
+<li>The apps in their Desktop folders (only needed for demos you want to run locally).</li>
+<li>Docker Desktop only for the RMM demo.</li>
+</ul>
+<h3 id="step-1-prove-the-tools-work">Step 1: Prove the tools work</h3>
+<pre><code class="language-text">npm test
+npm run lint
+npm run status
+</code></pre>
+<p><code>npm test</code> runs the unit tests (should all pass; see a known exception in chapter 17). <code>npm run status</code> is read-only: it shows which registered apps are answering.</p>
+<h3 id="step-2-open-the-console">Step 2: Open the console</h3>
+<p>Double-click <code>start-console.bat</code>. Your browser opens <code>http://127.0.0.1:4100/</code>. Sign in with the password and the 6-digit code. If you have no password yet, the owner sets one:</p>
+<pre><code class="language-text">npm run console:auth -- set-password
+npm run console:auth -- enable-totp
+</code></pre>
+<p>You see a <strong>card for each app</strong> and buttons: Start, Stop, Restart, Open, Log.</p>
+<h3 id="step-3-start-a-demo-and-the-gateway">Step 3: Start a demo and the gateway</h3>
+<p>In the <em>Demos</em> panel start the <strong>gateway</strong> and one <strong>demo</strong> (ImageApp is the simplest: no accounts, no AI key).</p>
+<h3 id="step-4-create-a-link-for-a-pretend-customer">Step 4: Create a link for a pretend customer</h3>
+<p>Fill in: customer "Training Test", product ImageApp, 2 hours, max uses 2. Copy the link. <strong>It is shown once.</strong></p>
+<h3 id="step-5-be-the-customer">Step 5: Be the customer</h3>
+<p>Open the link in a private browser window. Read the notice, press the button, try the demo.</p>
+<h3 id="step-6-watch-yourself">Step 6: Watch yourself</h3>
+<p>Back in the console, open <strong>Activity</strong>. You will see "link created" and "demo opened". The <em>Links you have sent</em> table shows <em>Opened</em>.</p>
+<h3 id="step-7-revoke-it">Step 7: Revoke it</h3>
+<p>Press <strong>Revoke</strong>. Reload the customer window: access is gone immediately.</p>
+<h3 id="step-8-look-at-the-logs">Step 8: Look at the logs</h3>
+<p>The <strong>Log</strong> button on an app card, or the folder <code>data\logs\</code>. Remember where it is: this is where every investigation starts.</p>
+<h3 id="step-9-read-one-real-report">Step 9: Read one real report</h3>
+<p>Open <code>audits/prod-audit-2026-11-16-dashboard.md</code>. It shows how the project is checked and what a finding looks like.</p>
+<h3 id="day-1-examples-of-what-if-i-get-stuck">Day-1 examples of "what if I get stuck?"</h3>
+<ol>
+<li><em><code>npm run status</code> shows everything red.</em> → Nothing is running. That is normal on a fresh start. Start an app in the console.</li>
+<li><em><code>start-console.bat</code> says "Already running" but the page looks old.</em> → A console was already running with old code. Stop it (close its minimised window) and start again.</li>
+<li><em><code>start-console.bat</code> hangs for a minute and fails.</em> → A stray second console is holding the launcher's log file. Close the extra console window.</li>
+<li><em>The demo link opens a page saying "being prepared".</em> → Normal for a few seconds while a copy starts. Wait and it refreshes by itself.</li>
+<li><em>Your 2-step code is always rejected.</em> → Phone clock wrong, or the <code>ADMIN_DATA_KEY</code> is missing after a restore. See issue F in chapter 20.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="10-reading-the-numbers-who-is-really-interested">10. Reading the numbers: who is really interested?</h2>
+<h3 id="what-the-system-counts">What the system counts</h3>
+<p>For each link and each day the gateway counts: <strong>number of requests, first and last time, active minutes, the ten busiest pages</strong> (only the first two parts of each address, with numbers hidden). The console turns this into a label:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Not opened</strong></td>
+<td>They never clicked the button</td>
+</tr>
+<tr>
+<td><strong>Opened</strong></td>
+<td>They came in, but used it for less than a minute</td>
+</tr>
+<tr>
+<td><strong>Engaged</strong></td>
+<td>A minute or more of real use</td>
+</tr>
+<tr>
+<td><strong>Came back</strong></td>
+<td>Used on two or more different days</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="what-is-deliberately-not-kept">What is deliberately <em>not</em> kept</h3>
+<p>The customer's address and browser type in the activity counts, the query string (it may contain names or emails), anything typed into forms, cookies, and files such as images and scripts. What customers type into the AI guide goes to Anthropic to get an answer, and is <strong>not</strong> stored by us (only counts). The customer is told all this on the page where they open the link.</p>
+<h3 id="five-examples-of-reading-the-signals">Five examples of reading the signals</h3>
+<ol>
+<li><strong>Engaged + Came back + busiest pages are "/deals" and "/contacts"</strong> → They are testing the real workflow. Offer a call.</li>
+<li><strong>Opened, 1 minute, busiest page is the sign-in page</strong> → They could not log in. Check they know the demo user and password (chapter 20, issue C).</li>
+<li><strong>Not opened for 3 days</strong> → The email likely never arrived or sat unread. Resend by another route.</li>
+<li><strong>Many opens from different addresses for one link</strong> → The link was forwarded. If the link had "lock to first browser", extra opens were refused; otherwise decide whether that is fine.</li>
+<li><strong>Engaged on a link with the AI guide, few pages visited</strong> → They are asking the guide a lot but not clicking. Read the guide texts (<code>guides/*.md</code>) for gaps; the evaluation suite (<code>npm run eval:guide</code>) tells you whether the guide answers correctly.</li>
+</ol>
+<h3 id="asking-an-ai-assistant-instead">Asking an AI assistant instead</h3>
+<p>The <strong>MCP server</strong> lets an assistant such as Claude Code answer questions like <em>"Who opened their demo link this week?"</em> or <em>"Is the CRM demo running?"</em> from the same database. By default it only reads. It never returns link addresses, tokens, environment values or passwords. Setup is one command (chapter 18).</p>
+<hr />
+</section>
+<section class="l2">
+<h2 id="11-selling-per-deployment-licences">11. Selling per deployment: licences</h2>
+<h3 id="the-idea-in-plain-words">The idea in plain words</h3>
+<p>CRM earns money through plans. The other products are not "one big service for everyone". Each customer gets <strong>their own copy</strong>. The question is: how do we sell a copy and make sure it only works as paid for, without checking every minute?</p>
+<p><strong>Answer: a signed licence.</strong> It is one line of text, for example <code>FKL1.eyJ2…abc.Zm9v…xyz</code>:</p>
+<ul>
+<li><code>FKL1</code> = format version.</li>
+<li>The middle = a small description: licence id, product (<code>rmm</code>, <code>reci</code>), customer name, tier, limits (for example 250 devices, 25 users), start and end dates.</li>
+<li>The last part = a <strong>signature</strong> made with the owner's <strong>private key</strong>.</li>
+</ul>
+<p>The product contains the matching <strong>public key</strong> and checks the signature <strong>by itself, offline</strong>. Change a single character (a higher limit, a later date) and the check fails. Think of it as a wax seal: anyone can look, only the owner can make a valid one.</p>
+<h3 id="what-happens-as-a-licence-ends-and-why-it-is-gentle">What happens as a licence ends (and why it is gentle)</h3>
+<p>Status moves through <strong>active → expiring → grace → lapsed</strong>. The licence only ever refuses to <strong>add</strong> new things (a new device, a new staff user). It never switches off a customer's existing work. That is deliberate: a customer who forgets to renew must not wake up to a dead system.</p>
+<h3 id="who-sells-what">Who sells what</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Product</th>
+<th>How it is sold</th>
+<th>Counted by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CRM</td>
+<td>A service with plans and included AI</td>
+<td>Plan</td>
+</tr>
+<tr>
+<td>RMM</td>
+<td>Licence per deployment (or hosted by Facyke)</td>
+<td>Managed devices and staff users</td>
+</tr>
+<tr>
+<td>CarRental (RECI)</td>
+<td>Per deployment; brand setting and vehicle limit are built and live (enforcement off)</td>
+<td>Active vehicles</td>
+</tr>
+<tr>
+<td>ClaudeOS</td>
+<td>Stays MIT (free, public); paid support or hosting rather than a lock</td>
+<td>None</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="the-owners-three-duties">The owner's three duties</h3>
+<ol>
+<li><strong>Generate the signing key once</strong> (<code>node licensing/cli.mjs keygen</code>). It is stored outside the repository (default <code>~/.facyke-licence/signing-key.pem</code>). <strong>Back it up privately.</strong> If it is lost, no new licence can be issued that the products already out there accept.</li>
+<li><strong>Put the printed public key</strong> into the product that checks it.</li>
+<li><strong>Issue licences:</strong></li>
+</ol>
+<pre><code class="language-text">node licensing/cli.mjs issue --product rmm --customer &quot;Acme IT&quot; --tier premium --limit devices=250 --limit users=25 --until 2027-11-30
+node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --use devices=262
+</code></pre>
+<p>Renewal is just issuing a new licence. Early revocation is not part of version one: a licence ends on its date.</p>
+<h3 id="examples">Examples</h3>
+<ol>
+<li><strong>Normal sale.</strong> Acme IT buys RMM for 250 devices for one year. The owner issues a licence ending 2027-11-30. Acme pastes it in. RMM shows a green status.</li>
+<li><strong>Growing customer.</strong> Acme hits 262 devices. RMM refuses to <em>enrol the 251st</em>, but all 250 existing devices keep working. Acme buys a bigger band; the owner issues a new licence.</li>
+<li><strong>Forgot to renew.</strong> The licence passes its end date. Status becomes <em>grace</em>, then <em>lapsed</em>. Staff see a banner. Nothing already running stops; only additions are blocked.</li>
+<li><strong>Cheating attempt.</strong> Someone edits the licence text to say 5000 devices. The signature no longer matches; the product rejects the licence.</li>
+<li><strong>Lost signing key.</strong> The owner's laptop dies without a backup. Existing licences keep working (they only need the public key), but no new ones can be issued. Products can carry <strong>two</strong> public keys so a replacement key can be introduced without breaking old licences.</li>
+</ol>
+<blockquote>
+<p><strong>Status as of the evening of 17 Nov 2026.</strong>
+- The licence library and tool are merged here (PR #50). The owner's signing key exists outside the repository and is <strong>backed up offline</strong>; its public half is built into RMM.
+- <strong>RMM</strong> checks licences (merged, PR #62). It is <strong>off</strong> unless <code>LICENCE_ENFORCEMENT=1</code>, and it refuses only to add a <em>new</em> device or staff user.
+- <strong>CarRental (RECI)</strong> has the brand module (name, city, footer text from settings), a vehicle limit and an admin banner. All of it is <strong>deployed to the live site with enforcement off</strong>. It was tested end to end (next section).
+- ClaudeOS licensing and the legal customer agreement are not started. Read <code>docs/PLAN-licensing.md</code>.</p>
+</blockquote>
+<h3 id="how-the-carrental-vehicle-licence-works-and-how-it-was-tested">How the CarRental vehicle licence works and how it was tested</h3>
+<p>The limit counts <strong>active vehicles</strong>. At the limit the admin portal refuses to <em>add</em> a vehicle or <em>reactivate</em> one (error code <code>LICENCE_LIMIT</code>) and shows a banner; editing a vehicle, retiring one, and everything customers do keep working. To switch it on for a customer deployment set <code>LICENCE_ENFORCEMENT=1</code> and <code>LICENCE_KEY=&lt;the licence line&gt;</code> in the <strong>admin</strong> app, then issue the licence with <code>node licensing/cli.mjs issue --product reci --customer "&lt;name&gt;" --tier standard --limit vehicles=20 --until &lt;date&gt;</code>. The licence lives only in the admin app; the public website has no licence code.</p>
+<p>The 17 Nov test (against the demo database, never the live one) proved: no licence = everything allowed; limit 20 with 20 active = add refused and banner shown; limit 21 = add allowed; expired = no new vehicles; tampered or missing licence = no new vehicles; edit and retire still work at the limit. It also found and fixed a real bug (the banner asked the wrong web address and never appeared; RECI PR #23).</p>
+<p>Every licence you issue is appended to <code>issued.jsonl</code> next to the signing key. Three lines labelled "E2E TEST (delete)" there are test entries; leave them or annotate them, do not delete the file.</p>
+<hr />
+</section>
+<section class="l2">
+<h2 id="12-risks-and-open-decisions">12. Risks and open decisions</h2>
+<p>Be honest with yourself about what is <em>not</em> finished. This list reflects what is known on 17 Nov 2026; re-check each item before relying on it.</p>
+<h3 id="risks-and-what-reduces-them">Risks (and what reduces them)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>How bad</th>
+<th>What reduces it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One server holds all demos</td>
+<td>A server failure takes every demo offline</td>
+<td>Daily backups; the whole stack can be rebuilt from the repo plus <code>deploy/.env</code>. Keep that file backed up privately</td>
+</tr>
+<tr>
+<td>One person knows the system</td>
+<td>Knowledge risk</td>
+<td>This book; the handover checklist; the written audits</td>
+</tr>
+<tr>
+<td>Demo AI costs</td>
+<td>An abusive visitor could burn the key</td>
+<td>$5/month limit on the key; per-link rate limits; seat limits</td>
+</tr>
+<tr>
+<td>A secret committed to a now-public repository</td>
+<td>Leak to the whole internet</td>
+<td>History of every repo was scanned before it went public; a secret scanner runs in CI; never commit <code>.env</code> files or keys</td>
+</tr>
+<tr>
+<td>The licence signing key is lost or leaks</td>
+<td>No new licences, or forged ones</td>
+<td>Offline backup exists; products can carry two public keys so a replacement can be introduced (chapter 11)</td>
+</tr>
+<tr>
+<td>Secrets in the wrong place</td>
+<td>Leak</td>
+<td>Never in repo or chat; <code>.env</code> is git-ignored; a secret scanner runs in CI</td>
+</tr>
+<tr>
+<td>Shared demos hold other visitors' typing</td>
+<td>A visitor could see another's sample entries</td>
+<td>Demos reset after each customer; visitors told not to enter real data</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="open-items-not-done-yet">Open items (not done yet)</h3>
+<ul>
+<li>A <strong><code>info@facyke.com</code></strong> mailbox must exist before the public contact email changes from the owner's address.</li>
+<li><strong>cal.com</strong> booking event rename from <code>/faiyke</code> to <code>/facyke</code>; then update <code>DEMO_BOOKING_URL</code>.</li>
+<li><strong>RECI payment and email settings</strong> (Stripe, Resend) are <strong>not set in the production site</strong>, so paying and email cannot work yet. The owner does this personally, after everything else; the Stripe webhook must point at the production domain.</li>
+<li><strong>RECI security audit (9 Oct 2026)</strong>: re-check its open findings before launch (pending bookings, clear-reset, paid vision call, corporate approvals, unbounded AI input).</li>
+<li><strong>RECI database</strong>: free Supabase plan, <strong>no automated backups</strong>; decide on a backup before real bookings arrive.</li>
+<li><strong>RMM CI audit step</strong>: the dependency check only blocks on <em>shipped</em> packages because a development-tool package (<code>picomatch</code>) has no fix yet; remove the exception once a fixed version exists (chapter 17).</li>
+<li><strong>Licence setup left</strong>: first real customer licence not issued; ClaudeOS licensing decision (MIT conflicts with the agency licence text).</li>
+<li><strong>CRM <code>TRUSTED_PROXY_COUNT</code></strong> on the server is unresolved (two proxy hops: Caddy and the gateway).</li>
+<li><strong>RMM</strong> on the server has no scheduled-jobs worker and no device can enrol into the hosted demo.</li>
+<li><strong>Customer licence agreement</strong>: needs a lawyer.</li>
+<li><strong>Uptime check from outside</strong>: the built-in alerts cannot report the <em>server</em> or the <em>console itself</em> being gone. An external uptime monitor would.</li>
+</ul>
+<h3 id="decisions-already-taken-do-not-re-argue-without-a-reason">Decisions already taken (do not re-argue without a reason)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Decision</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Never edit the apps from the dashboard</td>
+<td>Protects real data; keeps one clear owner per project</td>
+</tr>
+<tr>
+<td>Demo links are shown once, only a hash is stored</td>
+<td>A database leak cannot leak working links</td>
+</tr>
+<tr>
+<td>Customers bring their own AI key and model for per-deployment products</td>
+<td>AI cost is not the owner's</td>
+</tr>
+<tr>
+<td>Hetzner (Helsinki) over a US cloud</td>
+<td>Owner in Germany; cost; EU data</td>
+</tr>
+<tr>
+<td>Demos have no real secrets, email or payment keys</td>
+<td>A demo is untrusted ground</td>
+</tr>
+<tr>
+<td>Keep internal name slugs <code>faiyke</code> after the rename to Facyke</td>
+<td>Renaming them risked breaking things for no benefit</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section class="l1">
+<h1 id="part-4-technical-handbook">Part 4: Technical handbook</h1>
+</section>
+<section class="l2">
+<h2 id="13-the-parts-in-detail">13. The parts in detail</h2>
+<h3 id="131-the-registry-registryappsjson">13.1 The registry (<code>registry/apps.json</code>)</h3>
+<p>The single source of truth. To add or change an app you edit this file. One entry:</p>
+<pre><code class="language-jsonc">{
+  &quot;id&quot;: &quot;airfinder&quot;,
+  &quot;name&quot;: &quot;Airfinder&quot;,
+  &quot;path&quot;: &quot;${APPS_ROOT}\\Airfinder&quot;,     // where the app lives
+  &quot;processes&quot;: [{
+    &quot;name&quot;: &quot;app&quot;,
+    &quot;cmd&quot;: &quot;python run.py&quot;,              // how to start it
+    &quot;port&quot;: 5200,                        // dashboard-chosen port
+    &quot;health&quot;: &quot;/&quot;,                       // the address that proves it is alive
+    &quot;env&quot;: { &quot;PORT&quot;: &quot;{port}&quot; }          // settings for this process only
+  }]
+}
+</code></pre>
+<ul>
+<li><code>${APPS_ROOT}</code> is the Desktop; <code>${DASHBOARD_ROOT}</code> is this project.</li>
+<li><code>{port}</code>, <code>{url}</code> and <code>{port:NAME}</code> are filled in at start.</li>
+<li>A process marked <code>optional</code> starts only when asked with <code>--only=</code>.</li>
+<li>An entry with <code>demoOf</code> is a demo instance; the gateway serves it only when <code>demoReady</code> is <code>true</code>.</li>
+<li>On the server the equivalent file is <code>registry/apps.hosted.json</code> (git-ignored): a process is either a host process (<code>cmd</code>) or an existing container (<code>container</code>, <code>host</code>, <code>port</code>).</li>
+</ul>
+<blockquote>
+<p><strong>Rule:</strong> set <code>demoReady: true</code> only after confirming the demo shares no data with the real app.</p>
+</blockquote>
+<p><strong>Examples of registry changes</strong></p>
+<ol>
+<li><em>Add a new product.</em> Copy an existing entry, give a new id, path, command, port (not 3000, 5000, 8501 which are reserved), and a health address. Run <code>npm run status</code>.</li>
+<li><em>Change a port.</em> Edit <code>port</code>. Check nothing else on the PC uses it; the supervisor refuses to start if the port is taken.</li>
+<li><em>Hide a half-finished demo.</em> Set <code>demoReady</code> to <code>false</code>. The gateway stops serving it and it disappears from the demo menu.</li>
+<li><em>Pass a setting to one process only.</em> Put it under that process's <code>env</code>. It never touches the app's own <code>.env</code>.</li>
+<li><em>Link two processes.</em> ClaudeOS's UI needs the API's port: <code>"FLASK_PORT": "{port:api}"</code> fills it in.</li>
+</ol>
+<h3 id="132-the-supervisor-supervisor">13.2 The supervisor (<code>supervisor/</code>)</h3>
+<pre><code class="language-text">node supervisor/index.mjs status
+node supervisor/index.mjs start   &lt;app&gt; [--only=proc]
+node supervisor/index.mjs stop    &lt;app&gt; [--only=proc]
+node supervisor/index.mjs restart &lt;app&gt; [--only=proc]
+node supervisor/index.mjs build   &lt;app&gt;          # production build of a demo
+node supervisor/index.mjs reset   &lt;demo&gt;         # back to seeded state
+node supervisor/index.mjs instance-start|instance-stop &lt;app&gt; &lt;slot&gt;   # a private copy
+</code></pre>
+<p>Built-in safety: it never reads or writes an app's <code>.env</code>; it refuses to start when a port is taken or reserved; it records the process ID of everything it starts and <strong>only</strong> stops those (and only if the start time still matches, so a reused ID is never killed); it never kills by port or by name. Logs: <code>data\logs\&lt;app&gt;-&lt;process&gt;.log</code>. An unknown command exits with code 2.</p>
+<h3 id="133-the-admin-console-admin-console-port-4100">13.3 The admin console (<code>admin-console/</code>, port 4100)</h3>
+<p>The owner-only web page. It has two sign-in modes: <strong>token mode</strong> (a one-time address on each launch) and <strong>password mode</strong> (password + 2-step code, recommended; on the server it is <em>required</em>).</p>
+<pre><code class="language-text">npm run console:auth -- set-password | enable-totp | disable-totp | remove-password
+npm run console:auth -- status | sign-out-all | gen-key
+</code></pre>
+<p>Sign-in attempts are limited (8 per address and 40 overall per 15 minutes). Every sign-in, failed sign-in and credential change is in the audit log. The console refuses to listen beyond localhost until a password is set.</p>
+<h3 id="134-the-demo-gateway-demo-gateway-port-4300">13.4 The demo gateway (<code>demo-gateway/</code>, port 4300)</h3>
+<p>The doorman. Key behaviours (full list: <code>demo-gateway/README.md</code>):</p>
+<ul>
+<li>The link token is used <strong>once</strong>, at the button press. The browser then gets a separate random <strong>session cookie</strong>; the link can never be replayed as a cookie.</li>
+<li>The session is checked on <strong>every request</strong>; open WebSockets are re-checked every few seconds, so revocation cuts live connections.</li>
+<li>A link works on its <strong>own product address only</strong>.</li>
+<li>Limits: link opens per address per minute (20), bad links per address per 10 minutes (10), requests per link per minute (600), WebSockets per link (20), upload size (50 MB).</li>
+<li>A demo that stays silent 60 seconds gets a 504.</li>
+</ul>
+<p><strong>Two kinds of demo</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Behaviour</th>
+<th>Products</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Private copy per link</strong></td>
+<td>First request starts a fresh copy ("Preparing your demo" page); deleted when the link ends or sits idle (120 minutes). If all seats are taken, the customer is told and <strong>no use is spent</strong></td>
+<td>ImageApp, Airfinder, ClaudeOS</td>
+</tr>
+<tr>
+<td><strong>Shared demo</strong></td>
+<td>One instance for all of that product's customers; reset to sample data once all opened links have ended; during the reset customers see "being prepared"</td>
+<td>CRM, RMM, CarRental</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="135-the-showcase-showcase">13.5 The showcase (<code>showcase/</code>)</h3>
+<p>A small static website with no scripts. Edit <code>site.json</code> (brand, contact), <code>products.json</code> (text; <code>"published": false</code> hides a product), <code>security.json</code> (the Security page, written only from what the software truly does), then <code>npm run showcase</code> builds into <code>showcase/dist/</code> and previews at port 4200. Keep ports, folder paths and vendor internals out of the text and never put credentials in it. The style sheet filename includes a fingerprint and is cached for a year; pages are re-checked on every visit so text changes appear at once.</p>
+<h3 id="136-the-store-database">13.6 The store (database)</h3>
+<p><code>data/dashboard.db</code> (SQLite locally) holds process records, customer links, the audit log, the admin password hash and the 2-step secret. On the server it is Postgres (<code>DASHBOARD_DB=postgres</code>). Both implement the same "store contract" so the same tests prove both.</p>
+<h3 id="137-the-deploy-folder-deploy">13.7 The deploy folder (<code>deploy/</code>)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docker-compose.yml</code></td>
+<td>Describes every container, network and volume</td>
+</tr>
+<tr>
+<td><code>Caddyfile</code>, <code>Caddy.Dockerfile</code></td>
+<td>The front door and its build</td>
+</tr>
+<tr>
+<td><code>Dockerfile</code></td>
+<td>The dashboard image (console + gateway + showcase)</td>
+</tr>
+<tr>
+<td><code>apps/&lt;app&gt;/Dockerfile</code></td>
+<td>A recipe to build each demo from the app's own folder, owned by the dashboard (the app folder is only read)</td>
+</tr>
+<tr>
+<td><code>check-apps-env.sh</code></td>
+<td>Refuses to continue if a secret an app container needs is empty</td>
+</tr>
+<tr>
+<td><code>reset-demos.sh</code></td>
+<td>Reset shared demos (<code>--dry-run</code>, <code>--force &lt;app&gt;</code>)</td>
+</tr>
+<tr>
+<td><code>set-demo-key.sh</code></td>
+<td>Install the Anthropic demo key (reads it hidden, validates it, backs up <code>.env</code>, recreates only the affected demo)</td>
+</tr>
+<tr>
+<td><code>db-backup.sh</code></td>
+<td>The daily Postgres backup</td>
+</tr>
+<tr>
+<td><code>ctl/</code></td>
+<td>The <code>pd-ctl</code> host helper for console buttons</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section class="l2">
+<h2 id="14-everyday-commands">14. Everyday commands</h2>
+<h3 id="on-the-owners-pc-powershell-or-git-bash-in-the-project-folder">On the owner's PC (PowerShell or Git Bash, in the project folder)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>I want to…</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>See what is running</td>
+<td><code>npm run status</code></td>
+</tr>
+<tr>
+<td>Start the console</td>
+<td>double-click <code>start-console.bat</code> (or <code>npm run console</code>)</td>
+</tr>
+<tr>
+<td>Start the gateway</td>
+<td><code>npm run gateway</code></td>
+</tr>
+<tr>
+<td>Create a link</td>
+<td><code>npm run demo -- create --customer "Acme Ltd" --app crm --hours 48 --max-uses 3 --device-lock</code></td>
+</tr>
+<tr>
+<td>List links</td>
+<td><code>npm run demo -- list</code></td>
+</tr>
+<tr>
+<td>Revoke a link</td>
+<td><code>npm run demo -- revoke &lt;id&gt;</code></td>
+</tr>
+<tr>
+<td>Backup now</td>
+<td><code>npm run backup</code></td>
+</tr>
+<tr>
+<td>Test the alert message</td>
+<td><code>npm run alert:test</code></td>
+</tr>
+<tr>
+<td>Preview the showcase</td>
+<td><code>npm run showcase</code></td>
+</tr>
+<tr>
+<td>Run all unit tests</td>
+<td><code>npm test</code></td>
+</tr>
+<tr>
+<td>Run style checks</td>
+<td><code>npm run lint</code></td>
+</tr>
+<tr>
+<td>Run the browser tests (real Chrome)</td>
+<td><code>npm run test:browser</code></td>
+</tr>
+<tr>
+<td>Test the AI guide answers</td>
+<td><code>npm run eval:guide -- &lt;crm\|rmm&gt; --yes</code></td>
+</tr>
+<tr>
+<td>Start the assistant helper</td>
+<td><code>npm run mcp</code></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="on-the-server-ssh-as-deploy-then-cd-homedeployprojectsdashboarddeploy">On the server (SSH as <code>deploy</code>, then <code>cd /home/deploy/ProjectsDashboard/deploy</code>)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>I want to…</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Health of every service</td>
+<td><code>docker compose ps</code></td>
+</tr>
+<tr>
+<td>Follow the gateway log</td>
+<td><code>docker compose logs -f gateway</code></td>
+</tr>
+<tr>
+<td>Is a demo busy?</td>
+<td><code>docker compose --profile apps exec -T gateway node supervisor/demo-reset-state.mjs due &lt;product&gt;</code></td>
+</tr>
+<tr>
+<td>What would reset?</td>
+<td><code>./reset-demos.sh --dry-run</code></td>
+</tr>
+<tr>
+<td>Reset one demo now</td>
+<td><code>./reset-demos.sh --force crm</code></td>
+</tr>
+<tr>
+<td>Rebuild some demos</td>
+<td><code>docker compose --profile apps up -d --build claudeos-demo rmm-demo-api rmm-demo</code></td>
+</tr>
+<tr>
+<td>Check secrets are filled</td>
+<td><code>./check-apps-env.sh</code></td>
+</tr>
+<tr>
+<td>Send a test alert mail</td>
+<td><code>docker compose exec -T console node supervisor/alert-cli.mjs</code></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="reaching-the-server-from-windows-important-gotchas">Reaching the server from Windows (important gotchas)</h3>
+<ul>
+<li>Use the <strong>PowerShell</strong> tool or a normal PowerShell window; Git Bash's <code>ssh</code> cannot see the Windows SSH agent and gives "Permission denied (publickey)".</li>
+<li>The key is a private file in your <code>.ssh</code> folder with a passphrase. <strong>Never share it or the passphrase.</strong></li>
+<li>Typical connect: <code>ssh -i "$env:USERPROFILE\.ssh\hetzner_facyke" -o IdentitiesOnly=yes deploy@&lt;server address&gt;</code> (the address is in the Hetzner console).</li>
+<li>Sending a script through PowerShell adds an invisible byte-order mark, so line 1 fails. Start the script with a dummy <code>echo start</code>, end it with <code>exit 0</code>.</li>
+<li><code>docker compose exec</code> swallows the script from stdin; add <code>&lt;/dev/null</code> to those lines.</li>
+</ul>
+<h3 id="five-command-examples-with-expected-results">Five command examples with expected results</h3>
+<ol>
+<li><code>npm run status</code> → a list of apps with up/down. <em>Down is fine for an app you did not start.</em></li>
+<li><code>npm run demo -- create ...</code> → prints <code>Grant a1b2c3d4 for "Acme Ltd" -&gt; crm, expires ...</code> and the link once. <em>Copy it now.</em></li>
+<li><code>./reset-demos.sh --dry-run</code> → lists each demo and why it would or would not reset ("busy: an opened link is still active").</li>
+<li><code>docker compose ps</code> → every service "running" or "healthy". <em>Anything "restarting" needs the log (<code>docker compose logs &lt;service&gt;</code>).</em></li>
+<li><code>node supervisor/index.mjs foo</code> → exits with code 2 (unknown command). <em>This is a safe test that the tool is installed.</em></li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="15-updating-the-live-server-safely">15. Updating the live server safely</h2>
+<h3 id="the-principles">The principles</h3>
+<ol>
+<li><strong>Test locally first</strong>, with the same commands CI runs (chapter 17).</li>
+<li><strong>Back up before you change</strong>: copy <code>deploy/.env</code> to a dated backup, and keep a database backup.</li>
+<li><strong>Change one thing at a time</strong> and verify it as a customer would (open a real link).</li>
+<li><strong>Know your rollback</strong> before you start (the previous git commit, the previous image tag).</li>
+<li><strong>Never put secrets in chat, tickets or commits.</strong></li>
+</ol>
+<h3 id="the-update-recipe-no-github-token-on-the-server">The update recipe (no GitHub token on the server)</h3>
+<p>The server pulls code from clones in <code>/srv/apps</code> and the live copy in <code>/home/deploy/ProjectsDashboard</code>. When there is no token to pull from a private repository, move the code in a <strong>git bundle</strong>:</p>
+<pre><code class="language-text"># on your machine
+git bundle create x.bundle &lt;commit-or-branch&gt;
+scp x.bundle deploy@&lt;server&gt;:/home/deploy/
+
+# on the server
+cd /home/deploy/ProjectsDashboard
+git fetch /home/deploy/x.bundle &lt;branch&gt;
+git merge --ff-only FETCH_HEAD
+cd /srv/apps/ProjectsDashboard &amp;&amp; git fetch /home/deploy/x.bundle &lt;branch&gt; &amp;&amp; git merge --ff-only FETCH_HEAD
+
+# rebuild only what changed, naming services explicitly
+cd /home/deploy/ProjectsDashboard/deploy
+docker compose --profile apps build &lt;service...&gt;
+docker compose --profile apps up -d &lt;service...&gt;
+</code></pre>
+<p><code>--ff-only</code> is a safety catch: it refuses if the server has drifted from what you expect. The console image is built via <code>docker compose build gateway</code> (the console service has no <code>build:</code> of its own); then recreate it with <code>docker compose up -d --no-deps console</code>.</p>
+<h3 id="what-to-check-after-an-update">What to check after an update</h3>
+<ol>
+<li><code>docker compose ps</code>: all healthy.</li>
+<li>The public page loads; the console loads and signs in.</li>
+<li>Create a test link named "UI test ...", open it as a customer, then <strong>revoke it</strong>.</li>
+<li>If a demo changed, check it with a real login as the demo user.</li>
+</ol>
+<h3 id="five-update-examples">Five update examples</h3>
+<p class="ex"><strong>Example 1: A text change on the showcase.</strong> Edit <code>showcase/products.json</code>, run the tests, commit, bundle, fast-forward on the server, rebuild the image that contains the showcase, refresh the page. <em>Risk: very low.</em></p>
+<p class="ex"><strong>Example 2: A new demo user password.</strong> Change the value in <code>deploy/.env</code> on the server, then recreate <strong>only</strong> that demo container. <em>Never print the password in chat; read it from the file.</em></p>
+<p class="ex"><strong>Example 3: Updating ClaudeOS demo code.</strong> Pull the app clone in <code>/srv/apps/ClaudeOS</code> (keep the server's local patch commits, merge <code>origin/main</code> rather than reset), run <code>docker compose --profile apps up -d --build claudeos-demo</code>. Before rebuilding check <code>demo-reset-state.mjs due claudeos</code>: if "busy", a customer is mid-demo, so wait or ask the owner.</p>
+<p class="ex"><strong>Example 4: The server reboots after a kernel update.</strong> Containers restart by themselves. After the reboot run <code>docker compose ps</code> and open one link. <em>All 17 containers came back by themselves on 14 Nov 2026.</em></p>
+<p class="ex"><strong>Example 5: A bad deploy.</strong> The console shows "unhealthy" after an update. Roll back: <code>git reset --hard</code> on the live copy is risky, so instead fast-forward to a fixed commit (ask the owner before any <code>git reset --hard</code> on the live copy), or re-tag the previous image (for example <code>pd-imageapp:rollback-20261116</code>) and recreate. <em>Always create a rollback image tag before a risky rebuild.</em></p>
+<p class="ex"><strong>Example 6: Rebuilding one demo from GitHub <code>main</code> (RMM, 17 Nov 2026 pattern).</strong>
+1. Check nobody is mid-demo: <code>node supervisor/demo-reset-state.mjs due rmm</code> (if "busy", note whose link is active; wait or ask the owner).
+2. On the server, in the clone under <code>/srv/apps</code>, <code>git fetch</code> and <code>git merge --ff-only origin/main</code> (a server-local patch commit stays; merge, never reset).
+3. Tag the current image as a rollback (<code>docker tag pd-rmm-ui:latest pd-rmm-ui:rollback-&lt;what&gt;</code>).
+4. <code>docker compose --profile apps up -d --build --no-deps rmm-demo</code> (name <strong>only</strong> the service that changed; <code>--no-deps</code> stops its neighbours being touched).
+5. Check: container healthy, the new file is inside the container, the eight public hosts unchanged (home 200, console 302, six demos 401).</p>
+<p>If a server-side <code>git cherry-pick</code> says CONFLICT but shows no files, the server simply has no git identity: pass <code>-c user.name=... -c user.email=...</code> for that one command.</p>
+<p class="ex"><strong>Example 7: Changing one line of the compose file (RMM production mode).</strong> <code>deploy/docker-compose.yml</code> is CRLF on Windows. Edit with a tool that keeps line endings, merge with <code>--ff-only</code> into <strong>both</strong> the <code>/srv/apps</code> copy and the live directory, run <code>docker compose --profile apps up -d --no-deps rmm-demo-api</code> as a <strong>dry run first</strong>, then for real. Only that container is recreated.</p>
+<p class="ex"><strong>Example 8: Fixing demo data in place.</strong> <code>supervisor/demo-fixes/seed-rmm-demo.py</code> can be run against the live demo: <code>docker exec -i -w /app pd-rmm-demo-api python - &lt; .../seed-rmm-demo.py</code>. It only adds what is missing (run it twice: the second adds 0) and supports <code>DRY_RUN=1</code> to report without writing.</p>
+<h3 id="gotchas-learned-the-hard-way">Gotchas learned the hard way</h3>
+<ul>
+<li>A stray character in <code>deploy/.env</code> (an <code>i</code> typed before <code>POSTGRES_PASSWORD</code>) broke every <code>docker compose</code> command. After editing <code>.env</code> always run <code>docker compose config &gt; /dev/null</code> to check it parses.</li>
+<li><code>${VAR:?}</code> settings are read by compose even for services outside the profile, so empty ones are defaulted and <code>check-apps-env.sh</code> does the strictness.</li>
+<li>Public values for CarRental are <strong>baked into its build</strong>: changing <code>DEMO_DOMAIN</code> or its Supabase project needs a rebuild, not a restart.</li>
+<li><strong>Git Bash on Windows rewrites paths</strong> that start with <code>/</code> (for example <code>vercel curl /</code>): prefix the command with <code>MSYS_NO_PATHCONV=1</code>.</li>
+<li><strong>Windows cannot delete deep <code>node_modules</code> folders</strong> (path too long): use PowerShell <code>Remove-Item -LiteralPath</code> with a <code>\\?\</code> long-path prefix.</li>
+<li><strong>Do not record "applied" or "done" from memory.</strong> Run the read-only check first (a 17 Nov note said a database migration was applied when it was not).</li>
+<li>Demo containers have a <strong>read-only</strong> root. If an app writes elsewhere, give it a <code>tmpfs</code> or volume; do not remove <code>read_only</code>.</li>
+</ul>
+<hr />
+</section>
+<section class="l2">
+<h2 id="16-security-how-the-project-protects-itself">16. Security: how the project protects itself</h2>
+<h3 id="the-layers-outside-to-inside">The layers (outside to inside)</h3>
+<ol>
+<li><strong>Network:</strong> only 80/443 are open. Firewall on. SSH key-only, root login off.</li>
+<li><strong>Front door:</strong> Caddy with automatic HTTPS; certificates only for names the gateway confirms.</li>
+<li><strong>Console:</strong> password + 2-step code (required on the server), rate-limited, audited.</li>
+<li><strong>Gateway:</strong> links shown once and stored as hashes; session cookies; per-request re-checks; limits; strict headers.</li>
+<li><strong>Demos:</strong> sealed containers, own networks, no real secrets, no cloud-metadata access.</li>
+<li><strong>Data:</strong> customer activity is counts only; audit events kept 90 days; owner sign-ins 365 days.</li>
+<li><strong>Process:</strong> written audits in <code>audits/</code>; a secret scanner and image scan in CI.</li>
+</ol>
+<h3 id="five-security-examples">Five security examples</h3>
+<ol>
+<li><strong>Stolen database backup.</strong> Links are stored as hashes, so no link can be reconstructed. The 2-step secret is encrypted with <code>ADMIN_DATA_KEY</code>, which is <em>not</em> in the backup.</li>
+<li><strong>A visitor tries to read the server's secrets from inside a demo.</strong> The container has none (real <code>.env</code> files are excluded from the build) and cannot reach the cloud metadata address.</li>
+<li><strong>A forged "real client address" header.</strong> The gateway believes <code>X-Forwarded-For</code> only from Caddy's fixed address (<code>TRUSTED_PROXIES</code>), so nobody can pretend to be a different address to dodge rate limits.</li>
+<li><strong>A revoked customer keeps a tab open.</strong> The next request, or the next WebSocket re-check, is refused within seconds.</li>
+<li><strong>A link in a mail scanner.</strong> A GET shows a notice and spends nothing; only the button (a POST) opens the demo.</li>
+</ol>
+<h3 id="what-is-not-protected-be-honest">What is <em>not</em> protected (be honest)</h3>
+<ul>
+<li>Shared demos are shared. Visitors are told not to enter real personal data.</li>
+<li>"Lock to first browser" deters forwarding but is not a guarantee; someone who copies the cookie can get in.</li>
+<li>The built-in alerts cannot report the console or server being off.</li>
+<li>Demo copies on the owner's PC run as the PC's user and are separated by data and ports, not sandboxed.</li>
+</ul>
+<hr />
+</section>
+<section class="l2">
+<h2 id="17-tests-ci-and-the-way-we-change-code">17. Tests, CI and the way we change code</h2>
+<h3 id="the-checks">The checks</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Command</th>
+<th>What it proves</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>npm run lint</code></td>
+<td>Style and common mistakes. <strong>Runs first in CI</strong>; run it before you push</td>
+</tr>
+<tr>
+<td><code>npm test</code></td>
+<td>About 400 unit tests: storage, sign-in, gateway, backups, alerts, supervisor, licences, MCP</td>
+</tr>
+<tr>
+<td><code>npm run test:browser</code></td>
+<td>Real Chrome: the console loads, create a link, a customer opens it, revoke, sign-in and sign-out, console and showcase on desktop and phone, the AI guide against a fake API</td>
+</tr>
+<tr>
+<td><code>npm run test:e2e</code></td>
+<td>The real demo apps end to end (owner's PC only; they must be running)</td>
+</tr>
+<tr>
+<td><code>TEST_DATABASE_URL=postgres://… npm test</code></td>
+<td>The same store tests against Postgres (14 extra tests that otherwise skip)</td>
+</tr>
+</tbody>
+</table></div>
+<p>CI (<code>.github/workflows/ci.yml</code>) runs on Windows and Linux plus a secret scan and an image scan. A pull request skips the Windows job and cancels superseded runs.</p>
+<p><strong>All repositories are public with a protected <code>main</code></strong> (set up 17 Nov 2026): changes need a pull request and the named checks to pass; force-push and deletion are blocked; the owner can override (admin) when needed.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Repository</th>
+<th>Required checks on <code>main</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ProjectsDashboard</td>
+<td>linux, secrets, images</td>
+</tr>
+<tr>
+<td>CRM</td>
+<td>verify, security</td>
+</tr>
+<tr>
+<td>RMM</td>
+<td>Backend Tests, Agent Tests, Dashboard Tests, Frontend Build</td>
+</tr>
+<tr>
+<td>RECI</td>
+<td>Lint · Type-check · Unit Tests; Build (web + admin); E2E Tests (Playwright)</td>
+</tr>
+<tr>
+<td>ClaudeOS</td>
+<td>Tests</td>
+</tr>
+<tr>
+<td>ImageApp</td>
+<td>test</td>
+</tr>
+<tr>
+<td>Airfinder</td>
+<td>tests</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>RECI's end-to-end tests run in "mock mode"</strong>: when the Supabase address is the placeholder <code>https://placeholder.supabase.co</code>, the vehicle API serves built-in sample vehicles so a browser test can run without a database. The real site never has that placeholder. RECI's tests need pnpm 9.15; on Windows build with <code>--config.node-linker=hoisted</code> and test the admin with <code>next build</code> then <code>next start</code> (the dev server fails).</p>
+<p><strong>RMM's dashboard tests</strong> use Streamlit's <code>AppTest</code>; run them as <code>cd dashboard &amp;&amp; pytest tests/</code> (about 9 minutes). The dependency audit is split in two: <code>npm audit --omit=dev --audit-level=high</code> <strong>blocks</strong> (shipped code), and a second audit of development tools is informational because one advisory (<code>picomatch</code>) has no fix yet.</p>
+<h3 id="the-way-we-change-code">The way we change code</h3>
+<ol>
+<li>Make a branch (never commit straight to <code>main</code>).</li>
+<li>Edit; run <code>node --check</code> on JavaScript files you changed, then <code>npm run lint</code> and <code>npm test</code>.</li>
+<li><strong>Gate the commit on the tests.</strong> Do not chain <code>git commit</code> after a test run with <code>;</code> (it will commit even when tests fail). Use <code>&amp;&amp;</code> or run them separately and read the result.</li>
+<li>Open a PR; wait for CI; merge. If CI is unavailable, say so in the PR and show your local run.</li>
+<li>Deploy to the server by the recipe in chapter 15.</li>
+</ol>
+<h3 id="known-quirks">Known quirks</h3>
+<ul>
+<li><strong><code>npm test</code> fails one test if <code>DEMO_BRAND_NAME</code> or <code>DEMO_BOOKING_URL</code> is set</strong> in your shell. Run with those unset (<code>env -u DEMO_BRAND_NAME -u DEMO_BOOKING_URL npm test</code>).</li>
+<li><strong>Older note (obsolete since 17 Nov 2026):</strong> Actions on private repositories failed when the free minutes ran out. Nothing is private any more, so CI runs everywhere. If a run fails in two seconds again, check GitHub billing and the repository's visibility first.</li>
+<li><strong><code>tests/unit/branding.test.mjs</code> fails on <code>main</code></strong> in ProjectsDashboard (known, pre-existing, not caused by recent changes).</li>
+<li><strong>CRM timestamps are UTC without a time zone.</strong> When writing directly to its database use <code>now() at time zone 'UTC'</code>, or sign-ins are rejected.</li>
+<li><strong><code>npm audit</code></strong> may list moderate warnings in the development-only tool chain (ESLint); they do not affect the running dashboard.</li>
+</ul>
+<h3 id="five-examples-of-testing-judgement">Five examples of testing judgement</h3>
+<ol>
+<li><em>I changed only a sentence in <code>products.json</code>.</em> → Run <code>npm test</code> (a test checks the showcase content) and <code>npm run showcase</code> to look at it.</li>
+<li><em>I changed the gateway.</em> → Run <code>npm test</code> <strong>and</strong> <code>npm run test:browser</code>; the browser tests catch what unit tests cannot.</li>
+<li><em>I changed how Postgres is used.</em> → Run the unit suite with <code>TEST_DATABASE_URL</code> pointing at a throwaway container so the Postgres tests actually run.</li>
+<li><em>The lint step fails in CI but passes on my PC.</em> → CI may use a newer rule or a different OS; read the exact message and run <code>npm run lint</code> again after pulling.</li>
+<li><em>I want to prove a fix on the live server.</em> → Use a temporary link named "UI test …" with Chrome automation, then revoke it. Don't use a real customer's link.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="18-the-ai-features-and-keys">18. The AI features and keys</h2>
+<h3 id="three-separate-ai-things-do-not-confuse-them">Three separate AI things (do not confuse them)</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>What it is</th>
+<th>Whose key</th>
+<th>Default model</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Demo AI inside ClaudeOS and RMM</strong></td>
+<td>The products' own AI assistant, usable in the demo</td>
+<td>The dedicated <code>facyke-demos</code> key ($5/month limit)</td>
+<td>Per product</td>
+</tr>
+<tr>
+<td><strong>The AI guide</strong></td>
+<td>A chat beside a demo that answers "how do I…?"</td>
+<td>A key on the <strong>gateway</strong> only (<code>ANTHROPIC_API_KEY</code>)</td>
+<td>Claude Haiku 5.5</td>
+</tr>
+<tr>
+<td><strong>MCP server</strong></td>
+<td>Lets <em>the owner's</em> assistant read the dashboard</td>
+<td>None (local, reads the database)</td>
+<td>n/a</td>
+</tr>
+</tbody>
+</table></div>
+<p>The hosted RMM demo (the Streamlit UI) <strong>does have an AI assistant</strong> in the sidebar ("Ask anything about this page"). It was tested in a browser on 17 Nov 2026 and answers about the page being shown. (An earlier version of this book said it had none; that was wrong.)</p>
+<h3 id="the-ai-guide">The AI guide</h3>
+<p>Opt-in per link (<code>guideMessages</code>, 0 to 200). It needs <code>"guide": true</code> on the product's demo entry in the registry, a <strong>checked</strong> <code>guides/&lt;product&gt;.md</code> (a file still holding the draft marker is not used), and an <code>ANTHROPIC_API_KEY</code> on the gateway. It has <strong>no tools</strong> and cannot see the demo or other customers. The customer's words are only ever the user message; the rules and your guide text form the system prompt. Limits: the link's allowance, a per-minute cap, a daily cap ($2/day default), 500 characters a message. <strong>Stored:</strong> counts per link per day (messages, tokens, estimated cost). <strong>Not stored:</strong> what customers type or the answers. A guide exists for CRM and RMM only.</p>
+<p>Test the guide's answers: <code>npm run eval:guide -- crm --yes</code> (37 cases per product, costs about $0.003; 37/37 passed for both on 11 Nov 2026). Re-run whenever you change a guide. The grader is pattern-based, so a new failure may be a false positive: read the answer before editing the guide.</p>
+<h3 id="choosing-a-model">Choosing a model</h3>
+<p>Per-deployment products let the customer choose Haiku, Sonnet or Opus. <strong>A model switch can silently break a feature</strong>, so each product has a checked allowlist. Findings from live calls on 16 Nov 2026: every current model rejects the <code>temperature</code> setting; Sonnet 5.5 and Opus 5.5 reject a <em>forced</em> tool choice (use automatic plus an instruction); Haiku 4.5 has no <code>effort</code> setting. <em>Before offering a new model, run the product's real request shape against it.</em></p>
+<h3 id="the-mcp-server">The MCP server</h3>
+<pre><code class="language-text">claude mcp add projects-dashboard -- node C:\path\to\ProjectsDashboard\mcp\server.mjs
+</code></pre>
+<p>Read tools: apps and whether they run, demo links with engagement, one link's activity, recent audit events, the state of each demo. It never returns link addresses, tokens, environment values or passwords. Three change tools exist but are <strong>off</strong> unless the server is started with <code>MCP_WRITE=1</code>: create a link (shown once in the assistant's answer), revoke a link, reset a shared demo (refused while a customer is using it). Every change is logged <code>by: mcp</code> and limited to 20 a minute.</p>
+<h3 id="how-the-demo-ai-was-tested-on-17-nov-2026">How the demo AI was tested on 17 Nov 2026</h3>
+<p>After rebuilding the ClaudeOS and RMM demos the AI was tested two ways. <strong>From inside the containers</strong> over SSH: log in as the demo user, then call the chat/agent endpoint (RMM <code>/api/assistant/chat</code>, ClaudeOS agent run); both answered. <strong>In a real browser</strong> through a temporary gateway link named "UI test ..." (ClaudeOS chat answered in about 1.4 seconds; the RMM assistant answered on its Software Patches page), then the link was revoked. Rules learned: every open of a link spends one use, so never script retries against a link; the Streamlit login lives in the browser <em>page</em>, not in cookies, so automation must keep one real headless Chrome open; and a URL ending <code>?tok=...</code> contains a live session token, so <strong>never share screenshots or URLs of the RMM dashboard</strong>.</p>
+<h3 id="carrentals-own-ai-model-setting">CarRental's own AI model setting</h3>
+<p>CarRental's admin has <strong>Settings, AI model</strong> (Built-in, or the customer's own choice). It is stored in the table <code>app_settings</code> (database migration 015). If the card says the "database update has not been applied", the migration is missing: run the prepared read-only check, then the migration, on the <strong>production</strong> project (Issue L).</p>
+<h3 id="five-ai-examples">Five AI examples</h3>
+<ol>
+<li><strong>"The guide says it cannot help with pricing."</strong> Correct by design: it refers pricing and anything it cannot know to you.</li>
+<li><strong>"The ClaudeOS demo shows 'API unreachable'."</strong> A historic bug in the demo image (fixed in our recipe, PR #15). If it returns, check the container log first, then the key.</li>
+<li><strong>"A visitor pasted a prompt-injection into the guide."</strong> The guide has no tools and no access to other data; the worst result is a silly answer, and the daily cap limits cost.</li>
+<li><strong>"We rotated the Anthropic key."</strong> Use <code>deploy/set-demo-key.sh claudeos|rmm|both</code>. It reads the key hidden, validates it, backs up <code>.env</code>, and recreates only the affected demo. Afterwards delete old <code>.env</code> backups on the server. <em>Never paste a key in chat.</em></li>
+<li><strong>"The assistant created a link and I can't see it."</strong> The link is shown once in the assistant's answer. If it is lost, revoke and create another.</li>
+</ol>
+<hr />
+</section>
+<section class="l1">
+<h1 id="part-5-support-playbook">Part 5: Support playbook</h1>
+</section>
+<section class="l2">
+<h2 id="19-how-to-handle-any-support-request">19. How to handle any support request</h2>
+<h3 id="the-six-steps">The six steps</h3>
+<ol>
+<li><strong>Listen and write it down.</strong> Who (customer label), which product, what they did, what they saw, what time (and time zone).</li>
+<li><strong>Reproduce or locate it.</strong> Look up their link in the console: state, expiry, uses, activity. Check the product's health.</li>
+<li><strong>Classify it</strong> using the table below. Most problems fall into ten families (A to J).</li>
+<li><strong>Fix the smallest thing first.</strong> A new link, a reset, a restart. Not a rebuild.</li>
+<li><strong>Confirm as the customer would.</strong> Open a real link; do not assume.</li>
+<li><strong>Record it</strong> (what, cause, fix) and tell the customer in plain words. If it is a new kind of problem, add it to this book.</li>
+</ol>
+<h3 id="escalation-who-handles-what">Escalation: who handles what</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Who</th>
+<th>Can do</th>
+<th>Hand over when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>L1</strong></td>
+<td>Support person</td>
+<td>Check link state, create a new link, revoke, explain the notice, check status</td>
+<td>Anything that needs the server, a restart, a key, or a code change</td>
+</tr>
+<tr>
+<td><strong>L2</strong></td>
+<td>Operator</td>
+<td>Restart or reset a demo, read logs, check disk/RAM, update, rebuild</td>
+<td>A code bug, a security concern, any secret, or data loss</td>
+</tr>
+<tr>
+<td><strong>L3</strong></td>
+<td>Owner / developer</td>
+<td>Fix code, rotate keys, restore backups, decide policy</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="never-do-this-while-supporting">Never do this while supporting</h3>
+<ul>
+<li>Never ask the customer for a password, key or private data, and never paste one in chat or tickets.</li>
+<li>Never promise a date for an AI or payment feature that is not live.</li>
+<li>Never open the real app for a customer (Appendix D).</li>
+<li>Never delete a link, a log or a backup "to tidy up" without the owner's say-so.</li>
+<li>Never restart a shared demo while a customer is using it unless the owner agrees (check with the <em>busy</em> command first).</li>
+</ul>
+<h3 id="a-quick-triage-table">A quick triage table</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>The customer says…</th>
+<th>Family</th>
+<th>Go to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>"My link doesn't work / expired / refused"</td>
+<td>A</td>
+<td>issue A</td>
+</tr>
+<tr>
+<td>"It's slow, stuck, or says preparing / seats taken"</td>
+<td>B</td>
+<td>issue B</td>
+</tr>
+<tr>
+<td>"I can't sign in to the demo"</td>
+<td>C</td>
+<td>issue C</td>
+</tr>
+<tr>
+<td>"The AI part doesn't answer / guide error"</td>
+<td>D</td>
+<td>issue D</td>
+</tr>
+<tr>
+<td>"We got an alert / something is down"</td>
+<td>E</td>
+<td>issue E</td>
+</tr>
+<tr>
+<td>"I (the owner) can't get into the console"</td>
+<td>F</td>
+<td>issue F</td>
+</tr>
+<tr>
+<td>"The site / TLS / server is wrong after an update"</td>
+<td>G</td>
+<td>issue G</td>
+</tr>
+<tr>
+<td>"Data is missing / need a restore / reset"</td>
+<td>H</td>
+<td>issue H</td>
+</tr>
+<tr>
+<td>"No email alerts / wrong emails"</td>
+<td>I</td>
+<td>issue I</td>
+</tr>
+<tr>
+<td>"CI is red / can't merge / tests fail"</td>
+<td>J</td>
+<td>issue J</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section class="l2">
+<h2 id="20-issue-catalogue">20. Issue catalogue</h2>
+<p>Each issue family has <strong>five worked examples</strong> in the same shape: <strong>Situation → Cause → Fix → Lesson</strong>. Find the one that looks like yours; if none fits exactly, the closest cause is usually right.</p>
+<hr />
+<h3 id="issue-a-my-demo-link-does-not-work">Issue A: "My demo link does not work"</h3>
+<p><em>The customer clicks the link and gets a refusal page, an error, or nothing.</em> <strong>First check, always:</strong> console → <em>Links you have sent</em> → find the customer → look at <strong>state, expiry, opens used, device lock</strong>.</p>
+<p class="ex"><strong>A1. The link has expired</strong>
+- <em>Situation:</em> "It worked yesterday, now it says the link ended."
+- <em>Cause:</em> Links stop after the hours set when created (default 48). The console shows "expired".
+- <em>Fix:</em> Create a new link (a link can never be extended or recovered). Choose a sensible length.
+- <em>Lesson:</em> If the sales conversation is still going, make the first link longer.</p>
+<p class="ex"><strong>A2. All uses are spent</strong>
+- <em>Situation:</em> The customer opened the link three times (<code>--max-uses 3</code>) and the fourth try is refused.
+- <em>Cause:</em> Each button press spends one use; reopening later in a new browser session also spends one.
+- <em>Fix:</em> New link with a higher limit. Remember: just <em>looking</em> at the link page spends nothing; only the button does.
+- <em>Lesson:</em> For a customer who will share it with a team, set 5–10 uses or no limit.</p>
+<p class="ex"><strong>A3. "Lock to first browser" blocked a colleague (or the same person on a phone)</strong>
+- <em>Situation:</em> Dana opened the link on her laptop; later on her phone it is refused.
+- <em>Cause:</em> The device lock pinned the link to the first browser's random cookie.
+- <em>Fix:</em> If it was legitimate, revoke and create a new link without the lock (or with a separate link for the phone). If it was a forward, the lock did its job.
+- <em>Lesson:</em> The Activity feed shows refusals. Read it before assuming a fault.</p>
+<p class="ex"><strong>A4. The link was revoked</strong>
+- <em>Situation:</em> "It stopped working while I was using it."
+- <em>Cause:</em> The owner (or the MCP assistant) revoked it. Revocation applies instantly, including to open pages.
+- <em>Fix:</em> Check the audit log: "link revoked" with the time and who did it (<code>by: console</code> / <code>by: mcp</code>). If revoked by mistake, issue a new link.
+- <em>Lesson:</em> Revocation cannot be undone; only a new link helps.</p>
+<p class="ex"><strong>A5. The link was made on the PC and opened elsewhere</strong>
+- <em>Situation:</em> "This site can't be reached" on a link that starts with <code>http://crm.localhost:4300/…</code>.
+- <em>Cause:</em> <code>localhost</code> links exist only on the owner's PC.
+- <em>Fix:</em> Create the link in the <strong>hosted</strong> console (<code>https://admin.facyke.com</code>) so it starts with <code>https://crm.demo.facyke.com/…</code>.
+- <em>Lesson:</em> Check the link's start before anything else.</p>
+<p><strong>A6 (bonus). The email client mangled the link</strong>
+- <em>Situation:</em> The link ends with <code>…</code> or has a space inside.
+- <em>Cause:</em> A long token was wrapped or cut by an email program.
+- <em>Fix:</em> Send it as plain text on its own line, or by a chat message. Do not retype it.
+- <em>Lesson:</em> Test the link you are about to send by opening it yourself first… then revoke, because the test spends a use. Better: create the link with 2 extra uses.</p>
+<hr />
+<h3 id="issue-b-the-demo-is-slow-stuck-or-says-it-is-being-prepared">Issue B: "The demo is slow, stuck, or says it is being prepared"</h3>
+<p class="ex"><strong>B1. "Preparing your demo" appears for a private-copy product</strong>
+- <em>Situation:</em> First visit to ImageApp, Airfinder or ClaudeOS shows a self-refreshing page.
+- <em>Cause:</em> The first request starts a fresh private copy (a few seconds; ClaudeOS longer).
+- <em>Fix:</em> Nothing: wait; it refreshes by itself. If over two minutes, an operator checks the container log.
+- <em>Lesson:</em> This is normal behaviour, not a fault.</p>
+<p class="ex"><strong>B2. "All demo seats are taken"</strong>
+- <em>Situation:</em> A customer cannot get in; no use was spent.
+- <em>Cause:</em> The product's private-copy seats (for example ImageApp 4, ClaudeOS 3) are in use.
+- <em>Fix:</em> Ask the customer to try again in a few minutes. Check the console for idle links; revoke an unused one to free a seat. Raise <code>perLink.max</code> only if the machine has the memory (each Streamlit copy uses a few hundred MB).
+- <em>Lesson:</em> Seats free themselves after 120 idle minutes.</p>
+<p class="ex"><strong>B3. A shared demo says "being prepared" for a long time</strong>
+- <em>Situation:</em> The CRM demo has said "being prepared" for ten minutes.
+- <em>Cause:</em> A reset is running (or stuck): the gateway holds customers until it ends.
+- <em>Fix (operator):</em> <code>docker compose logs --tail 100 gateway</code>, then the demo's own log. If the reset script failed, run <code>./reset-demos.sh --force crm</code> again and watch the output.
+- <em>Lesson:</em> A reset is expected between customers; a long one is a fault.</p>
+<p class="ex"><strong>B4. Everything is slow on the server</strong>
+- <em>Situation:</em> All demos crawl.
+- <em>Cause:</em> RAM exhausted. Six demos on a 4 GB server leave little spare and the swap fills.
+- <em>Fix (operator):</em> <code>free -h</code>, <code>docker stats --no-stream</code>. Stop a demo nobody needs (console Stop button), or upgrade the Hetzner server size.
+- <em>Lesson:</em> Capacity is the cost of showing six products at once.</p>
+<p class="ex"><strong>B5. One product is slow, others fine</strong>
+- <em>Situation:</em> Only the RMM demo is slow.
+- <em>Cause:</em> It has the most containers (API, dashboard, Postgres, Redis) and the first load after idle is heavy; also the 60-second upstream timeout returns a 504 if it stays silent.
+- <em>Fix:</em> Open the demo once yourself to warm it; check <code>docker compose logs rmm-demo-api</code>.
+- <em>Lesson:</em> Warm a demo before a sales call.</p>
+<p><strong>B6 (bonus). Locally, the RMM demo will not start</strong>
+- <em>Cause:</em> Docker Desktop is starting; the supervisor waits up to three minutes. Wait.</p>
+<hr />
+<h3 id="issue-c-i-cannot-sign-in-to-the-demo">Issue C: "I cannot sign in to the demo"</h3>
+<p class="ex"><strong>C1. Wrong demo password</strong>
+- <em>Situation:</em> CRM demo says "Invalid email or password".
+- <em>Cause:</em> The demo users are <code>admin@crm.test</code>, <code>sales@crm.test</code>, <code>support@crm.test</code>; the shared password is the <code>SEED_USER_PASSWORD</code> value in the demo's env file (<code>data/crm-demo.env</code> locally, <code>CRM_*</code> settings on the server).
+- <em>Fix:</em> Give the customer the right credentials through a safe channel (the opening-page welcome note is visible to the customer, so use it only for non-secret hints such as "Sign in as sales@crm.test").
+- <em>Lesson:</em> Decide how credentials are shared <em>before</em> the first link.</p>
+<p class="ex"><strong>C2. Signs in, then bounces back to sign-in</strong>
+- <em>Situation:</em> Login seems to work but the page returns to the sign-in form.
+- <em>Cause:</em> A password-change time stored in the database is in the <strong>future</strong> (CRM stores timestamps as UTC without a time zone; writing local time directly makes the session look stale).
+- <em>Fix (operator):</em> Use <code>now() at time zone 'UTC'</code> when writing times, or reseed the demo.
+- <em>Lesson:</em> Direct database edits are a last resort; use the app's tools.</p>
+<p class="ex"><strong>C3. ClaudeOS demo login rejected</strong>
+- <em>Cause:</em> The demo login is user <code>demo</code> with <code>CLAUDEOS_DEMO_PASSWORD</code>, and that password <strong>must not contain the word "demo"</strong>.
+- <em>Fix:</em> Set a compliant password in <code>deploy/.env</code>, recreate <code>claudeos-demo</code>, <code>./reset-demos.sh claudeos</code>.
+- <em>Lesson:</em> Passwords with the product's own forbidden words are silently refused.</p>
+<p class="ex"><strong>C4. The demo user is gone after a customer "cleaned up"</strong>
+- <em>Situation:</em> A customer deleted the demo admin; nobody can sign in.
+- <em>Cause:</em> Shared demos let customers change anything.
+- <em>Fix:</em> <code>./reset-demos.sh --force crm</code> puts the demo back (this ends anything the customer was doing; check <em>busy</em> first).
+- <em>Lesson:</em> This is exactly why shared demos reset between customers.</p>
+<p class="ex"><strong>C5. The RMM sign-in card looks squeezed</strong>
+- <em>Situation:</em> In the guide's split view the sign-in box is cramped.
+- <em>Cause:</em> A narrow frame. Fixed in the RMM code (breakpoint raised to 1500 px).
+- <em>Fix:</em> Make sure the server has the current RMM code; as a workaround use "Hide guide".</p>
+<hr />
+<h3 id="issue-d-the-ai-part-does-not-work">Issue D: "The AI part does not work"</h3>
+<p>First decide <strong>which AI</strong>: the product's own assistant inside the demo, or the guide beside the demo (chapter 18).</p>
+<p class="ex"><strong>D1. "API unreachable" / "AI unavailable" in ClaudeOS or RMM</strong>
+- <em>Cause:</em> Usually (a) the monthly $5 limit on the <code>facyke-demos</code> workspace is used up, (b) the key was revoked or mistyped, or (c) an old bug in the demo image.
+- <em>Fix (operator):</em> Check Anthropic Console spend; check the container log for HTTP 401 (bad key) or 429 (limit). Replace the key with <code>deploy/set-demo-key.sh</code>. A test call should return 200.
+- <em>Lesson:</em> Look at spend and key validity before suspecting code.</p>
+<p class="ex"><strong>D2. "The guide button is missing on the link page"</strong>
+- <em>Cause:</em> The guide needs <em>all four</em>: the link created with <code>guideMessages</code> above 0, <code>"guide": true</code> on the product, a guide file without the draft marker, and an <code>ANTHROPIC_API_KEY</code> on the gateway. Only CRM and RMM have guides.
+- <em>Fix:</em> Check each of the four. On the server the guide has no key at present (off).
+- <em>Lesson:</em> "Opt-in per link" means a link made without messages has no guide.</p>
+<p class="ex"><strong>D3. The guide gave a wrong answer</strong>
+- <em>Cause:</em> The guide only knows <code>guides/&lt;product&gt;.md</code> and its rules. If the guide text is missing or wrong, the answer is.
+- <em>Fix:</em> Correct the guide file, then run <code>npm run eval:guide -- &lt;product&gt; --yes</code>; expect 37/37.
+- <em>Lesson:</em> Fix the source text, not the individual answer.</p>
+<p class="ex"><strong>D4. "The guide stopped after N messages"</strong>
+- <em>Cause:</em> The link's message allowance, the per-minute cap, or the daily cap was reached.
+- <em>Fix:</em> Create a new link with more messages if the owner agrees, or wait for the day to roll.
+- <em>Lesson:</em> Each message reserves its worst-case cost first, so limits are firm.</p>
+<p class="ex"><strong>D5. A model change broke a feature</strong>
+- <em>Cause:</em> A new model rejects a setting (<code>temperature</code>, forced tool choice, <code>effort</code>).
+- <em>Fix:</em> Return to the allowlisted model; run the product's real request against the new one before offering it.
+- <em>Lesson:</em> "It works in the playground" is not proof for our request shape.</p>
+<hr />
+<h3 id="issue-e-an-alert-arrived-or-something-is-down">Issue E: "An alert arrived" or "something is down"</h3>
+<p>An alert means: two checks in a row failed (the database did not answer, or a process the supervisor started stopped answering). It names apps only, never customers or links.</p>
+<p class="ex"><strong>E1. "The database is not responding" (server)</strong>
+- <em>Fix (operator):</em> <code>docker compose ps</code> (postgres up?), <code>docker compose logs --tail 80 postgres</code>, disk space <code>df -h</code>. A full disk is the usual cause. Free space (old images: <code>docker image prune</code>, after checking), restart postgres.
+- <em>Lesson:</em> Disk full is the quietest killer.</p>
+<p class="ex"><strong>E2. A demo process is down</strong>
+- <em>Fix:</em> In the console press Restart (the <code>pd-ctl</code> button), or <code>docker compose --profile apps up -d &lt;service&gt;</code>. Read the log if it fails again immediately.
+- <em>Lesson:</em> A demo you <strong>stopped yourself</strong> is never reported; a report always means something stopped on its own.</p>
+<p class="ex"><strong>E3. "Recovered" message arrives right after "down"</strong>
+- <em>Cause:</em> A brief hiccup (restart, deploy).
+- <em>Fix:</em> None. If it repeats, look at memory use and logs.</p>
+<p class="ex"><strong>E4. No alert but the site is plainly down</strong>
+- <em>Cause:</em> The built-in alerts live inside the console; if the <em>server</em> or <em>console</em> is gone, nothing can send.
+- <em>Fix:</em> Open the Hetzner console to check the server's state; start it if off. Add an outside uptime check.
+- <em>Lesson:</em> Monitoring the watcher needs a second watcher.</p>
+<p class="ex"><strong>E5. The same alert repeats every six hours</strong>
+- <em>Cause:</em> Designed: it repeats every 6 hours while the problem lasts.
+- <em>Fix:</em> Fix the cause; the "recovered" message ends it. If the app is intentionally off, stop it from the console so it is not reported.</p>
+<hr />
+<h3 id="issue-f-the-owner-cannot-get-into-the-console">Issue F: "The owner cannot get into the console"</h3>
+<p class="ex"><strong>F1. 2-step code always rejected</strong>
+- <em>Cause:</em> Phone clock off by more than 30 seconds, or after a restore the <code>ADMIN_DATA_KEY</code> is missing or wrong so the stored secret cannot be read.
+- <em>Fix:</em> Sync the phone clock. If the key is lost: <code>npm run console:auth -- disable-totp</code>, then <code>enable-totp</code> and scan a new code. Nothing else is lost.
+- <em>Lesson:</em> Keep a copy of <code>ADMIN_DATA_KEY</code> in a password manager.</p>
+<p class="ex"><strong>F2. "Too many attempts"</strong>
+- <em>Cause:</em> The limit (8 per address, 40 overall per 15 minutes).
+- <em>Fix:</em> Wait 15 minutes. If you did not cause it, look at the audit log for failed sign-ins from other addresses and consider changing the password.</p>
+<p class="ex"><strong>F3. The console will not start on the server</strong>
+- <em>Cause:</em> On the server it refuses to start until a password <strong>and</strong> 2-step codes are set (it is reachable from the internet).
+- <em>Fix:</em> <code>docker compose run --rm console node admin-console/auth-cli.mjs set-password</code>, then <code>enable-totp</code>, then <code>docker compose up -d console</code>.</p>
+<p class="ex"><strong>F4. Token URL no longer works</strong>
+- <em>Cause:</em> After a password is set, token mode is off.
+- <em>Fix:</em> Use the password and the code.</p>
+<p class="ex"><strong>F5. A forgotten password</strong>
+- <em>Fix:</em> On the PC <code>npm run console:auth -- set-password</code> (this needs access to the PC). On the server run the same command in the console container. <code>sign-out-all</code> ends every session afterwards.
+- <em>Lesson:</em> Anyone with server access can reset it, so protect the server login.</p>
+<hr />
+<h3 id="issue-g-the-site-or-server-is-wrong-hosting">Issue G: "The site or server is wrong" (hosting)</h3>
+<p class="ex"><strong>G1. A TLS / certificate error on one demo address</strong>
+- <em>Cause:</em> The gateway does not treat that product as <code>demoReady</code> (code on the server too old, or <code>demoReady</code> false in <code>registry/apps.hosted.json</code>). Caddy only asks for certificates for ready demos. (Real case 14 Nov 2026.)
+- <em>Fix:</em> Update the server code and registry; confirm <code>demoReady: true</code>; reload.
+- <em>Lesson:</em> TLS errors on a <em>new</em> demo name usually mean "not ready", not "broken HTTPS".</p>
+<p class="ex"><strong>G2. Every <code>docker compose</code> command fails after editing <code>.env</code></strong>
+- <em>Cause:</em> A typo (a stray character before a variable name). Real case.
+- <em>Fix:</em> <code>docker compose config &gt; /dev/null</code> shows the parse error; fix the line; restore from the dated backup if needed.
+- <em>Lesson:</em> Always back up <code>.env</code> before editing and check it parses afterwards.</p>
+<p class="ex"><strong>G3. The new code does not appear on the site</strong>
+- <em>Cause:</em> The image was not rebuilt, or the wrong service was rebuilt. Containers use the image built at the time.
+- <em>Fix:</em> <code>docker compose build &lt;service&gt;</code> then <code>up -d &lt;service&gt;</code>; confirm with <code>docker compose ps</code> that the container is newly created.
+- <em>Lesson:</em> Name the services explicitly.</p>
+<p class="ex"><strong>G4. The www address or the base domain gives a different page</strong>
+- <em>Cause:</em> DNS missing or wrong. <code>www</code> needs its own CNAME; records must be <strong>DNS-only (grey cloud)</strong>.
+- <em>Fix:</em> Check Cloudflare DNS: <code>@</code>, <code>www</code>, <code>admin</code>, <code>*.demo</code> all pointing to the server.</p>
+<p class="ex"><strong>G5. I cannot SSH to the server</strong>
+- <em>Cause:</em> Using Git Bash (cannot see the agent), the key not loaded, the wrong user (use <code>deploy</code>, root is disabled), or a passphrase issue.
+- <em>Fix:</em> Use PowerShell, load the key with the full path to <code>ssh-add.exe</code>, use <code>-o IdentitiesOnly=yes</code>. If still locked out, use the Hetzner web console (rescue) to check <code>sshd</code>. <em>Never open a password login to get in.</em></p>
+<p><strong>G6 (bonus). The server just rebooted</strong>
+- <em>Fix:</em> Wait a minute; <code>docker compose ps</code> should show everything back. All containers returned by themselves in the last reboot test.</p>
+<hr />
+<h3 id="issue-h-data-is-missing-or-i-need-a-reset-or-a-restore">Issue H: "Data is missing, or I need a reset or a restore"</h3>
+<p class="ex"><strong>H1. A shared demo has a customer's leftovers</strong>
+- <em>Fix:</em> <code>./reset-demos.sh --dry-run</code> to see why it did not reset (usually a link is still active); <code>--force &lt;app&gt;</code> to reset now.
+- <em>Lesson:</em> Resets wait for all opened links to end; that is by design.</p>
+<p class="ex"><strong>H2. Restore the dashboard database on the PC</strong>
+- <em>Steps:</em> Stop the console and gateway → copy the chosen backup over <code>data/dashboard.db</code> → <strong>delete <code>data/dashboard.db-wal</code> and <code>data/dashboard.db-shm</code></strong> → start again. If the 2-step code fails, the data key is wrong (issue F1).
+- <em>Lesson:</em> Forgetting to delete the two side files can resurrect old data or corrupt the restore.</p>
+<p class="ex"><strong>H3. Restore Postgres on the server</strong>
+- <em>Steps:</em> Copy a backup out of the <code>db-backup</code> volume: <code>docker compose cp db-backup:/backups/&lt;file&gt; .</code>; restore: <code>docker compose exec -T postgres pg_restore -U dashboard -d dashboard --clean --if-exists &lt; &lt;file&gt;</code>.
+- <em>Lesson:</em> Backups live on the same machine as the database, so also copy some off the server. The <code>caddy_data</code> volume holds only certificates (re-issued if lost).</p>
+<p class="ex"><strong>H4. A customer says "my data vanished" in a demo</strong>
+- <em>Cause:</em> Demos are temporary: private copies are deleted when the link ends or idles 120 minutes; shared demos reset.
+- <em>Fix:</em> Explain that demos hold sample data only. Customer data belongs in a real deployment.
+- <em>Lesson:</em> Say it at the start: "this is a sandbox".</p>
+<p class="ex"><strong>H5. "Forget" a customer (privacy request)</strong>
+- <em>Fix:</em> In the console press <strong>Forget</strong> on the finished link. It deletes the audit events, the activity counts and the customer label for that link. (A batch still in the gateway's memory can write one last anonymous row seconds later; normal retention removes it.)
+- <em>Lesson:</em> Audit events are otherwise kept 90 days.</p>
+<hr />
+<h3 id="issue-i-email-alerts-are-missing-or-wrong">Issue I: "Email alerts are missing or wrong"</h3>
+<p class="ex"><strong>I1. No emails arrive</strong>
+- <em>Check:</em> <code>RESEND_API_KEY</code>, <code>ALERT_EMAIL_TO</code>, <code>ALERT_EMAIL_FROM</code> in the console's environment (compose passes them), the Resend domain still verified, and the spam folder. Test: <code>docker compose exec -T console node supervisor/alert-cli.mjs</code> (three test mails were received on 15 Nov 2026).</p>
+<p class="ex"><strong>I2. Phone push but no email (or the reverse)</strong>
+- <em>Cause:</em> The two channels are independent: ntfy (<code>ALERT_WEBHOOK_URL</code>) and Resend email. One can be misconfigured.</p>
+<p class="ex"><strong>I3. The email comes from the wrong sender or lands in spam</strong>
+- <em>Cause:</em> DNS records for the sending domain changed or are missing (DKIM/SPF CNAMEs, DNS-only in Cloudflare).
+- <em>Fix:</em> Re-verify the domain in Resend.</p>
+<p class="ex"><strong>I4. The ntfy topic leaked</strong>
+- <em>Cause:</em> Anyone who knows the topic can read it.
+- <em>Fix:</em> Pick a new long random topic, set it in the console's environment, restart the console, <code>npm run alert:test</code>.</p>
+<p class="ex"><strong>I5. A settings change had no effect</strong>
+- <em>Cause:</em> Environment variables only reach programs started <em>after</em> they were set. Restart the console.
+- <em>Check (PC):</em> <code>data\logs\console-launcher.out</code> should contain <code>alerts are on</code>.</p>
+<hr />
+<h3 id="issue-j-ci-is-red-or-i-cannot-merge">Issue J: "CI is red, or I cannot merge"</h3>
+<p class="ex"><strong>J1. The run fails in two seconds</strong>
+- <em>Cause:</em> Rare now. A repository that is private again, or a GitHub billing or spending-limit problem ("payments failed").
+- <em>Fix:</em> Check the repository is public and billing is fine; meanwhile run lint and tests locally and quote the results in the PR.</p>
+<p class="ex"><strong>J2. Lint fails but tests pass</strong>
+- <em>Cause:</em> CI runs lint first. Typical: a rule such as <code>no-regex-spaces</code>.
+- <em>Fix:</em> <code>npm run lint</code> locally, fix, push.</p>
+<p class="ex"><strong>J3. One test fails only on my PC</strong>
+- <em>Cause:</em> <code>DEMO_BRAND_NAME</code> or <code>DEMO_BOOKING_URL</code> set in your shell.
+- <em>Fix:</em> Run with them unset.</p>
+<p class="ex"><strong>J4. A shell-script test fails on Windows</strong>
+- <em>Cause:</em> A test ran <code>sh -n</code> on a bash-only script. (Real case, fixed.)
+- <em>Fix:</em> Use the right checker or skip on the wrong platform.</p>
+<p class="ex"><strong>J5. Two PRs conflict because one is "stacked" on the other</strong>
+- <em>Fix:</em> Merge the base first, then update the second branch with <code>main</code> before merging.</p>
+<h3 id="issue-k-a-demo-device-does-nothing-when-i-press-a-button-rmm">Issue K: "A demo device does nothing when I press a button" (RMM)</h3>
+<p class="ex"><strong>K1. Remote Terminal, Disk Management, Maintenance, Scripts, Software Patches or Devices (Reboot, Shutdown) says "This is a demo device, so it is simulated..."</strong>
+- <em>Cause:</em> The hosted demo's devices are fictional (<code>agent_version</code> is <code>demo-simulated</code>); no real agent exists to carry out the action. This is correct behaviour since 17 Nov 2026; before that the pages queued tasks nobody would ever run.
+- <em>Fix:</em> None. Explain it to the customer: on a real device the agent does it on its next check-in.</p>
+<p class="ex"><strong>K2. A <em>real</em> device (enrolled agent) shows the same message</strong>
+- <em>Cause:</em> Its <code>agent_version</code> is wrongly set to the demo marker.
+- <em>Fix:</em> Check the device record; real agents report their own version.</p>
+<p class="ex"><strong>K3. I am adding a new page that queues work for devices</strong>
+- <em>Fix:</em> Use <code>from utils.demo import is_simulated, demo_note</code> (file <code>dashboard/utils/demo.py</code> in the RMM repository): skip the API call for simulated devices and show <code>demo_note("what it would do")</code>. Add a test that fails without the guard (see <code>dashboard/tests/test_demo_simulated_devices.py</code>).</p>
+<p class="ex"><strong>K4. "Software Patches shows No packages found"</strong>
+- <em>Cause:</em> The demo's installed-software table was empty. Fixed on 17 Nov 2026 (112 rows for 8 devices).
+- <em>Fix:</em> Re-run the seed script (it adds only what is missing) or <code>reset-demos.sh</code>, which reseeds it.</p>
+<h3 id="issue-l-carrental-admin-ai-model-says-the-database-update-has-not-been-applied">Issue L: "CarRental admin: AI model says the database update has not been applied"</h3>
+<p><strong>L1.</strong> <em>Cause:</em> Migration 015 (<code>app_settings</code>) is missing on the production project. <em>Fix:</em> In the Supabase SQL editor of the <strong>production</strong> project, run <code>05a_app_settings_check_READONLY.sql</code> (expects <code>table_exists = false</code>), then <code>05b</code>, then <code>05c</code> to verify. The files live in the owner's <code>RECI-migrations</code> folder. Check the editor shows the right project name before running.</p>
+<p><strong>L2.</strong> <em>Cause:</em> The SQL ran on the wrong project (the demo one). <em>Fix:</em> Re-run on production; the check tells you which one has the table.</p>
+<p><strong>L3.</strong> <em>Cause:</em> A migration was assumed to be applied from an old note. <em>Fix:</em> Always run the read-only check before recording "applied".</p>
+<hr />
+</section>
+<section class="l1">
+<h1 id="part-6-where-each-project-stands">Part 6: Where each project stands</h1>
+</section>
+<section class="l2">
+<h2 id="21-project-by-project-state-at-the-end-of-17-november-2026">21. Project by project (state at the end of 17 November 2026)</h2>
+<h3 id="projectsdashboard-this-repository">ProjectsDashboard (this repository)</h3>
+<ul>
+<li>Default branch <code>main</code>, protected; standard files added (LICENSE, SECURITY, CHANGELOG, PR template; PR #52); project standard and inventory published (<code>docs/PROJECT-STANDARD.md</code>, <code>docs/PROJECT-INVENTORY-2026-11-17.md</code>).</li>
+<li>Licence library and CLI merged (PR #50) and used for real: the owner's signing key exists and is backed up offline.</li>
+<li>Deployment change (PR #53): the hosted RMM demo API now runs with <code>FLASK_ENV: production</code> (debug off, secure cookies; the dashboard uses bearer tokens so nothing breaks).</li>
+<li>Demo seed (PR #54): <code>supervisor/demo-fixes/seed-rmm-demo.py</code> now seeds installed software for the demo devices.</li>
+<li>This book and a README change were the only uncommitted local files when the book was written.</li>
+</ul>
+<h3 id="rmm-remote-management">RMM (Remote Management)</h3>
+<ul>
+<li><strong>Licence enforcement</strong> merged (PR #62), off by default (<code>LICENCE_ENFORCEMENT=1</code> to enable).</li>
+<li><strong>CI fixed</strong> (PR #65): the dependency audit blocks only on shipped packages; the development-tool audit is informational.</li>
+<li><strong>Demo honesty (PRs #64, #66, #67):</strong> the dashboard now recognises simulated devices (<code>dashboard/utils/demo.py</code>) and explains instead of queueing impossible work on Software Patches, Remote Terminal, Disk Management, Maintenance, Scripts and the Devices page's Reboot/Shutdown. The terminal for a simulated device is a local, clearly labelled mock. Tests cover this; the old pages fail them.</li>
+<li><strong>Audited and left alone:</strong> OS Patches (database only), MDM actions (no phones in the demo), Network Discovery (the demo's API container has no <code>ping</code>, no capabilities and a private network, so a scan finds nothing and cannot reach outward), Automation "Run Now" (message already accurate).</li>
+<li>Hosted demo: production mode, software data present, assistant working. Not done: a browser click-through of the deployed Remote Terminal.</li>
+</ul>
+<h3 id="carrental-reci-claudeworkspace">CarRental / RECI (ClaudeWorkspace)</h3>
+<ul>
+<li><strong>Repository public</strong> (17 Nov), history scanned (no real secrets; only old weak demo passwords for accounts that were deleted). <code>main</code> protected (3 required checks). Standard files merged.</li>
+<li><strong>CI works for the first time:</strong> lint, type-check, unit tests, full build of web and admin, and Playwright end-to-end tests in mock mode (PRs #21, #22).</li>
+<li><strong>White-label and vehicle licence</strong> (brand module, footer settings, vehicle limit) merged and <strong>deployed to production</strong> after a preview deploy, a licence end-to-end test and a before/after smoke comparison (13 status codes and page texts identical). Enforcement is off on the live site.</li>
+<li><strong>Banner bug fixed</strong> (PR #23, wrong address for the licence status call).</li>
+<li><strong>Migration 015 applied</strong> on production (after a wrong-project mistake and a wrong table name in my first check script, both corrected). Built-in AI model chosen; the AI search was re-checked on production (English and German queries correct).</li>
+<li><strong>Open:</strong> Stripe and Resend environment variables (owner does these personally); October audit findings to re-check; no database backups on the free plan.</li>
+<li><strong>Production deploy recipe:</strong> from a <strong>clean clone of <code>main</code></strong>, copy the right <code>.vercel/project.*.json</code> (web or admin) to <code>.vercel/project.json</code>, run <code>vercel deploy --prod</code>. The admin app lives under the base path <code>/admin</code>. Never promote a preview build (it has placeholder settings). Record the previous deployment so <code>vercel promote &lt;old&gt;</code> is a one-step rollback. Run the same smoke script before and after.</li>
+</ul>
+<h3 id="claudeos">ClaudeOS</h3>
+<ul>
+<li>Public, MIT, <code>main</code> protected (check: Tests); version tag 17.4.0 released; standard files merged.</li>
+<li>Hosted demo <strong>rebuilt from <code>main</code></strong> plus the server's copy of PR #51; AI chat tested from inside the container and in a browser.</li>
+<li>Open: the MIT licence conflicts with the agency-licence text (owner decision); the skills pack lives on a separate branch (not merged).</li>
+</ul>
+<h3 id="crm">CRM</h3>
+<ul>
+<li>Default branch renamed to <code>main</code>; protected (verify, security). CI had been broken by the move to Prisma 7 and was fixed in that repository (<code>SHADOW_DATABASE_URL</code>, two date-pinned tests). Standard files merged. Demo unchanged today.</li>
+</ul>
+<h3 id="imageapp-and-airfinder">ImageApp and Airfinder</h3>
+<ul>
+<li>Default branch <code>main</code>, protected (test / tests), standard files merged, CI green. ImageApp's Pillow 13 fix is merged and the server already ran it.</li>
+</ul>
+<h3 id="hosting-hetzner">Hosting (Hetzner)</h3>
+<ul>
+<li>Everything stayed up all day: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows <code>main</code> by fast-forward only.</li>
+</ul>
+</section>
+<section class="l2">
+<h2 id="22-what-changed-on-17-november-2026">22. What changed on 17 November 2026</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Change</th>
+<th>Where</th>
+<th>Live effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>RECI made public; CI runs free</td>
+<td>RECI</td>
+<td>None for visitors</td>
+</tr>
+<tr>
+<td>2</td>
+<td>RECI mock mode and E2E fixes (#22), docs (#21)</td>
+<td>RECI</td>
+<td>CI only</td>
+</tr>
+<tr>
+<td>3</td>
+<td>RECI branch protection (3 checks)</td>
+<td>RECI</td>
+<td>Process</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Licence end-to-end test; banner fix (#23)</td>
+<td>RECI</td>
+<td>Admin banner now appears</td>
+</tr>
+<tr>
+<td>5</td>
+<td>White-label and vehicle licence deployed to production</td>
+<td>RECI</td>
+<td>Live, enforcement off</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Migration 015 (<code>app_settings</code>) applied, AI model chosen</td>
+<td>RECI database</td>
+<td>AI model setting works</td>
+</tr>
+<tr>
+<td>7</td>
+<td>ClaudeOS and RMM demos rebuilt from <code>main</code></td>
+<td>Hetzner</td>
+<td>New code in both demos</td>
+</tr>
+<tr>
+<td>8</td>
+<td>AI chat tested on both demos (containers and browser)</td>
+<td>Hetzner</td>
+<td>None</td>
+</tr>
+<tr>
+<td>9</td>
+<td>RMM demo API in production mode (#53)</td>
+<td>Hetzner</td>
+<td>Debug off, secure cookies</td>
+</tr>
+<tr>
+<td>10</td>
+<td>RMM demo software data seeded (#54)</td>
+<td>Hetzner</td>
+<td>Software Patches shows packages</td>
+</tr>
+<tr>
+<td>11</td>
+<td>RMM CI audit split (#65)</td>
+<td>RMM</td>
+<td>CI unblocked</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Simulated-device handling on six pages (#64, #66, #67)</td>
+<td>RMM and Hetzner</td>
+<td>No fake "queued" messages</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Scratch clones and the Desktop key copy removed</td>
+<td>Owner's PC</td>
+<td>Tidy</td>
+</tr>
+<tr>
+<td>14</td>
+<td>All repositories on <code>main</code>, protected, standard files</td>
+<td>All</td>
+<td>Process</td>
+</tr>
+<tr>
+<td>15</td>
+<td>This book rewritten</td>
+<td>ProjectsDashboard</td>
+<td>None</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Corrections made the same day (so you do not repeat them):</strong> the RMM demo <em>does</em> have an AI assistant; migration 015 was first recorded as applied but was not; a verification script named a table that does not exist; and a deploy "conflict" was only a missing git identity on the server.</p>
+<p><strong>Still the owner's to do:</strong> Stripe and Resend for RECI; confirm the offline key backup opens; optionally annotate the three test lines in the licence log; later, remove the RMM audit exception.</p>
+<hr />
+</section>
+<section class="l1">
+<h1 id="appendices">Appendices</h1>
+</section>
+<section class="l2">
+<h2 id="appendix-a-checklists">Appendix A: Checklists</h2>
+<h3 id="a1-handover-checklist-new-owner">A.1 Handover checklist (new owner)</h3>
+<ul>
+<li>[ ] Repository opens; <code>npm install</code>, <code>npm test</code> and <code>npm run lint</code> succeed.</li>
+<li>[ ] Signed in to the console with a password and a 2-step code.</li>
+<li>[ ] A copy of <code>ADMIN_DATA_KEY</code> is in a password manager.</li>
+<li>[ ] The alert topic is understood as a secret; a test alert (<code>npm run alert:test</code>) arrived.</li>
+<li>[ ] The backup folder contains a recent file; the restore steps were read (issue H2 and H3).</li>
+<li>[ ] You created, opened and revoked a link yourself (chapter 9).</li>
+<li>[ ] You have read the golden rules (Appendix D).</li>
+<li>[ ] You know where logs are (<code>data\logs\</code>, <code>docker compose logs</code>) and where the written audits are (<code>audits/</code>).</li>
+<li>[ ] Access to: Cloudflare, Hetzner (with 2FA), Anthropic (workspace <code>facyke-demos</code>), GitHub, Resend, cal.com; each person has their <em>own</em> login.</li>
+<li>[ ] The Hetzner SSH key is held by the operator only; the passphrase is not written anywhere shared.</li>
+<li>[ ] A private, backed-up copy of <code>deploy/.env</code> exists.</li>
+<li>[ ] The signing key for licences exists and is backed up privately (chapter 11); you have checked the backup opens (it starts with <code>-----BEGIN PRIVATE KEY-----</code>).</li>
+<li>[ ] You know every repository is public: before any commit, no keys, passwords, <code>.env</code> files or private addresses.</li>
+</ul>
+<h3 id="a2-weekly-checklist">A.2 Weekly checklist</h3>
+<ul>
+<li>[ ] Console green; no unexpected alerts.</li>
+<li>[ ] Links sent: follow up on <em>Came back</em>/<em>Engaged</em>; remind <em>Not opened</em>.</li>
+<li>[ ] Newest backup is recent; one copy exists off the server.</li>
+<li>[ ] Anthropic spend vs the $5 limit; Hetzner invoice.</li>
+<li>[ ] Dependencies/audit notes, if the owner wants them.</li>
+</ul>
+<h3 id="a3-before-any-customer-demo">A.3 Before any customer demo</h3>
+<ul>
+<li>[ ] The demo product is up (console green) and was opened by you today.</li>
+<li>[ ] You logged in as the demo user and clicked through the main path.</li>
+<li>[ ] You know the demo credentials and how you will share them.</li>
+<li>[ ] The link has a sensible expiry (2+ days), uses (3+), a name and a short welcome note.</li>
+<li>[ ] The AI guide is on only if you want it (and the product has one).</li>
+<li>[ ] Nobody else is using the shared demo (check <em>busy</em>).</li>
+</ul>
+<h3 id="a4-when-someone-leaves-the-team">A.4 When someone leaves the team</h3>
+<ul>
+<li>[ ] Remove their console access / change the shared password and run <code>sign-out-all</code>.</li>
+<li>[ ] Remove their SSH public key from <code>/home/deploy/.ssh/authorized_keys</code>.</li>
+<li>[ ] Remove them from GitHub, Cloudflare, Hetzner, Anthropic, Resend.</li>
+<li>[ ] Rotate any key they could have seen (<code>set-demo-key.sh</code>, Resend key).</li>
+<li>[ ] Review the audit log for their last activity.</li>
+</ul>
+<hr />
+</section>
+<section class="l2">
+<h2 id="appendix-b-cheat-sheet">Appendix B: Cheat sheet</h2>
+<pre><code class="language-text">LOCAL (PC)
+  npm run status                       what answers
+  start-console.bat                    owner console (4100)
+  npm run gateway                      demo gateway (4300)
+  npm run demo -- create|list|revoke   customer links
+  npm run backup                       backup now
+  npm test / lint / test:browser       the checks
+
+SERVER (ssh deploy@..., cd /home/deploy/ProjectsDashboard/deploy)
+  docker compose ps
+  docker compose logs -f gateway
+  docker compose --profile apps up -d --build &lt;service&gt;
+  ./reset-demos.sh --dry-run | --force &lt;app&gt;
+  ./check-apps-env.sh
+  docker compose --profile apps exec -T gateway node supervisor/demo-reset-state.mjs due &lt;product&gt;
+
+URLS
+  facyke.com            public site
+  admin.facyke.com      owner console (password + 2-step)
+  &lt;product&gt;.demo.facyke.com/d/&lt;token&gt;     customer link
+
+PORTS (PC)  4100 console · 4200 showcase · 4300 gateway · 3000/5000/8501 reserved
+</code></pre>
+<h3 id="where-each-kind-of-problem-is-logged">Where each kind of problem is logged</h3>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>Look here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>An app will not start (PC)</td>
+<td><code>data\logs\&lt;app&gt;-&lt;process&gt;.log</code></td>
+</tr>
+<tr>
+<td>The console launcher</td>
+<td><code>data\logs\console-launcher.out</code></td>
+</tr>
+<tr>
+<td>Who did what</td>
+<td>Console → Activity (audit log)</td>
+</tr>
+<tr>
+<td>A demo container (server)</td>
+<td><code>docker compose logs &lt;service&gt;</code></td>
+</tr>
+<tr>
+<td>Gateway on the server</td>
+<td><code>docker compose logs gateway</code> (JSON lines; <code>LOG_FORMAT=text</code> for readable)</td>
+</tr>
+<tr>
+<td>Health</td>
+<td><code>/_pd/healthz</code> on gateway and console</td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section class="l2">
+<h2 id="appendix-c-where-to-find-things">Appendix C: Where to find things</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>I want to…</th>
+<th>File or place</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Understand the dashboard in short</td>
+<td><code>README.md</code></td>
+</tr>
+<tr>
+<td>Read the older handover book</td>
+<td><code>docs/HANDOVER-BOOK.md</code> (note: its hosting chapter was written before hosting went live)</td>
+</tr>
+<tr>
+<td>See how the parts fit</td>
+<td><code>docs/HOW-IT-WORKS.md</code></td>
+</tr>
+<tr>
+<td>Know every gateway setting</td>
+<td><code>demo-gateway/README.md</code></td>
+</tr>
+<tr>
+<td>Host it</td>
+<td><code>deploy/README.md</code></td>
+</tr>
+<tr>
+<td>Use the MCP server</td>
+<td><code>mcp/README.md</code></td>
+</tr>
+<tr>
+<td>Understand licensing</td>
+<td><code>docs/PLAN-licensing.md</code>, <code>licensing/README.md</code></td>
+</tr>
+<tr>
+<td>See the repository standard and inventory</td>
+<td><code>docs/PROJECT-STANDARD.md</code>, <code>docs/PROJECT-INVENTORY-2026-11-17.md</code></td>
+</tr>
+<tr>
+<td>Add a device-dependent RMM page</td>
+<td><code>dashboard/utils/demo.py</code> in the RMM repository</td>
+</tr>
+<tr>
+<td>Seed or repair RMM demo data</td>
+<td><code>supervisor/demo-fixes/seed-rmm-demo.py</code></td>
+</tr>
+<tr>
+<td>Write or improve an AI guide</td>
+<td><code>docs/GUIDES.md</code>, <code>guides/*.md</code></td>
+</tr>
+<tr>
+<td>See security and code reviews</td>
+<td><code>audits/</code></td>
+</tr>
+<tr>
+<td>See per-product production audits (16 Nov 2026)</td>
+<td><code>audits/prod-audit-2026-11-16-*.md</code></td>
+</tr>
+<tr>
+<td>Change public website text</td>
+<td><code>showcase/*.json</code></td>
+</tr>
+</tbody>
+</table></div>
+<hr />
+</section>
+<section class="l2">
+<h2 id="appendix-d-the-golden-rules">Appendix D: The golden rules</h2>
+<ol>
+<li><strong>Never edit the apps</strong>, their <code>.env</code> files, databases or repositories from the dashboard without explicit approval.</li>
+<li><strong>Never mark a demo <code>demoReady</code></strong> until it has its own data.</li>
+<li><strong>Never put real credentials</strong> in the registry, the showcase, the repository, chat, tickets or this book.</li>
+<li><strong>Never commit</strong> <code>data/</code>, <code>deploy/.env</code> or <code>registry/apps.hosted.json</code>.</li>
+<li><strong>One console, one port.</strong> A second console blocks the launcher.</li>
+<li><strong>The Desktop folders are the source of truth</strong> for each app; same-named folders inside the project are stale.</li>
+<li><strong>Real before fast:</strong> verify the live state (<code>docker compose ps</code>, the console, a real link) before you say something is broken, fixed, or blocked. Memory and assumptions go stale.</li>
+<li><strong>Gate commits on tests.</strong> Do not commit after a failing run.</li>
+<li><strong>Ask before anything hard to undo or outward-facing:</strong> deleting data, revoking someone's active link, rotating a key, restarting a demo in use, sending something to a customer.</li>
+<li><strong>Demo AI costs money:</strong> keep the key's spending limit in place.</li>
+<li><strong>Everything is public:</strong> nothing secret goes into any repository, issue, pull request or screenshot (RMM dashboard URLs carry a session token).</li>
+<li><strong>Check before you record:</strong> never write "applied", "deployed" or "fixed" in a note until you have run the check that proves it.</li>
+<li><strong>A demo must not pretend:</strong> if a button cannot really work in the demo, say so on the page.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="appendix-e-frequently-asked-questions">Appendix E: Frequently asked questions</h2>
+<p><strong>Is it safe to give a customer the link by email?</strong> Yes. The link is a one-time-shown secret that dies at expiry or revocation. Use the device lock for sensitive prospects.</p>
+<p><strong>Can I extend a link?</strong> No. Create a new one.</p>
+<p><strong>Why did my link lose a use when I didn't open it?</strong> It didn't: looking at the opening page spends nothing. A use is spent on the button press.</p>
+<p><strong>Can customers see each other?</strong> In private-copy products, no. In shared demos, they share the same sample database, which is why they are asked not to enter real data and why the demo resets.</p>
+<p><strong>Why are there six products but a different demo style for each?</strong> Some are light (ImageApp), so a private copy per link is cheap. Others (CRM, RMM, CarRental) have heavy databases, so one shared copy is reset between customers.</p>
+<p><strong>Where does the AI cost go?</strong> Demo AI uses the <code>facyke-demos</code> key ($5/month cap). Per-deployment products use the customer's own key.</p>
+<p><strong>What if the owner is unreachable?</strong> The operator can keep demos running and restore from backups, but must not rotate keys or delete data without approval. Keep a sealed "break-glass" note with account recovery information in a safe place.</p>
+<p><strong>What happens if the server dies?</strong> Recreate a Hetzner server, install Docker, restore <code>deploy/.env</code> and the repository, run the first-start steps in <code>deploy/README.md</code>, restore the Postgres backup, repoint DNS. Everything else is rebuilt from code.</p>
+<p><strong>Where do I add new knowledge?</strong> In this book. When you solve a problem that is not in chapter 20, add it as a new example in the right family, in the same shape (Situation → Cause → Fix → Lesson).</p>
+<hr />
+<p><em>End of the onboarding book. Welcome to the team.</em></p>
+</section>
+<footer>Generated from docs/ONBOARDING-BOOK.md. Edit the Markdown, then rebuild this page.</footer>
+</main>
+</div>
+<script>
+try{var t=localStorage.getItem('book-theme');if(t)document.documentElement.dataset.theme=t}catch(e){}
+document.getElementById('theme').onclick=function(){var d=document.documentElement,dark=d.dataset.theme?d.dataset.theme==='dark':matchMedia('(prefers-color-scheme:dark)').matches;d.dataset.theme=dark?'light':'dark';try{localStorage.setItem('book-theme',d.dataset.theme)}catch(e){}};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>if(window.mermaid){mermaid.initialize({startOnLoad:true,theme:matchMedia('(prefers-color-scheme:dark)').matches?'dark':'default'})}</script>
+</body>
+</html>
