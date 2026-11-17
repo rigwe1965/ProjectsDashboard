@@ -73,6 +73,6 @@ Desktop\
 
 ## 7. Open items before this becomes the rule
 
-- Owner approves sections 2 and 3, and the visibility column.
+- Visibility of Airfinder and ImageApp (owner decides); every other row is approved.
 - Billing fix, so CI runs on private repos.
 - Decide who is allowed to merge and tag (needed for branch protection).
