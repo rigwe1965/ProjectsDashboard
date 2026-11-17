@@ -327,7 +327,7 @@ services:
       rmm-demo-db: { condition: service_healthy }
       rmm-demo-cache: { condition: service_healthy }
     environment:     # no SMTP, MQTT, MDM or payment settings: nothing reaches a real system
-      FLASK_ENV: development
+      FLASK_ENV: production   # debug off, secure cookies. The demo runs over HTTPS and the dashboard uses bearer tokens, not cookies
       DATABASE_URL: postgresql://rmm:${RMM_DB_PASSWORD:-}@rmm-demo-db:5432/rmm_demo
       REDIS_URL: redis://:${RMM_REDIS_PASSWORD:-}@rmm-demo-cache:6379/0
       CELERY_BROKER_URL: redis://:${RMM_REDIS_PASSWORD:-}@rmm-demo-cache:6379/0
