@@ -538,7 +538,7 @@ In the *Demos* panel start the **gateway** and one **demo** (ImageApp is the sim
 
 ### Step 4: Create a link for a pretend customer
 
-Fill in: customer "Training Test", product ImageApp, 2 hours, max uses 2. Copy the link. **It is shown once.**
+Fill in: customer "Training Test", product ImageApp, 2 hours, max uses 2. Copy the link. **It is shown once.** When you pass a link on (chat, email, a ticket), put it **in a code block or on a line of its own**, so that the copy button copies the whole thing. Chat and email programs can cut a long link at a hyphen or line end, and a cut link does not work (Issue A6, A7).
 
 ### Step 5: Be the customer
 
@@ -1174,6 +1174,13 @@ Each issue family has **five worked examples** in the same shape: **Situation â†
 - *Cause:* A long token was wrapped or cut by an email program.
 - *Fix:* Send it as plain text on its own line, or by a chat message. Do not retype it.
 - *Lesson:* Test the link you are about to send by opening it yourself firstâ€¦ then revoke, because the test spends a use. Better: create the link with 2 extra uses.
+
+**A7. The page says "Demo access needed" or `{"error":"Not found"}`**
+
+- *Situation:* The address bar shows only `airfinder.demo.facyke.com` (page: "Demo access needed. Please open the personal demo link you were sent."), or `.../d/` with nothing after it (page: `{"error":"Not found"}`). The console shows the link with **0 uses**.
+- *Cause:* The link was cut short when it was copied. A real link is `https://<product>.demo.facyke.com/d/<long code>`; without the code the gateway cannot find the link. The demo itself is fine (on 17 Nov 2026 eight links in a row were never counted; the ninth, sent in a code block, was).
+- *Fix:* Look at the address bar after pasting: the long code must follow `/d/`. Re-send the link in a code block and copy it with the copy button, or put it in a text file. Revoke the broken link if a new one was made.
+- *Lesson:* "0 uses" in the console means the link never reached the server. That points to how it was copied, not to the demo.
 
 ---
 

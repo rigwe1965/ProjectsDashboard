@@ -1135,7 +1135,7 @@ npm run console:auth -- enable-totp
 <h3 id="step-3-start-a-demo-and-the-gateway">Step 3: Start a demo and the gateway</h3>
 <p>In the <em>Demos</em> panel start the <strong>gateway</strong> and one <strong>demo</strong> (ImageApp is the simplest: no accounts, no AI key).</p>
 <h3 id="step-4-create-a-link-for-a-pretend-customer">Step 4: Create a link for a pretend customer</h3>
-<p>Fill in: customer "Training Test", product ImageApp, 2 hours, max uses 2. Copy the link. <strong>It is shown once.</strong></p>
+<p>Fill in: customer "Training Test", product ImageApp, 2 hours, max uses 2. Copy the link. <strong>It is shown once.</strong> When you pass a link on (chat, email, a ticket), put it <strong>in a code block or on a line of its own</strong>, so that the copy button copies the whole thing. Chat and email programs can cut a long link at a hyphen or line end, and a cut link does not work (Issue A6, A7).</p>
 <h3 id="step-5-be-the-customer">Step 5: Be the customer</h3>
 <p>Open the link in a private browser window. Read the notice, press the button, try the demo.</p>
 <h3 id="step-6-watch-yourself">Step 6: Watch yourself</h3>
@@ -2062,6 +2062,13 @@ docker compose --profile apps up -d &lt;service...&gt;
 <li><em>Cause:</em> A long token was wrapped or cut by an email program.</li>
 <li><em>Fix:</em> Send it as plain text on its own line, or by a chat message. Do not retype it.</li>
 <li><em>Lesson:</em> Test the link you are about to send by opening it yourself first… then revoke, because the test spends a use. Better: create the link with 2 extra uses.</li>
+</ul>
+<p class="ex"><strong>A7. The page says "Demo access needed" or <code>{"error":"Not found"}</code></strong></p>
+<ul>
+<li><em>Situation:</em> The address bar shows only <code>airfinder.demo.facyke.com</code> (page: "Demo access needed. Please open the personal demo link you were sent."), or <code>.../d/</code> with nothing after it (page: <code>{"error":"Not found"}</code>). The console shows the link with <strong>0 uses</strong>.</li>
+<li><em>Cause:</em> The link was cut short when it was copied. A real link is <code>https://&lt;product&gt;.demo.facyke.com/d/&lt;long code&gt;</code>; without the code the gateway cannot find the link. The demo itself is fine (on 17 Nov 2026 eight links in a row were never counted; the ninth, sent in a code block, was).</li>
+<li><em>Fix:</em> Look at the address bar after pasting: the long code must follow <code>/d/</code>. Re-send the link in a code block and copy it with the copy button, or put it in a text file. Revoke the broken link if a new one was made.</li>
+<li><em>Lesson:</em> "0 uses" in the console means the link never reached the server. That points to how it was copied, not to the demo.</li>
 </ul>
 <hr />
 <h3 id="issue-b-the-demo-is-slow-stuck-or-says-it-is-being-prepared">Issue B: "The demo is slow, stuck, or says it is being prepared"</h3>
