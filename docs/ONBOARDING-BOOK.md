@@ -34,40 +34,47 @@ Pick your path:
 ## Contents
 
 **Part 1: Understanding the project**
-1. [The idea in plain words](#1-the-idea-in-plain-words)
-2. [The company and its six products](#2-the-company-and-its-six-products)
-3. [Glossary: the words you will hear](#3-glossary-the-words-you-will-hear)
-4. [The big picture: how the parts fit](#4-the-big-picture-how-the-parts-fit)
+
+- **1.** [The idea in plain words](#1-the-idea-in-plain-words)
+- **2.** [The company and its six products](#2-the-company-and-its-six-products)
+- **3.** [Glossary: the words you will hear](#3-glossary-the-words-you-will-hear)
+- **4.** [The big picture: how the parts fit](#4-the-big-picture-how-the-parts-fit)
 
 **Part 2: Where it runs (hosting)**
-5. [Two places it can run: your PC and the server](#5-two-places-it-can-run-your-pc-and-the-server)
-6. [The hosted setup explained](#6-the-hosted-setup-explained)
-7. [Money: what things cost](#7-money-what-things-cost)
+
+- **5.** [Two places it can run: your PC and the server](#5-two-places-it-can-run-your-pc-and-the-server)
+- **6.** [The hosted setup explained](#6-the-hosted-setup-explained)
+- **7.** [Money: what things cost](#7-money-what-things-cost)
 
 **Part 3: For management**
-8. [What management needs to know](#8-what-management-needs-to-know)
-9. [Day 1 walk-through](#9-day-1-walk-through)
-10. [Reading the numbers: who is really interested?](#10-reading-the-numbers-who-is-really-interested)
-11. [Selling per deployment: licences](#11-selling-per-deployment-licences)
-12. [Risks and open decisions](#12-risks-and-open-decisions)
+
+- **8.** [What management needs to know](#8-what-management-needs-to-know)
+- **9.** [Day 1 walk-through](#9-day-1-walk-through)
+- **10.** [Reading the numbers: who is really interested?](#10-reading-the-numbers-who-is-really-interested)
+- **11.** [Selling per deployment: licences](#11-selling-per-deployment-licences)
+- **12.** [Risks and open decisions](#12-risks-and-open-decisions)
 
 **Part 4: Technical handbook**
-13. [The parts in detail](#13-the-parts-in-detail)
-14. [Everyday commands](#14-everyday-commands)
-15. [Updating the live server safely](#15-updating-the-live-server-safely)
-16. [Security: how the project protects itself](#16-security-how-the-project-protects-itself)
-17. [Tests, CI and the way we change code](#17-tests-ci-and-the-way-we-change-code)
-18. [The AI features and keys](#18-the-ai-features-and-keys)
+
+- **13.** [The parts in detail](#13-the-parts-in-detail)
+- **14.** [Everyday commands](#14-everyday-commands)
+- **15.** [Updating the live server safely](#15-updating-the-live-server-safely)
+- **16.** [Security: how the project protects itself](#16-security-how-the-project-protects-itself)
+- **17.** [Tests, CI and the way we change code](#17-tests-ci-and-the-way-we-change-code)
+- **18.** [The AI features and keys](#18-the-ai-features-and-keys)
 
 **Part 5: Support playbook**
-19. [How to handle any support request](#19-how-to-handle-any-support-request)
-20. [Issue catalogue (with 3–5 examples each)](#20-issue-catalogue)
+
+- **19.** [How to handle any support request](#19-how-to-handle-any-support-request)
+- **20.** [Issue catalogue (with 3–5 examples each)](#20-issue-catalogue)
 
 **Part 6: Where each project stands**
-21. [Project by project (state at the end of 17 November 2026)](#21-project-by-project-state-at-the-end-of-17-november-2026)
-22. [What changed on 17 November 2026](#22-what-changed-on-17-november-2026)
+
+- **21.** [Project by project (state at the end of 17 November 2026)](#21-project-by-project-state-at-the-end-of-17-november-2026)
+- **22.** [What changed on 17 November 2026](#22-what-changed-on-17-november-2026)
 
 **Appendices**
+
 - [A. Checklists](#appendix-a-checklists)
 - [B. Cheat sheet](#appendix-b-cheat-sheet)
 - [C. Where to find things](#appendix-c-where-to-find-things)
@@ -456,12 +463,14 @@ The console runs *inside* a container and must not control Docker directly (that
 ### 8.4 Management examples
 
 **Example 1: "Which prospect should I call today?"**
+
 - *Situation:* Five links were sent last week.
 - *What you see:* Console shows Acme *Came back* (used on 3 days, 42 active minutes), Beta *Opened* (1 minute), Gamma *Not opened*, Delta *Engaged* (14 minutes, 1 day), Echo *Not opened* and expired.
 - *Decision:* Call Acme first (strong interest), follow up Delta, send Beta a "need help getting started?" note, send Gamma a reminder, offer Echo a fresh link.
 - *Lesson:* The Activity column turns a guess into a ranking.
 
 **Example 2: "A prospect says they never got the link."**
+
 - *Situation:* Gamma says they did not receive anything.
 - *What you check:* Console shows "Not opened". The link exists and is active.
 - *Cause:* Likely the email went to spam, or it was sent to the wrong address.
@@ -469,12 +478,14 @@ The console runs *inside* a container and must not control Docker directly (that
 - *Lesson:* A link is shown once. If lost, replace it; never try to "find" it.
 
 **Example 3: "How much does a prospect's AI chat cost me?"**
+
 - *Situation:* You turned on the AI guide for a big prospect (200 messages).
 - *What you see:* The console shows messages used and an estimated cost per link, typically a fraction of a cent per few messages on Haiku 5.5.
 - *Decision:* Keep it on for serious prospects; leave it off (0 messages) for casual ones.
 - *Lesson:* The guide is opt-in per link, with a daily cap and a monthly spending limit on the key, so cost can never run away.
 
 **Example 4: "A competitor is poking at our demos."**
+
 - *Situation:* The Activity feed shows many refused opens from one address.
 - *Cause:* The gateway limits opens per address and bans addresses that keep presenting bad links.
 - *What happens by itself:* After 10 bad links in 10 minutes the address is refused for a while; the audit log summarises repeats instead of filling up.
@@ -482,6 +493,7 @@ The console runs *inside* a container and must not control Docker directly (that
 - *Lesson:* The system defends itself; management's job is to notice and decide.
 
 **Example 5: "May I give a customer the real app instead?"**
+
 - *Situation:* A customer is impatient and wants "just the real thing".
 - *Answer:* No, never. Real apps hold the owner's real data. For a customer who has bought, the right path is a **separate deployment** with its own data (and, for RMM / CarRental / ClaudeOS, a licence, chapter 11).
 - *Lesson:* The golden rule (Appendix D) exists to protect the owner's data and to keep promises made on the Security page.
@@ -638,6 +650,7 @@ Renewal is just issuing a new licence. Early revocation is not part of version o
 5. **Lost signing key.** The owner's laptop dies without a backup. Existing licences keep working (they only need the public key), but no new ones can be issued. Products can carry **two** public keys so a replacement key can be introduced without breaking old licences.
 
 > **Status as of the evening of 17 Nov 2026.**
+>
 > - The licence library and tool are merged here (PR #50). The owner's signing key exists outside the repository and is **backed up offline**; its public half is built into RMM.
 > - **RMM** checks licences (merged, PR #62). It is **off** unless `LICENCE_ENFORCEMENT=1`, and it refuses only to add a *new* device or staff user.
 > - **CarRental (RECI)** has the brand module (name, city, footer text from settings), a vehicle limit and an admin banner. All of it is **deployed to the live site with enforcement off**. It was tested end to end (next section).
@@ -906,6 +919,7 @@ docker compose --profile apps up -d <service...>
 **Example 5: A bad deploy.** The console shows "unhealthy" after an update. Roll back: `git reset --hard` on the live copy is risky, so instead fast-forward to a fixed commit (ask the owner before any `git reset --hard` on the live copy), or re-tag the previous image (for example `pd-imageapp:rollback-20261116`) and recreate. *Always create a rollback image tag before a risky rebuild.*
 
 **Example 6: Rebuilding one demo from GitHub `main` (RMM, 17 Nov 2026 pattern).**
+
 1. Check nobody is mid-demo: `node supervisor/demo-reset-state.mjs due rmm` (if "busy", note whose link is active; wait or ask the owner).
 2. On the server, in the clone under `/srv/apps`, `git fetch` and `git merge --ff-only origin/main` (a server-local patch commit stays; merge, never reset).
 3. Tag the current image as a rollback (`docker tag pd-rmm-ui:latest pd-rmm-ui:rollback-<what>`).
@@ -1120,36 +1134,42 @@ Each issue family has **five worked examples** in the same shape: **Situation �
 *The customer clicks the link and gets a refusal page, an error, or nothing.* **First check, always:** console → *Links you have sent* → find the customer → look at **state, expiry, opens used, device lock**.
 
 **A1. The link has expired**
+
 - *Situation:* "It worked yesterday, now it says the link ended."
 - *Cause:* Links stop after the hours set when created (default 48). The console shows "expired".
 - *Fix:* Create a new link (a link can never be extended or recovered). Choose a sensible length.
 - *Lesson:* If the sales conversation is still going, make the first link longer.
 
 **A2. All uses are spent**
+
 - *Situation:* The customer opened the link three times (`--max-uses 3`) and the fourth try is refused.
 - *Cause:* Each button press spends one use; reopening later in a new browser session also spends one.
 - *Fix:* New link with a higher limit. Remember: just *looking* at the link page spends nothing; only the button does.
 - *Lesson:* For a customer who will share it with a team, set 5–10 uses or no limit.
 
 **A3. "Lock to first browser" blocked a colleague (or the same person on a phone)**
+
 - *Situation:* Dana opened the link on her laptop; later on her phone it is refused.
 - *Cause:* The device lock pinned the link to the first browser's random cookie.
 - *Fix:* If it was legitimate, revoke and create a new link without the lock (or with a separate link for the phone). If it was a forward, the lock did its job.
 - *Lesson:* The Activity feed shows refusals. Read it before assuming a fault.
 
 **A4. The link was revoked**
+
 - *Situation:* "It stopped working while I was using it."
 - *Cause:* The owner (or the MCP assistant) revoked it. Revocation applies instantly, including to open pages.
 - *Fix:* Check the audit log: "link revoked" with the time and who did it (`by: console` / `by: mcp`). If revoked by mistake, issue a new link.
 - *Lesson:* Revocation cannot be undone; only a new link helps.
 
 **A5. The link was made on the PC and opened elsewhere**
+
 - *Situation:* "This site can't be reached" on a link that starts with `http://crm.localhost:4300/…`.
 - *Cause:* `localhost` links exist only on the owner's PC.
 - *Fix:* Create the link in the **hosted** console (`https://admin.facyke.com`) so it starts with `https://crm.demo.facyke.com/…`.
 - *Lesson:* Check the link's start before anything else.
 
 **A6 (bonus). The email client mangled the link**
+
 - *Situation:* The link ends with `…` or has a space inside.
 - *Cause:* A long token was wrapped or cut by an email program.
 - *Fix:* Send it as plain text on its own line, or by a chat message. Do not retype it.
@@ -1160,36 +1180,42 @@ Each issue family has **five worked examples** in the same shape: **Situation �
 ### Issue B: "The demo is slow, stuck, or says it is being prepared"
 
 **B1. "Preparing your demo" appears for a private-copy product**
+
 - *Situation:* First visit to ImageApp, Airfinder or ClaudeOS shows a self-refreshing page.
 - *Cause:* The first request starts a fresh private copy (a few seconds; ClaudeOS longer).
 - *Fix:* Nothing: wait; it refreshes by itself. If over two minutes, an operator checks the container log.
 - *Lesson:* This is normal behaviour, not a fault.
 
 **B2. "All demo seats are taken"**
+
 - *Situation:* A customer cannot get in; no use was spent.
 - *Cause:* The product's private-copy seats (for example ImageApp 4, ClaudeOS 3) are in use.
 - *Fix:* Ask the customer to try again in a few minutes. Check the console for idle links; revoke an unused one to free a seat. Raise `perLink.max` only if the machine has the memory (each Streamlit copy uses a few hundred MB).
 - *Lesson:* Seats free themselves after 120 idle minutes.
 
 **B3. A shared demo says "being prepared" for a long time**
+
 - *Situation:* The CRM demo has said "being prepared" for ten minutes.
 - *Cause:* A reset is running (or stuck): the gateway holds customers until it ends.
 - *Fix (operator):* `docker compose logs --tail 100 gateway`, then the demo's own log. If the reset script failed, run `./reset-demos.sh --force crm` again and watch the output.
 - *Lesson:* A reset is expected between customers; a long one is a fault.
 
 **B4. Everything is slow on the server**
+
 - *Situation:* All demos crawl.
 - *Cause:* RAM exhausted. Six demos on a 4 GB server leave little spare and the swap fills.
 - *Fix (operator):* `free -h`, `docker stats --no-stream`. Stop a demo nobody needs (console Stop button), or upgrade the Hetzner server size.
 - *Lesson:* Capacity is the cost of showing six products at once.
 
 **B5. One product is slow, others fine**
+
 - *Situation:* Only the RMM demo is slow.
 - *Cause:* It has the most containers (API, dashboard, Postgres, Redis) and the first load after idle is heavy; also the 60-second upstream timeout returns a 504 if it stays silent.
 - *Fix:* Open the demo once yourself to warm it; check `docker compose logs rmm-demo-api`.
 - *Lesson:* Warm a demo before a sales call.
 
 **B6 (bonus). Locally, the RMM demo will not start**
+
 - *Cause:* Docker Desktop is starting; the supervisor waits up to three minutes. Wait.
 
 ---
@@ -1197,29 +1223,34 @@ Each issue family has **five worked examples** in the same shape: **Situation �
 ### Issue C: "I cannot sign in to the demo"
 
 **C1. Wrong demo password**
+
 - *Situation:* CRM demo says "Invalid email or password".
 - *Cause:* The demo users are `admin@crm.test`, `sales@crm.test`, `support@crm.test`; the shared password is the `SEED_USER_PASSWORD` value in the demo's env file (`data/crm-demo.env` locally, `CRM_*` settings on the server).
 - *Fix:* Give the customer the right credentials through a safe channel (the opening-page welcome note is visible to the customer, so use it only for non-secret hints such as "Sign in as sales@crm.test").
 - *Lesson:* Decide how credentials are shared *before* the first link.
 
 **C2. Signs in, then bounces back to sign-in**
+
 - *Situation:* Login seems to work but the page returns to the sign-in form.
 - *Cause:* A password-change time stored in the database is in the **future** (CRM stores timestamps as UTC without a time zone; writing local time directly makes the session look stale).
 - *Fix (operator):* Use `now() at time zone 'UTC'` when writing times, or reseed the demo.
 - *Lesson:* Direct database edits are a last resort; use the app's tools.
 
 **C3. ClaudeOS demo login rejected**
+
 - *Cause:* The demo login is user `demo` with `CLAUDEOS_DEMO_PASSWORD`, and that password **must not contain the word "demo"**.
 - *Fix:* Set a compliant password in `deploy/.env`, recreate `claudeos-demo`, `./reset-demos.sh claudeos`.
 - *Lesson:* Passwords with the product's own forbidden words are silently refused.
 
 **C4. The demo user is gone after a customer "cleaned up"**
+
 - *Situation:* A customer deleted the demo admin; nobody can sign in.
 - *Cause:* Shared demos let customers change anything.
 - *Fix:* `./reset-demos.sh --force crm` puts the demo back (this ends anything the customer was doing; check *busy* first).
 - *Lesson:* This is exactly why shared demos reset between customers.
 
 **C5. The RMM sign-in card looks squeezed**
+
 - *Situation:* In the guide's split view the sign-in box is cramped.
 - *Cause:* A narrow frame. Fixed in the RMM code (breakpoint raised to 1500 px).
 - *Fix:* Make sure the server has the current RMM code; as a workaround use "Hide guide".
@@ -1231,26 +1262,31 @@ Each issue family has **five worked examples** in the same shape: **Situation �
 First decide **which AI**: the product's own assistant inside the demo, or the guide beside the demo (chapter 18).
 
 **D1. "API unreachable" / "AI unavailable" in ClaudeOS or RMM**
+
 - *Cause:* Usually (a) the monthly $5 limit on the `facyke-demos` workspace is used up, (b) the key was revoked or mistyped, or (c) an old bug in the demo image.
 - *Fix (operator):* Check Anthropic Console spend; check the container log for HTTP 401 (bad key) or 429 (limit). Replace the key with `deploy/set-demo-key.sh`. A test call should return 200.
 - *Lesson:* Look at spend and key validity before suspecting code.
 
 **D2. "The guide button is missing on the link page"**
+
 - *Cause:* The guide needs *all four*: the link created with `guideMessages` above 0, `"guide": true` on the product, a guide file without the draft marker, and an `ANTHROPIC_API_KEY` on the gateway. Only CRM and RMM have guides.
 - *Fix:* Check each of the four. On the server the guide has no key at present (off).
 - *Lesson:* "Opt-in per link" means a link made without messages has no guide.
 
 **D3. The guide gave a wrong answer**
+
 - *Cause:* The guide only knows `guides/<product>.md` and its rules. If the guide text is missing or wrong, the answer is.
 - *Fix:* Correct the guide file, then run `npm run eval:guide -- <product> --yes`; expect 37/37.
 - *Lesson:* Fix the source text, not the individual answer.
 
 **D4. "The guide stopped after N messages"**
+
 - *Cause:* The link's message allowance, the per-minute cap, or the daily cap was reached.
 - *Fix:* Create a new link with more messages if the owner agrees, or wait for the day to roll.
 - *Lesson:* Each message reserves its worst-case cost first, so limits are firm.
 
 **D5. A model change broke a feature**
+
 - *Cause:* A new model rejects a setting (`temperature`, forced tool choice, `effort`).
 - *Fix:* Return to the allowlisted model; run the product's real request against the new one before offering it.
 - *Lesson:* "It works in the playground" is not proof for our request shape.
@@ -1262,23 +1298,28 @@ First decide **which AI**: the product's own assistant inside the demo, or the g
 An alert means: two checks in a row failed (the database did not answer, or a process the supervisor started stopped answering). It names apps only, never customers or links.
 
 **E1. "The database is not responding" (server)**
+
 - *Fix (operator):* `docker compose ps` (postgres up?), `docker compose logs --tail 80 postgres`, disk space `df -h`. A full disk is the usual cause. Free space (old images: `docker image prune`, after checking), restart postgres.
 - *Lesson:* Disk full is the quietest killer.
 
 **E2. A demo process is down**
+
 - *Fix:* In the console press Restart (the `pd-ctl` button), or `docker compose --profile apps up -d <service>`. Read the log if it fails again immediately.
 - *Lesson:* A demo you **stopped yourself** is never reported; a report always means something stopped on its own.
 
 **E3. "Recovered" message arrives right after "down"**
+
 - *Cause:* A brief hiccup (restart, deploy).
 - *Fix:* None. If it repeats, look at memory use and logs.
 
 **E4. No alert but the site is plainly down**
+
 - *Cause:* The built-in alerts live inside the console; if the *server* or *console* is gone, nothing can send.
 - *Fix:* Open the Hetzner console to check the server's state; start it if off. Add an outside uptime check.
 - *Lesson:* Monitoring the watcher needs a second watcher.
 
 **E5. The same alert repeats every six hours**
+
 - *Cause:* Designed: it repeats every 6 hours while the problem lasts.
 - *Fix:* Fix the cause; the "recovered" message ends it. If the app is intentionally off, stop it from the console so it is not reported.
 
@@ -1287,23 +1328,28 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 ### Issue F: "The owner cannot get into the console"
 
 **F1. 2-step code always rejected**
+
 - *Cause:* Phone clock off by more than 30 seconds, or after a restore the `ADMIN_DATA_KEY` is missing or wrong so the stored secret cannot be read.
 - *Fix:* Sync the phone clock. If the key is lost: `npm run console:auth -- disable-totp`, then `enable-totp` and scan a new code. Nothing else is lost.
 - *Lesson:* Keep a copy of `ADMIN_DATA_KEY` in a password manager.
 
 **F2. "Too many attempts"**
+
 - *Cause:* The limit (8 per address, 40 overall per 15 minutes).
 - *Fix:* Wait 15 minutes. If you did not cause it, look at the audit log for failed sign-ins from other addresses and consider changing the password.
 
 **F3. The console will not start on the server**
+
 - *Cause:* On the server it refuses to start until a password **and** 2-step codes are set (it is reachable from the internet).
 - *Fix:* `docker compose run --rm console node admin-console/auth-cli.mjs set-password`, then `enable-totp`, then `docker compose up -d console`.
 
 **F4. Token URL no longer works**
+
 - *Cause:* After a password is set, token mode is off.
 - *Fix:* Use the password and the code.
 
 **F5. A forgotten password**
+
 - *Fix:* On the PC `npm run console:auth -- set-password` (this needs access to the PC). On the server run the same command in the console container. `sign-out-all` ends every session afterwards.
 - *Lesson:* Anyone with server access can reset it, so protect the server login.
 
@@ -1312,29 +1358,35 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 ### Issue G: "The site or server is wrong" (hosting)
 
 **G1. A TLS / certificate error on one demo address**
+
 - *Cause:* The gateway does not treat that product as `demoReady` (code on the server too old, or `demoReady` false in `registry/apps.hosted.json`). Caddy only asks for certificates for ready demos. (Real case 14 Nov 2026.)
 - *Fix:* Update the server code and registry; confirm `demoReady: true`; reload.
 - *Lesson:* TLS errors on a *new* demo name usually mean "not ready", not "broken HTTPS".
 
 **G2. Every `docker compose` command fails after editing `.env`**
+
 - *Cause:* A typo (a stray character before a variable name). Real case.
 - *Fix:* `docker compose config > /dev/null` shows the parse error; fix the line; restore from the dated backup if needed.
 - *Lesson:* Always back up `.env` before editing and check it parses afterwards.
 
 **G3. The new code does not appear on the site**
+
 - *Cause:* The image was not rebuilt, or the wrong service was rebuilt. Containers use the image built at the time.
 - *Fix:* `docker compose build <service>` then `up -d <service>`; confirm with `docker compose ps` that the container is newly created.
 - *Lesson:* Name the services explicitly.
 
 **G4. The www address or the base domain gives a different page**
+
 - *Cause:* DNS missing or wrong. `www` needs its own CNAME; records must be **DNS-only (grey cloud)**.
 - *Fix:* Check Cloudflare DNS: `@`, `www`, `admin`, `*.demo` all pointing to the server.
 
 **G5. I cannot SSH to the server**
+
 - *Cause:* Using Git Bash (cannot see the agent), the key not loaded, the wrong user (use `deploy`, root is disabled), or a passphrase issue.
 - *Fix:* Use PowerShell, load the key with the full path to `ssh-add.exe`, use `-o IdentitiesOnly=yes`. If still locked out, use the Hetzner web console (rescue) to check `sshd`. *Never open a password login to get in.*
 
 **G6 (bonus). The server just rebooted**
+
 - *Fix:* Wait a minute; `docker compose ps` should show everything back. All containers returned by themselves in the last reboot test.
 
 ---
@@ -1342,23 +1394,28 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 ### Issue H: "Data is missing, or I need a reset or a restore"
 
 **H1. A shared demo has a customer's leftovers**
+
 - *Fix:* `./reset-demos.sh --dry-run` to see why it did not reset (usually a link is still active); `--force <app>` to reset now.
 - *Lesson:* Resets wait for all opened links to end; that is by design.
 
 **H2. Restore the dashboard database on the PC**
+
 - *Steps:* Stop the console and gateway → copy the chosen backup over `data/dashboard.db` → **delete `data/dashboard.db-wal` and `data/dashboard.db-shm`** → start again. If the 2-step code fails, the data key is wrong (issue F1).
 - *Lesson:* Forgetting to delete the two side files can resurrect old data or corrupt the restore.
 
 **H3. Restore Postgres on the server**
+
 - *Steps:* Copy a backup out of the `db-backup` volume: `docker compose cp db-backup:/backups/<file> .`; restore: `docker compose exec -T postgres pg_restore -U dashboard -d dashboard --clean --if-exists < <file>`.
 - *Lesson:* Backups live on the same machine as the database, so also copy some off the server. The `caddy_data` volume holds only certificates (re-issued if lost).
 
 **H4. A customer says "my data vanished" in a demo**
+
 - *Cause:* Demos are temporary: private copies are deleted when the link ends or idles 120 minutes; shared demos reset.
 - *Fix:* Explain that demos hold sample data only. Customer data belongs in a real deployment.
 - *Lesson:* Say it at the start: "this is a sandbox".
 
 **H5. "Forget" a customer (privacy request)**
+
 - *Fix:* In the console press **Forget** on the finished link. It deletes the audit events, the activity counts and the customer label for that link. (A batch still in the gateway's memory can write one last anonymous row seconds later; normal retention removes it.)
 - *Lesson:* Audit events are otherwise kept 90 days.
 
@@ -1367,20 +1424,25 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 ### Issue I: "Email alerts are missing or wrong"
 
 **I1. No emails arrive**
+
 - *Check:* `RESEND_API_KEY`, `ALERT_EMAIL_TO`, `ALERT_EMAIL_FROM` in the console's environment (compose passes them), the Resend domain still verified, and the spam folder. Test: `docker compose exec -T console node supervisor/alert-cli.mjs` (three test mails were received on 15 Nov 2026).
 
 **I2. Phone push but no email (or the reverse)**
+
 - *Cause:* The two channels are independent: ntfy (`ALERT_WEBHOOK_URL`) and Resend email. One can be misconfigured.
 
 **I3. The email comes from the wrong sender or lands in spam**
+
 - *Cause:* DNS records for the sending domain changed or are missing (DKIM/SPF CNAMEs, DNS-only in Cloudflare).
 - *Fix:* Re-verify the domain in Resend.
 
 **I4. The ntfy topic leaked**
+
 - *Cause:* Anyone who knows the topic can read it.
 - *Fix:* Pick a new long random topic, set it in the console's environment, restart the console, `npm run alert:test`.
 
 **I5. A settings change had no effect**
+
 - *Cause:* Environment variables only reach programs started *after* they were set. Restart the console.
 - *Check (PC):* `data\logs\console-launcher.out` should contain `alerts are on`.
 
@@ -1389,38 +1451,47 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 ### Issue J: "CI is red, or I cannot merge"
 
 **J1. The run fails in two seconds**
+
 - *Cause:* Rare now. A repository that is private again, or a GitHub billing or spending-limit problem ("payments failed").
 - *Fix:* Check the repository is public and billing is fine; meanwhile run lint and tests locally and quote the results in the PR.
 
 **J2. Lint fails but tests pass**
+
 - *Cause:* CI runs lint first. Typical: a rule such as `no-regex-spaces`.
 - *Fix:* `npm run lint` locally, fix, push.
 
 **J3. One test fails only on my PC**
+
 - *Cause:* `DEMO_BRAND_NAME` or `DEMO_BOOKING_URL` set in your shell.
 - *Fix:* Run with them unset.
 
 **J4. A shell-script test fails on Windows**
+
 - *Cause:* A test ran `sh -n` on a bash-only script. (Real case, fixed.)
 - *Fix:* Use the right checker or skip on the wrong platform.
 
 **J5. Two PRs conflict because one is "stacked" on the other**
+
 - *Fix:* Merge the base first, then update the second branch with `main` before merging.
 
 ### Issue K: "A demo device does nothing when I press a button" (RMM)
 
 **K1. Remote Terminal, Disk Management, Maintenance, Scripts, Software Patches or Devices (Reboot, Shutdown) says "This is a demo device, so it is simulated..."**
+
 - *Cause:* The hosted demo's devices are fictional (`agent_version` is `demo-simulated`); no real agent exists to carry out the action. This is correct behaviour since 17 Nov 2026; before that the pages queued tasks nobody would ever run.
 - *Fix:* None. Explain it to the customer: on a real device the agent does it on its next check-in.
 
 **K2. A *real* device (enrolled agent) shows the same message**
+
 - *Cause:* Its `agent_version` is wrongly set to the demo marker.
 - *Fix:* Check the device record; real agents report their own version.
 
 **K3. I am adding a new page that queues work for devices**
+
 - *Fix:* Use `from utils.demo import is_simulated, demo_note` (file `dashboard/utils/demo.py` in the RMM repository): skip the API call for simulated devices and show `demo_note("what it would do")`. Add a test that fails without the guard (see `dashboard/tests/test_demo_simulated_devices.py`).
 
 **K4. "Software Patches shows No packages found"**
+
 - *Cause:* The demo's installed-software table was empty. Fixed on 17 Nov 2026 (112 rows for 8 devices).
 - *Fix:* Re-run the seed script (it adds only what is missing) or `reset-demos.sh`, which reseeds it.
 
@@ -1439,6 +1510,7 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 ## 21. Project by project (state at the end of 17 November 2026)
 
 ### ProjectsDashboard (this repository)
+
 - Default branch `main`, protected; standard files added (LICENSE, SECURITY, CHANGELOG, PR template; PR #52); project standard and inventory published (`docs/PROJECT-STANDARD.md`, `docs/PROJECT-INVENTORY-2026-11-17.md`).
 - Licence library and CLI merged (PR #50) and used for real: the owner's signing key exists and is backed up offline.
 - Deployment change (PR #53): the hosted RMM demo API now runs with `FLASK_ENV: production` (debug off, secure cookies; the dashboard uses bearer tokens so nothing breaks).
@@ -1446,6 +1518,7 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 - This book and a README change were the only uncommitted local files when the book was written.
 
 ### RMM (Remote Management)
+
 - **Licence enforcement** merged (PR #62), off by default (`LICENCE_ENFORCEMENT=1` to enable).
 - **CI fixed** (PR #65): the dependency audit blocks only on shipped packages; the development-tool audit is informational.
 - **Demo honesty (PRs #64, #66, #67):** the dashboard now recognises simulated devices (`dashboard/utils/demo.py`) and explains instead of queueing impossible work on Software Patches, Remote Terminal, Disk Management, Maintenance, Scripts and the Devices page's Reboot/Shutdown. The terminal for a simulated device is a local, clearly labelled mock. Tests cover this; the old pages fail them.
@@ -1453,6 +1526,7 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 - Hosted demo: production mode, software data present, assistant working. Not done: a browser click-through of the deployed Remote Terminal.
 
 ### CarRental / RECI (ClaudeWorkspace)
+
 - **Repository public** (17 Nov), history scanned (no real secrets; only old weak demo passwords for accounts that were deleted). `main` protected (3 required checks). Standard files merged.
 - **CI works for the first time:** lint, type-check, unit tests, full build of web and admin, and Playwright end-to-end tests in mock mode (PRs #21, #22).
 - **White-label and vehicle licence** (brand module, footer settings, vehicle limit) merged and **deployed to production** after a preview deploy, a licence end-to-end test and a before/after smoke comparison (13 status codes and page texts identical). Enforcement is off on the live site.
@@ -1462,17 +1536,21 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 - **Production deploy recipe:** from a **clean clone of `main`**, copy the right `.vercel/project.*.json` (web or admin) to `.vercel/project.json`, run `vercel deploy --prod`. The admin app lives under the base path `/admin`. Never promote a preview build (it has placeholder settings). Record the previous deployment so `vercel promote <old>` is a one-step rollback. Run the same smoke script before and after.
 
 ### ClaudeOS
+
 - Public, MIT, `main` protected (check: Tests); version tag 17.4.0 released; standard files merged.
 - Hosted demo **rebuilt from `main`** plus the server's copy of PR #51; AI chat tested from inside the container and in a browser.
 - Open: the MIT licence conflicts with the agency-licence text (owner decision); the skills pack lives on a separate branch (not merged).
 
 ### CRM
+
 - Default branch renamed to `main`; protected (verify, security). CI had been broken by the move to Prisma 7 and was fixed in that repository (`SHADOW_DATABASE_URL`, two date-pinned tests). Standard files merged. Demo unchanged today.
 
 ### ImageApp and Airfinder
+
 - Default branch `main`, protected (test / tests), standard files merged, CI green. ImageApp's Pillow 13 fix is merged and the server already ran it.
 
 ### Hosting (Hetzner)
+
 - Everything stayed up all day: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows `main` by fast-forward only.
 
 ## 22. What changed on 17 November 2026
