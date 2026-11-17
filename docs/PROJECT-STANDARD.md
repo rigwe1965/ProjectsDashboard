@@ -1,6 +1,6 @@
 # Facyke project standard
 
-One way of setting up and changing every product, so any member of staff can open any repo and know where things are. Status: DRAFT for owner approval (2026-11-17). Nothing in this document has been applied to a repo yet.
+One way of setting up and changing every product, so any member of staff can open any repo and know where things are. Status: APPROVED by the owner on 2026-11-17. Applied so far: `main` is the default branch on every repo, and ClaudeOS has SECURITY.md, a PR template and a single version number (17.4.0). The rest is rolled out one repo at a time.
 
 ## 1. What is a "product" and what is not
 
