@@ -1353,8 +1353,7 @@ node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --u
 <li><strong>CRM <code>TRUSTED_PROXY_COUNT</code></strong> on the server is unresolved (two proxy hops: Caddy and the gateway).</li>
 <li><strong>RMM</strong> on the server has no scheduled-jobs worker and no device can enrol into the hosted demo.</li>
 <li><strong>Customer licence agreement</strong>: needs a lawyer.</li>
-<li><strong>Staging load test, unfinished record (18 Nov):</strong> only the smoke run and the first scenarios (S1 and S2, new code) are written down (chapter 23, part B). The results of S3 to S10, if they were saved, are not in this repository, and the old-versus-new comparison (<code>201d2c3</code> against <code>9ffa4c0</code>) was never run, so the plan's "1.3 times faster" bar is <strong>not yet proven</strong>. The <code>run-all.sh</code> driver that ran the scenarios was a throw-away script and is not in the repository.</li>
-<li><strong>PR #59</strong> (load-test tooling and plan) is open.</li>
+<li><strong>Staging load test (18 Nov), finished:</strong> stable and error-free, but the plan's "1.3 times faster" bar was <strong>not met</strong>: the scaling pass was not faster than the old code on a same-host Postgres. The opt-in grant cache is where the speed is (about 2.8 times). Results: chapter 23, part B, and <code>docs/PLAN-staging-load-test.md</code> section 13. Decision for the owner: whether to turn <code>GATEWAY_GRANT_CACHE_MS</code> on in production (a revoke then takes up to that long to reach an open session).</li>
 <li><strong>GitHub Actions quota (18 Nov):</strong> the Windows and Linux checks for this repository were blocked by a quota when PR #58 merged (the owner's notes say until 1 December), so #58 was merged with the admin override after its Postgres tests were run locally. This contradicts the "CI runs free" statements in chapters 7 and 17: check GitHub's billing page before trusting either.</li>
 <li><strong>Backup copy off the server:</strong> the pre-deploy database dump of 18 Nov (<code>/home/deploy/dashboard-2026-11-18-0749.sql.gz</code>) exists only on the server.</li>
 <li><strong>Uptime check from outside</strong>: the built-in alerts cannot report the <em>server</em> or the <em>console itself</em> being gone. An external uptime monitor would.</li>
@@ -2738,13 +2737,13 @@ iptables -S DOCKER-USER          # the ACCEPT line must come before the DROP lin
 node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.txt --scenario=get --connections=16 --duration=10
 </code></pre>
 <p>Recorded on 18 Nov: 22,670 requests, all HTTP 200, 2,266 requests/s, p50 6.3 ms, p95 12.5 ms, p99 20.3 ms, no errors.</p>
-<p><strong>Step 7. Full run.</strong> The scenarios are S1 to S11 in <code>docs/PLAN-staging-load-test.md</code> section 6, three runs each, results written to a <code>.jsonl</code> file on <code>lt-gen</code> and a CSV from <code>collect.sh</code> on <code>lt-sut</code>. A driver script on <code>lt-gen</code> ran them in order (it was a throw-away script and is <strong>not</strong> in the repository: write a new one from the plan if you rerun). A hung step cost 27 minutes on 18 Nov (an <code>ssh</code> that started the metrics collector never returned): start background jobs with <code>setsid nohup ... &amp;</code> and <code>&lt; /dev/null</code>.</p>
-<p><strong>What is on record from the run on the new code</strong> (label <code>new-65efc49</code>; stand-in app, plain HTTP, public network between the two servers; zero errors, every response HTTP 200):</p>
+<p><strong>Step 7. Full run.</strong> The scenarios are S1 to S11 in <code>docs/PLAN-staging-load-test.md</code> section 6, results written to a <code>.jsonl</code> file on <code>lt-gen</code> and a CSV from <code>collect.sh</code> on <code>lt-sut</code>. The driver is <code>tests/bench/run-all.sh</code> (run it on <code>lt-gen</code>; the <code>lt-gen</code> key must be allowed on <code>lt-sut</code>'s <code>deploy</code> user) and <code>tests/bench/run-compare.sh</code> for the old-versus-new check. A hung step cost half an hour twice on 18 Nov: the <code>ssh</code> that started the metrics collector never returned. If the log stops after "links on generator", kill that <code>ssh</code> client on <code>lt-gen</code> (the collector is already running) and the driver continues.</p>
+<p><strong>Results of 18 Nov</strong> (stand-in app, plain HTTP, Postgres on the same server, public network between the two servers; all numbers also in <code>docs/PLAN-staging-load-test.md</code> section 13):</p>
 <div class="tablewrap"><table>
 <thead>
 <tr>
 <th>Scenario</th>
-<th>Result</th>
+<th>Result (new code, <code>65efc49</code>)</th>
 </tr>
 </thead>
 <tbody>
@@ -2753,16 +2752,55 @@ node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.
 <td>2,420, 2,364 and 2,143 requests/s; p95 41, 41 and 47 ms</td>
 </tr>
 <tr>
-<td>S2, one ramp run, 60 s per step</td>
-<td>32 conn: 2,139/s, p95 23 ms · 64: 2,331/s, p95 42 ms · 128: 1,811/s, p95 102 ms · 256: 1,643/s, p95 217 ms · 512: 1,739/s, p95 388 ms</td>
+<td>S2, ramp, 60 s per step, three runs</td>
+<td>64 connections: 2,297, 2,331 and 1,984/s (p95 42 to 50 ms). 128: 1,700 to 1,811/s. 256: 1,569 to 1,740/s. 512: 1,544 to 1,739/s, p95 388 to 432 ms</td>
+</tr>
+<tr>
+<td>S3, 64 connections spread over 500 links, three runs</td>
+<td>2,093, 1,956 and 2,141 requests/s; p95 47 to 51 ms (no slowdown with more links)</td>
+</tr>
+<tr>
+<td>S4, 90% GET and 10% POST of 20 KB, three runs</td>
+<td>1,995, 2,033 and 2,006 requests/s; p95 about 50 ms</td>
+</tr>
+<tr>
+<td>S6, 200 link opens per second for 2 min</td>
+<td>23,900 opens, all HTTP 302, 198/s, p95 104 ms</td>
+</tr>
+<tr>
+<td>S7, stand-in app stopped for 30 s during load</td>
+<td>26,482 clean HTTP 503 answers, 8 timed-out requests, normal again at once with no gateway restart (recovery check 20,833 requests, all 200)</td>
+</tr>
+<tr>
+<td>S8, Postgres restarted during load</td>
+<td>100 HTTP 500 answers out of 296,521 requests; no gateway restart; recovery check all 200</td>
+</tr>
+<tr>
+<td>S9, 30 min soak, 32 connections</td>
+<td>3,752,518 requests, all 200; gateway memory 67.2 MiB at the start and 66.8 MiB at the end; Postgres connections steady at 11</td>
+</tr>
+<tr>
+<td>S10, grant cache on (3 s)</td>
+<td>S1 shape 6,448 requests/s (p95 16 ms) against about 2,300 with the cache off; S3 shape 5,754/s against about 2,060</td>
+</tr>
+<tr>
+<td>S5, revoke 10 links during load</td>
+<td>Revoked links started getting HTTP 403 while the revoke loop was running (5 of the 10 were among the 50 links under load). The time from revoke to first refusal per link could not be isolated, so the "under 1 second" criterion is <strong>inconclusive</strong></td>
+</tr>
+<tr>
+<td>S11, WebSockets</td>
+<td>Not built, not run</td>
 </tr>
 </tbody>
 </table></div>
-<p>Reading: throughput stops rising at about 64 connections and latency then grows, with no errors. The gateway container is capped at one CPU, as in production, so the gateway is the likely first limit. The load generator used about 45% of one core, so it was not the limit. The metrics CSV was meant to confirm the CPU limit, and that confirmation is <strong>not on record</strong>.</p>
-<p><strong>What is not on record:</strong> S3 to S10 results, and the old-code comparison on <code>201d2c3</code>. Because of the second gap, the plan's pass bar ("new at least 1.3 times old") is <strong>unproven</strong>; the PC benchmark (1.6 times on Postgres) is the only evidence. Do not quote a capacity sentence for the server until the full results exist.</p>
+<p><strong>Old against new (short comparison, same servers, same links, S1 and S3 only).</strong> Old code is <code>201d2c3</code> (checked in the running gateway: the new lookup function is absent). Old S1: 2,597 and 2,541 requests/s (p95 43 ms). Old S3: 2,377 and 2,165 requests/s (p95 46 and 52 ms). A control run on the new code straight afterwards: S1 1,982, S3 1,816 requests/s (p95 52 and 56 ms). Zero errors in all runs.</p>
+<p><strong>Verdict on the 1.3 times bar: not met.</strong> The new code was not faster than the old on this test. It may even be slightly slower, but that cannot be claimed: the new code's own runs vary by about 12%, and the database had grown by about 24,000 sessions (from S6) by the time of the old and control runs. The likely reason is that in staging Postgres runs on the same machine, so the second database round trip that the one-query lookup saves costs almost nothing there. A database on another machine would pay more per round trip, but that is an inference that has not been tested. The PC benchmark's 1.6 times does not carry over to this setup.</p>
+<p><strong>Where the speed is:</strong> the opt-in grant cache (<code>GATEWAY_GRANT_CACHE_MS</code>), about 2.8 times the requests per second in S10, at the price of a revoke taking up to that many milliseconds to reach an open session. It is off in production. Turning it on is an owner decision.</p>
+<p><strong>Capacity sentence (S2, S9, metrics CSV):</strong> on a CPX22 (the size of the live server), with the gateway container capped at one CPU as in production, the gateway in this test sustained about 2,300 requests/s at p95 under 45 ms (64 connections) and about 1,550 to 1,750 requests/s at 512 connections with p95 about 390 to 430 ms, and the first limit hit is CPU: the gateway used a median 72% (peak 104%) of its one CPU and Postgres peaked near 124% of a core. With the stand-in app only; real demo apps are heavier and are not covered.</p>
+<p>The full results files were copied to <code>I:\Facyke-LoadTests\2026-11-18-new-65efc49\</code> before the servers were deleted.</p>
 <h3 id="part-c-deleting-the-staging-servers-the-step-that-stops-the-billing">Part C: Deleting the staging servers (the step that stops the billing)</h3>
-<p>A server costs about €0.03 an hour until it is <strong>deleted</strong>. Powering it off does <strong>not</strong> stop the bill. The owner reported both servers deleted after the test. This chapter cannot see the Hetzner console, so confirm it yourself in step 4 below.</p>
-<p><strong>Step 1. Save the results first.</strong> On <code>lt-gen</code>: <code>/root/results/</code> (the <code>.jsonl</code> file, the driver log, the environment file). On <code>lt-sut</code>: <code>/home/deploy/ProjectsDashboard/deploy/results/</code> (the CSVs). Copy them to your PC with <code>scp</code>, then to the backup drive, for example <code>I:\Facyke-LoadTests\&lt;date&gt;-&lt;commit&gt;\</code>. Open a few files and check they are not empty. After the servers are deleted nothing can be recovered. <strong>No saved copy was found on the owner's PC when this chapter was written</strong>, so if the results were not copied, they are gone.</p>
+<p>A server costs about €0.03 an hour until it is <strong>deleted</strong>. Powering it off does <strong>not</strong> stop the bill. Both servers were deleted by the owner on 18 Nov after the results were copied. Next time, confirm it yourself in step 4 below.</p>
+<p><strong>Step 1. Save the results first.</strong> On <code>lt-gen</code>: <code>/root/results/</code> (the <code>.jsonl</code> file, the driver log, the environment file). On <code>lt-sut</code>: <code>/home/deploy/ProjectsDashboard/deploy/results/</code> (the CSVs). Copy them to your PC with <code>scp</code>, then to the backup drive, for example <code>I:\Facyke-LoadTests\&lt;date&gt;-&lt;commit&gt;\</code>. Open a few files and check they are not empty. After the servers are deleted nothing can be recovered. On 18 Nov the results were copied to the backup drive before deletion.</p>
 <p><strong>Step 2. Delete the servers (console.hetzner.cloud).</strong></p>
 <ol>
 <li>Open the project <strong><code>facyke-staging</code></strong> and read its name at the top. If it says <code>facyke</code>, stop.</li>
@@ -2826,13 +2864,13 @@ node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.
 </tr>
 <tr>
 <td>6</td>
-<td>First scenarios of the full run on the new code (S1, S2)</td>
+<td>Full run on the new code (S1 to S10) and the short old-commit comparison</td>
 <td>Staging</td>
 <td>None</td>
 </tr>
 <tr>
 <td>7</td>
-<td>Staging servers deleted (reported by the owner; confirm in the console)</td>
+<td>Staging servers deleted by the owner</td>
 <td>Hetzner</td>
 <td>Billing stops on deletion</td>
 </tr>
@@ -2845,7 +2883,7 @@ node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.
 </tbody>
 </table></div>
 <p><strong>Corrections made the same day (so you do not repeat them):</strong> the live folder was at <code>201d2c3</code>, not at the commit the notes said; production runs Ubuntu 26.04.1 (older text said 24.04); the first staging servers had no SSH key and the console names did not match the hostnames; <code>ufw</code> does not guard Docker ports and the Docker rule needed <code>--ctdir ORIGINAL</code>; a hung <code>ssh</code> in the test driver lost 27 minutes; a first progress report said three S2 runs were done when two were.</p>
-<p><strong>Still open:</strong> the results of S3 to S10 and the old-code comparison (chapter 23, part B); the review and merge of pull request #59; a copy of the database dump off the server; the GitHub Actions quota until 1 December; the "1.3 times faster" claim stays unproven until the comparison exists.</p>
+<p><strong>Still open:</strong> whether to turn on the grant cache in production (owner decision); a copy of the database dump off the server; the GitHub Actions quota until 1 December. The "1.3 times faster" claim was tested and <strong>not met</strong> (chapter 23, part B).</p>
 </section>
 <section class="l2">
 <h2 id="25-the-facyke-server-how-it-was-set-up-and-how-to-troubleshoot-it">25. The facyke server: how it was set up, and how to troubleshoot it</h2>

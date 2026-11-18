@@ -1,6 +1,6 @@
 # Plan: staging load test for the gateway and database
 
-Status (updated 2026-11-18, evening): scripts built (PR #59); two temporary servers were created, the stack was set up and a smoke run passed; the full run on the new code was started and only the first scenarios (S1, S2) are on record; the old-commit comparison was not run; the owner reports the servers deleted. See section 13 and onboarding book chapter 23. Written 2026-11-18, after the scaling pass (PR #58, live commit `9ffa4c0`).
+Status (updated 2026-11-18, night): done. Scripts built (PR #59), two temporary servers used, the full run on the new code and a short old-commit comparison completed, servers deleted by the owner. Results and verdict in section 13: the 1.3 times bar was **not met**. Written 2026-11-18, after the scaling pass (PR #58, live commit `9ffa4c0`).
 
 ## 1. Why
 
@@ -150,11 +150,35 @@ About half a day of work, plus the run time (roughly 1.5 hours per commit for S1
 - Is a short-lived `facyke-staging` Hetzner project acceptable, or should it live in the existing `facyke` project?
 - Should S11 (WebSockets) be in the first run? (Not built yet: the generator does not open sockets; say so if you want it.) It matters for ClaudeOS and RMM, which use sockets.
 
-## 13. What happened (18 November 2026)
+## 13. What happened and what it showed (18 November 2026)
 
-- **Built:** the override file, stand-in app, load generator and scripts (PR #59, open).
-- **Servers:** project `facyke-staging`, `lt-sut` and `lt-gen`, Ubuntu 26.04.1. The first pair had no SSH key and was recreated. The Hetzner firewall and private network were not attached, so port 8080 was closed with a Docker `DOCKER-USER` rule.
+- **Built:** the override file, stand-in app, load generator and scripts (PR #59, merged), plus the two driver scripts `tests/bench/run-all.sh` and `run-compare.sh`.
+- **Servers:** project `facyke-staging`, `lt-sut` (system under test) and `lt-gen` (load generator), CPX22, Ubuntu 26.04.1 (same as production). The first pair had no SSH key and was recreated. The Hetzner firewall and private network were not attached, so port 8080 was closed with a Docker `DOCKER-USER` rule (the first version dropped reply packets too; it needs `--ctdir ORIGINAL`). The generator reached the system under test over the public address.
 - **Smoke run:** 5 links, 16 connections, 10 s: 22,670 requests, all 200, 2,266 requests/s, p95 12.5 ms.
-- **Full run on the new code (S1 to S11, label `new-65efc49`):** on record only S1 (3 runs: 2,420 / 2,364 / 2,143 requests/s, p95 41 / 41 / 47 ms at 64 connections) and one S2 ramp (2,139/s at 32 connections up to a plateau near 2,300/s at 64, then 1,640 to 1,810/s at 128 to 512, p95 388 ms at 512), all HTTP 200, zero errors. S3 to S10 results are not recorded in this repository.
-- **Not done:** the run on `201d2c3`, so the 1.3 times pass bar (section 8) is unproven, and no capacity sentence has been written.
-- **Teardown:** reported done by the owner. Confirm in the Hetzner console (Servers list empty, Costs tab flat).
+- **Full run on the new code** (S1 to S10; label `new-65efc49`) and **short old-commit comparison**: results below. Everything was saved to `I:\Facyke-LoadTests\2026-11-18-new-65efc49\` before the servers were deleted.
+- **Two lost half-hours:** an `ssh` that started the metrics collector never returned and stalled the driver (27 and 17 minutes). Start the collector in a separate session, or kill the stuck `ssh` client; the driver scripts carry a note.
+- **Teardown:** both servers deleted by the owner on 18 November, after the results were copied.
+
+### Results
+
+| Scenario | Result (new code, `65efc49`) |
+| --- | --- |
+| S1, 64 connections, 5 min, three runs | 2,420, 2,364 and 2,143 requests/s; p95 41, 41 and 47 ms |
+| S2, ramp, 60 s per step, three runs | 64 connections: 2,297, 2,331 and 1,984/s (p95 42 to 50 ms). 128: 1,700 to 1,811/s. 256: 1,569 to 1,740/s. 512: 1,544 to 1,739/s, p95 388 to 432 ms |
+| S3, 64 connections spread over 500 links, three runs | 2,093, 1,956 and 2,141 requests/s; p95 47 to 51 ms (no slowdown with more links) |
+| S4, 90% GET and 10% POST of 20 KB, three runs | 1,995, 2,033 and 2,006 requests/s; p95 about 50 ms |
+| S6, 200 link opens per second for 2 min | 23,900 opens, all HTTP 302, 198/s, p95 104 ms |
+| S7, stand-in app stopped for 30 s during load | 26,482 clean HTTP 503 answers, 8 timed-out requests, normal again at once with no gateway restart (recovery check 20,833 requests, all 200) |
+| S8, Postgres restarted during load | 100 HTTP 500 answers out of 296,521 requests; no gateway restart; recovery check all 200 |
+| S9, 30 min soak, 32 connections | 3,752,518 requests, all 200; gateway memory 67.2 MiB at the start and 66.8 MiB at the end; Postgres connections steady at 11 |
+| S10, grant cache on (3 s) | S1 shape 6,448 requests/s (p95 16 ms) against about 2,300 with the cache off; S3 shape 5,754/s against about 2,060 |
+| S5, revoke 10 links during load | Revoked links started getting HTTP 403 while the revoke loop was running (5 of the 10 were among the 50 links under load). The time from revoke to first refusal per link could not be isolated, so the "under 1 second" criterion is **inconclusive** |
+| S11, WebSockets | Not built, not run |
+
+**Old against new (short comparison, same servers, same links, S1 and S3 only).** Old code is `201d2c3` (checked in the running gateway: the new lookup function is absent). Old S1: 2,597 and 2,541 requests/s (p95 43 ms). Old S3: 2,377 and 2,165 requests/s (p95 46 and 52 ms). A control run on the new code straight afterwards: S1 1,982, S3 1,816 requests/s (p95 52 and 56 ms). Zero errors in all runs.
+
+**Verdict on the 1.3 times bar: not met.** The new code was not faster than the old on this test. It may even be slightly slower, but that cannot be claimed: the new code's own runs vary by about 12%, and the database had grown by about 24,000 sessions (from S6) by the time of the old and control runs. The likely reason is that in staging Postgres runs on the same machine, so the second database round trip that the one-query lookup saves costs almost nothing there. A database on another machine would pay more per round trip, but that is an inference that has not been tested. The PC benchmark's 1.6 times does not carry over to this setup.
+
+**Where the speed is:** the opt-in grant cache (`GATEWAY_GRANT_CACHE_MS`), about 2.8 times the requests per second in S10, at the price of a revoke taking up to that many milliseconds to reach an open session. It is off in production. Turning it on is an owner decision.
+
+**Capacity sentence (S2, S9, metrics CSV):** on a CPX22 (the size of the live server), with the gateway container capped at one CPU as in production, the gateway in this test sustained about 2,300 requests/s at p95 under 45 ms (64 connections) and about 1,550 to 1,750 requests/s at 512 connections with p95 about 390 to 430 ms, and the first limit hit is CPU: the gateway used a median 72% (peak 104%) of its one CPU and Postgres peaked near 124% of a core. With the stand-in app only; real demo apps are heavier and are not covered.
