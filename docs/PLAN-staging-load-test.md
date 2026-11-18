@@ -1,6 +1,6 @@
 # Plan: staging load test for the gateway and database
 
-Status: scripts built (branch test/staging-load-test), servers not yet created. Written 2026-11-18, after the scaling pass (PR #58, live commit `9ffa4c0`).
+Status (updated 2026-11-18, evening): scripts built (PR #59); two temporary servers were created, the stack was set up and a smoke run passed; the full run on the new code was started and only the first scenarios (S1, S2) are on record; the old-commit comparison was not run; the owner reports the servers deleted. See section 13 and onboarding book chapter 23. Written 2026-11-18, after the scaling pass (PR #58, live commit `9ffa4c0`).
 
 ## 1. Why
 
@@ -25,7 +25,7 @@ It does **not** measure the real demo apps (ClaudeOS, RMM and so on). Those are 
 
 | Role | Recommended | Why |
 | --- | --- | --- |
-| System under test | A temporary Hetzner Cloud server, same type and region as production (CPX22, Helsinki), Ubuntu 24.04, Docker | Same CPU, RAM and disk class, so the numbers transfer to production |
+| System under test | A temporary Hetzner Cloud server, same type and region as production (CPX22, Helsinki), Ubuntu 26.04.1 (what production runs), Docker | Same CPU, RAM and disk class, so the numbers transfer to production |
 | Load generator | A second small temporary server in the same region (for example CX22), or your PC for a first rough run | The generator must not share CPU with the system under test. From your PC, home bandwidth and Wi-Fi will cap the result |
 
 Cost: hourly billing, a few hours is well under EUR 1 for both servers. Remember to delete them.
@@ -47,7 +47,7 @@ These go through a normal PR (lint and unit tests apply to the scripts).
 ## 5. Setup steps
 
 1. On the staging server: `git clone`, check out the commit under test, `cp deploy/.env.example deploy/.env`, fill with fresh random values (a script generates them), then `docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build` (dashboard only, no `--profile apps`).
-2. Firewall (`ufw`): allow SSH from your address and port 8080 only from the load generator.
+2. Firewall: `ufw` does **not** cover ports that Docker publishes, so close port 8080 with Docker's own chain instead (rules in onboarding book chapter 23, part B, step 4): ACCEPT the generator's address, DROP everything else, with `--ctorigdstport 8080` and `--ctdir ORIGINAL`. The rules are lost on reboot. Test from a third address and from the generator.
 3. Check `/_pd/healthz` returns 200 and the stand-in app answers through the gateway with one test link.
 4. Mint 500 links. Open each once (one consent POST per link) to get its session cookie, and save the cookies. This mirrors how real customers hold sessions.
 5. Record: server type, Docker version, commit SHA, Postgres version, and `DATABASE_POOL_MAX`.
@@ -149,3 +149,12 @@ About half a day of work, plus the run time (roughly 1.5 hours per commit for S1
 - Two servers (recommended) or one server plus your PC as the generator?
 - Is a short-lived `facyke-staging` Hetzner project acceptable, or should it live in the existing `facyke` project?
 - Should S11 (WebSockets) be in the first run? (Not built yet: the generator does not open sockets; say so if you want it.) It matters for ClaudeOS and RMM, which use sockets.
+
+## 13. What happened (18 November 2026)
+
+- **Built:** the override file, stand-in app, load generator and scripts (PR #59, open).
+- **Servers:** project `facyke-staging`, `lt-sut` and `lt-gen`, Ubuntu 26.04.1. The first pair had no SSH key and was recreated. The Hetzner firewall and private network were not attached, so port 8080 was closed with a Docker `DOCKER-USER` rule.
+- **Smoke run:** 5 links, 16 connections, 10 s: 22,670 requests, all 200, 2,266 requests/s, p95 12.5 ms.
+- **Full run on the new code (S1 to S11, label `new-65efc49`):** on record only S1 (3 runs: 2,420 / 2,364 / 2,143 requests/s, p95 41 / 41 / 47 ms at 64 connections) and one S2 ramp (2,139/s at 32 connections up to a plateau near 2,300/s at 64, then 1,640 to 1,810/s at 128 to 512, p95 388 ms at 512), all HTTP 200, zero errors. S3 to S10 results are not recorded in this repository.
+- **Not done:** the run on `201d2c3`, so the 1.3 times pass bar (section 8) is unproven, and no capacity sentence has been written.
+- **Teardown:** reported done by the owner. Confirm in the Hetzner console (Servers list empty, Costs tab flat).
