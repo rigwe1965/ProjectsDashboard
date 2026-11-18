@@ -926,7 +926,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 </tr>
 </tbody>
 </table></div>
-<h3 id="67-the-start--stop--restart--log-buttons-on-the-hosted-console">6.7 The Start / Stop / Restart / Log buttons on the hosted console</h3>
+<h3 id="67-the-start-stop-restart-log-buttons-on-the-hosted-console">6.7 The Start / Stop / Restart / Log buttons on the hosted console</h3>
 <p>The console runs <em>inside</em> a container and must not control Docker directly (that would hand a web-facing program control of the whole server). Instead a tiny helper on the host, <strong><code>pd-ctl</code></strong>, offers exactly four actions (start, stop, restart, logs), only for the demo containers named in the registry, never for the gateway, console, Caddy or database, and only to the console through a private socket with a shared token.</p>
 <h3 id="68-examples-what-does-hosting-mean-for">6.8 Examples: "what does hosting mean for…?"</h3>
 <ol>
@@ -2415,7 +2415,7 @@ docker compose --profile apps up -d &lt;service...&gt;
 <li><strong>Audited and left alone:</strong> OS Patches (database only), MDM actions (no phones in the demo), Network Discovery (the demo's API container has no <code>ping</code>, no capabilities and a private network, so a scan finds nothing and cannot reach outward), Automation "Run Now" (message already accurate).</li>
 <li>Hosted demo: production mode, software data present, assistant working. Not done: a browser click-through of the deployed Remote Terminal.</li>
 </ul>
-<h3 id="carrental--reci-claudeworkspace">CarRental / RECI (ClaudeWorkspace)</h3>
+<h3 id="carrental-reci-claudeworkspace">CarRental / RECI (ClaudeWorkspace)</h3>
 <ul>
 <li><strong>Repository public</strong> (17 Nov), history scanned (no real secrets; only old weak demo passwords for accounts that were deleted). <code>main</code> protected (3 required checks). Standard files merged.</li>
 <li><strong>CI works for the first time:</strong> lint, type-check, unit tests, full build of web and admin, and Playwright end-to-end tests in mock mode (PRs #21, #22).</li>
