@@ -19,6 +19,7 @@
     "test:browser:guide": "node tests/browser-guide.mjs",
     "test:browser:ui": "node tests/browser-ui.mjs",
     "test:e2e": "node tests/journeys.mjs",
+    "docs:book": "node docs/build-book.mjs",
     "backup": "node supervisor/backup-cli.mjs",
     "alert:test": "node supervisor/alert-cli.mjs",
     "migrate": "node supervisor/migrate.mjs",
