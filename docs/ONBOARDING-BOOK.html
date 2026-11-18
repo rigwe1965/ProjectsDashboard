@@ -2699,8 +2699,9 @@ docker compose exec -T postgres pg_dump -U dashboard dashboard | gzip &gt; ~/das
 <p><strong>Step 1. Create the Hetzner project and two servers (you, in console.hetzner.cloud).</strong></p>
 <ol>
 <li>Create a <strong>new project named <code>facyke-staging</code></strong>. Always check the project name at the top of the page before you click anything. Never create or delete things in <code>facyke</code>, where <code>facyke-prod</code> lives.</li>
-<li>Add your SSH public key to the project (the test used a key named <code>lt-key</code>).</li>
-<li>Create two servers of the same size as production (CPX22: 2 vCPU, 4 GB): <strong><code>lt-sut</code></strong> (system under test) and <strong><code>lt-gen</code></strong> (load generator). <strong>Tick the SSH key on each at creation</strong>: a server cannot be given a key afterwards, and the first pair on 18 Nov had to be deleted and recreated because the key was not ticked.</li>
+<li>Add your SSH public key to the project (Security, SSH keys; the test used a key named <code>lt-key</code>). Check that the fingerprint the console shows is the one of your local key: <code>ssh-keygen -lf &lt;key&gt;.pub -E md5</code>.</li>
+<li>Create a <strong>network</strong> <code>lt-net</code> (range <code>10.0.0.0/24</code>, zone <code>eu-central</code>) and a <strong>firewall</strong> <code>lt-fw</code> (inbound: TCP 22 and ICMP only; no rule for 8080). Both are free. <strong>They only protect a server if you select them on the Add Server form</strong>: on 18 Nov they were created but not selected, so the servers had no private network and no Hetzner firewall, and the Docker rule in step 4 had to do the job. Select them next time, and the generator can then reach the system under test over the private network.</li>
+<li>Create two servers of the same size as production (CPX22: 2 vCPU, 4 GB; the test used CPX22 for both, a smaller type is fine for the generator): <strong><code>lt-sut</code></strong> (system under test) and <strong><code>lt-gen</code></strong> (load generator). Same location as production (Helsinki), the same Ubuntu version as production. <strong>Tick the SSH key on each at creation</strong>: a server cannot be given a key afterwards, and the first pair on 18 Nov had to be deleted and recreated because the key was not ticked. The sign that it was missed: <code>ssh root@&lt;ip&gt;</code> answers <code>Permission denied (publickey,password)</code> although your key is loaded.</li>
 <li>Do not tick backups. Do not create volumes.</li>
 <li>Mistake to avoid: on 18 Nov the servers were first named <code>lt-fw</code> and <code>lt-net</code> (the names of a firewall and a network). To rename a server, open it, hover over its name next to the green dot, click the pencil, type the new name, press Enter. The wrong names matter at teardown time, because the IP and the name must agree.</li>
 <li>Send the two public IPs to whoever runs the test. After a recreate the SSH host key changes: run <code>ssh-keygen -R &lt;ip&gt;</code> on your PC before connecting.</li>
@@ -2712,7 +2713,7 @@ docker compose exec -T postgres pg_dump -U dashboard dashboard | gzip &gt; ~/das
 </ul>
 <p><strong>Step 3. Start the stack on <code>lt-sut</code></strong> (as <code>deploy</code>). The repository is public, so no token is needed.</p>
 <pre><code class="language-text">git clone https://github.com/rigwe1965/ProjectsDashboard.git
-cd ProjectsDashboard &amp;&amp; git checkout test/staging-load-test
+cd ProjectsDashboard &amp;&amp; git checkout main        # the tooling is merged (PR #59, #62); on 18 Nov the branch test/staging-load-test was used
 cd deploy
 # deploy/.env with fresh random values and dummy domains, never real ones:
 #   POSTGRES_PASSWORD, ADMIN_DATA_KEY, METRICS_TOKEN  = random (openssl rand -hex 16 / 32 / 12)
@@ -2729,7 +2730,7 @@ ip6tables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport 8080 --ctdir ORIGIN
 iptables -S DOCKER-USER          # the ACCEPT line must come before the DROP line
 </code></pre>
 <p><code>--ctorigdstport</code> is needed because Docker rewrites the port before this chain sees the packet. <code>--ctdir ORIGINAL</code> is needed because without it the replies are dropped too and the generator gets nothing (this happened on 18 Nov). <strong>Check it both ways:</strong> from your PC <code>curl -4 -m 6 http://&lt;SUT&gt;:8080/_pd/healthz</code> must time out, and from <code>lt-gen</code> it must print <code>200</code>. The rules are not saved: they vanish if the server reboots, so do not reboot it.</p>
-<p><strong>Step 5. Prepare the generator.</strong> On <code>lt-gen</code>: clone the repository and check out <code>test/staging-load-test</code> the same way. On <code>lt-sut</code>, create links (the smoke run used 5; the full test 500) and copy the file to <code>lt-gen</code> as <code>/root/links.txt</code>:</p>
+<p><strong>Step 5. Prepare the generator.</strong> On <code>lt-gen</code>: clone the repository and check out <code>main</code> (the commit under test) the same way. On <code>lt-sut</code>, create links (the smoke run used 5; the full test 500) and copy the file to <code>lt-gen</code> as <code>/root/links.txt</code>:</p>
 <pre><code class="language-text">cd ProjectsDashboard/deploy &amp;&amp; sh ../tests/bench/mint-links.sh 5 /tmp/links.txt
 </code></pre>
 <p><strong>Step 6. Smoke run (proves the pipeline, is not a result).</strong> On <code>lt-gen</code>:</p>
@@ -2808,7 +2809,7 @@ node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.
 <li>For each server: Actions menu, <strong>Delete</strong>, type its name to confirm. Never <strong>Power off</strong>.</li>
 </ol>
 <p><strong>Step 3. Remove everything else created for the test.</strong> Volumes (none were created), snapshots and backups (none enabled), any firewall created in this project, any Primary or Floating IP left over (an unassigned IP is billed), and the <code>lt-key</code> SSH key (optional; it is only a copy of the public key).</p>
-<p><strong>Step 4. Confirm nothing bills.</strong> The project's <strong>Costs</strong> tab, or the account's Billing page, must show no running resource. Optionally delete the <code>facyke-staging</code> project itself (Settings, Delete): a project that still holds resources cannot be deleted, so success also proves it is empty.</p>
+<p><strong>Step 4. Confirm nothing bills.</strong> The project's <strong>Costs</strong> tab, or the account's Billing page, must show no running resource. Optionally delete the <code>facyke-staging</code> project itself. The Delete option is <strong>not inside the project</strong>: open the project switcher at the top, click <strong>View all</strong> to get the list of project cards, open the <strong>⋯</strong> menu on the <code>facyke-staging</code> card and choose Delete (the menu shows Rename, Mute, Delete). Read the card name first: the <code>facyke</code> card, with its resources, is production. A project that still holds a server cannot be deleted; a free network or firewall left inside may need deleting first.</p>
 <p><strong>Step 5. Close the loop on your PC and in the notes.</strong> On your PC, remove the staging servers' lines from <code>~/.ssh/known_hosts</code> (<code>ssh-keygen -R &lt;ip&gt;</code>). Record the numbers in <code>docs/HOW-IT-WORKS.md</code> section 14. Check that production was untouched: <code>https://admin.facyke.com</code> and a demo link work as before.</p>
 <p><strong>Examples of mistakes this chapter prevents.</strong></p>
 <ol>
@@ -2818,6 +2819,158 @@ node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.
 <li><em>"The generator suddenly gets no answer after I added the firewall rule."</em> → The drop rule needs <code>--ctdir ORIGINAL</code>.</li>
 <li><em>"The server rebooted and the test is open to the internet."</em> → The Docker firewall rules are not saved. Re-check after any reboot.</li>
 </ol>
+<h3 id="part-d-the-whole-staging-server-from-a-to-z-the-order-it-was-actually-done-on-18-nov-2026">Part D: The whole staging server, from A to Z (the order it was actually done on 18 Nov 2026)</h3>
+<p>Use this list when you do it again. Details for each step are in parts B and C above. Run <code>ssh</code> and <code>scp</code> from <strong>PowerShell</strong>, not from Git Bash: on the owner's PC only PowerShell sees the ssh-agent that holds the passphrase key. Copy scripts to a server with <code>scp</code>, never by piping <code>Get-Content</code> into <code>ssh</code> (PowerShell adds an invisible byte-order mark and the first line of the script fails).</p>
+<p><strong>Phase 0. Before you start</strong></p>
+<ol>
+<li>The tooling must be on <code>main</code> (it is: PR #59 and #62). The key is loaded in the ssh-agent (<code>ssh-add -l</code> shows it).</li>
+<li>Decide the commit under test and, for a comparison, the old commit (on 18 Nov: new <code>65efc49</code>, old <code>201d2c3</code>).</li>
+<li>Read the safety rules in part B. The test never touches <code>facyke.com</code>, <code>*.demo.facyke.com</code>, <code>admin.facyke.com</code> or the <code>facyke</code> Hetzner project.</li>
+</ol>
+<p><strong>Phase 1. The Hetzner project and its shared resources (console.hetzner.cloud)</strong></p>
+<ol>
+<li>Top bar, project switcher, <strong>View all</strong>, <strong>New project</strong>, name <code>facyke-staging</code>. The dashboard must say 0 resources.</li>
+<li>Security, SSH keys, Add: paste the <strong>public</strong> key (one line starting <code>ssh-</code>, never a private key), name <code>lt-key</code>. Compare its fingerprint with <code>ssh-keygen -lf &lt;key&gt;.pub -E md5</code>.</li>
+<li>Networks, Create: <code>lt-net</code>, <code>10.0.0.0/24</code>, <code>eu-central</code>.</li>
+<li>Firewalls, Create: <code>lt-fw</code>, inbound TCP 22 and ICMP only.</li>
+</ol>
+<p><strong>Phase 2. The two servers</strong></p>
+<ol>
+<li>Servers, Add Server, for each of <code>lt-sut</code> and <code>lt-gen</code>: Helsinki, the Ubuntu version production uses, CPX22, public IPv4, network <code>lt-net</code>, SSH key <code>lt-key</code> <strong>ticked</strong>, firewall <code>lt-fw</code>, backups off, no volumes. Name them exactly <code>lt-sut</code> and <code>lt-gen</code> in the Name field. The price per hour is shown before you confirm (about €0.03).</li>
+<li>Write down both public IPs. If the console shows other names than you typed, rename (pencil next to the name on the server page).</li>
+</ol>
+<p><strong>Phase 3. Check you can log in</strong> (PowerShell)</p>
+<ol>
+<li><code>ssh-keygen -R &lt;ip&gt;</code> for both (a recreated server reuses an address with a new host key), then <code>ssh root@&lt;ip&gt; hostname</code> for both. A <code>Permission denied (publickey,password)</code> means the key was not ticked: delete both servers and create them again.</li>
+<li><code>ssh root@&lt;ip&gt; "ip -4 -br addr"</code>: if there is only <code>eth0</code> with the public address, the network was not attached (see the note in part B step 1).</li>
+</ol>
+<p><strong>Phase 4. Install the tools</strong></p>
+<ol>
+<li><code>lt-sut</code>: <code>hostnamectl set-hostname lt-sut</code>, <code>apt-get install -y docker.io docker-compose-v2 git ufw curl</code>, create user <code>deploy</code> in group <code>docker</code>, put your public key in <code>/home/deploy/.ssh/authorized_keys</code> (mode 700 for the folder, 600 for the file).</li>
+<li><code>lt-gen</code>: <code>hostnamectl set-hostname lt-gen</code>, <code>apt-get install -y nodejs git curl</code>; <code>node --version</code> must print 22 or higher.</li>
+</ol>
+<p><strong>Phase 5. Start the stack on <code>lt-sut</code></strong> (as <code>deploy</code>)</p>
+<ol>
+<li>Clone, <code>git checkout main</code>, write <code>deploy/.env</code> with random secrets and dummy domains (part B step 3), <code>chmod 600</code>.</li>
+<li><code>docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build postgres gateway standin</code>. Wait about 15 s: <code>curl http://127.0.0.1:8080/_pd/healthz</code> must print 200. Check on the first try, not after a long wait; the first 000 on 18 Nov was only a too-early check.</li>
+</ol>
+<p><strong>Phase 6. Close port 8080</strong> (as <code>root</code> on <code>lt-sut</code>)</p>
+<ol>
+<li>Add the three Docker firewall rules of part B step 4 with <code>&lt;GEN&gt;</code> = the generator's public IP.</li>
+<li>Test both ways: from your PC the port must time out, from <code>lt-gen</code> <code>curl -4 http://&lt;SUT&gt;:8080/_pd/healthz</code> must print 200. Check this <strong>before</strong> any link is created. On 18 Nov the port was found open to the whole internet at this point (the Hetzner firewall had not been attached) and was closed at once.</li>
+</ol>
+<p><strong>Phase 7. Smoke run</strong></p>
+<ol>
+<li>On <code>lt-sut</code>: <code>cd ProjectsDashboard/deploy &amp;&amp; sh ../tests/bench/mint-links.sh 5 /tmp/links.txt</code>; copy <code>/tmp/links.txt</code> to <code>/root/links.txt</code> on <code>lt-gen</code> (through your PC, with <code>scp</code>).</li>
+<li>On <code>lt-gen</code>: clone and check out the same commit, then the smoke command of part B step 6. It must print 200 for every request and no errors. If it does, the whole path (generator, network, firewall, gateway, database, stand-in app) works.</li>
+</ol>
+<p><strong>Phase 8. Let the generator drive the server</strong></p>
+<ol>
+<li>On <code>lt-gen</code>: <code>ssh-keygen -t ed25519 -N '' -f /root/.ssh/id_ed25519</code>, and append its <code>.pub</code> to <code>/home/deploy/.ssh/authorized_keys</code> on <code>lt-sut</code>. Test: <code>ssh deploy@&lt;SUT&gt; true</code> from <code>lt-gen</code>.</li>
+<li>Copy the driver to <code>lt-gen</code> with <code>scp</code>: <code>tests/bench/run-all.sh</code> (full run) and <code>run-compare.sh</code> (old against new).</li>
+</ol>
+<p><strong>Phase 9. Full run on the new commit</strong> (about 2 to 2.5 hours)</p>
+<ol>
+<li>On <code>lt-gen</code>: <code>(SUT=&lt;SUT&gt; setsid nohup bash /root/run-all.sh &lt;label&gt; &gt; /root/run.out 2&gt;&amp;1 &lt; /dev/null &amp;)</code>. It creates 500 links, starts the metrics collector, and runs S1 to S10 in order. Never run a driver in the foreground of an <code>ssh</code> session you may close.</li>
+<li>Watch <code>/root/results/&lt;label&gt;-driver.log</code>. If it stops after "links on generator" for more than a few minutes, the <code>ssh</code> that starts the collector did not return: <code>pgrep -fa 'ssh -n'</code> on <code>lt-gen</code> and <code>kill</code> that client; the driver continues.</li>
+<li>The run is finished when <code>/root/results/&lt;label&gt;.done</code> exists.</li>
+</ol>
+<p><strong>Phase 10. Old against new</strong> (about 45 minutes)</p>
+<ol>
+<li><code>(SUT=&lt;SUT&gt; setsid nohup bash /root/run-compare.sh &gt; /root/compare.out 2&gt;&amp;1 &lt; /dev/null &amp;)</code>. It mints fresh links (links revoked in S5 do not work), checks out the old commit on <code>lt-sut</code>, copies the tooling files over from the new commit (<code>git checkout &lt;new&gt; -- deploy/docker-compose.loadtest.yml deploy/loadtest tests/bench</code>), rebuilds the gateway and checks that the running code is the old one (<code>grep -c getWithGrant</code> prints 0 for old, more than 0 for new), runs S1 and S3 twice, switches back and runs a control.</li>
+<li>Finished when <code>/root/results/compare.done</code> exists. Compare the old and the control numbers: runs on one server vary by about 10%, so a difference below that proves nothing.</li>
+</ol>
+<p><strong>Phase 11. Save the results before deleting anything</strong></p>
+<ol>
+<li>From PowerShell: <code>scp root@&lt;GEN&gt;:/root/results/* &lt;folder&gt;</code> and <code>scp deploy@&lt;SUT&gt;:ProjectsDashboard/deploy/results/* &lt;folder&gt;</code>; then copy the folder to the backup drive (<code>I:\Facyke-LoadTests\&lt;date&gt;-&lt;commit&gt;\</code>). Open two or three files to check they are not empty.</li>
+<li>Write the results into <code>docs/PLAN-staging-load-test.md</code> section 13, <code>docs/HOW-IT-WORKS.md</code> section 14 and this book, and open a pull request (PR #62 did this).</li>
+</ol>
+<p><strong>Phase 12. Delete the servers</strong> (console.hetzner.cloud, project <code>facyke-staging</code>)</p>
+<ol>
+<li>Read the project name at the top. Servers: exactly <code>lt-sut</code> and <code>lt-gen</code>. For each: open it, Delete, type the name. Not Power off.</li>
+<li>Do not take anyone's word that it is done, including the console's: from your PC check that both addresses are dead: <code>ssh root@&lt;ip&gt;</code> times out, <code>ping &lt;ip&gt;</code> loses every packet, ports 22 and 8080 are closed. On 18 Nov the servers were still running when the owner first reported them deleted.</li>
+</ol>
+<p><strong>Phase 13. Delete what is left, then the project</strong></p>
+<ol>
+<li>The dashboard should now say Servers 0, Primary IPs 0, Volumes 0; the 2 remaining resources are <code>lt-net</code> and <code>lt-fw</code> (free). The Activities list shows "Server deleted" and "Primary IP deleted".</li>
+<li>Optional: delete <code>lt-fw</code> and <code>lt-net</code>, then the project: project switcher, <strong>View all</strong>, <strong>⋯</strong> on the <code>facyke-staging</code> card, <strong>Delete</strong> (see part C step 4). A rerun is quicker if you keep the empty project, and it costs nothing.</li>
+</ol>
+<p><strong>Phase 14. Confirm nothing else was touched</strong></p>
+<ol>
+<li><code>https://facyke.com</code> and <code>https://admin.facyke.com/_pd/healthz</code> return 200; on the live server <code>git log --oneline -1</code> in <code>/home/deploy/ProjectsDashboard</code> still shows the commit that was deployed and the containers are healthy. The test never changes the live server.</li>
+<li>On your PC remove the two stale lines from <code>~/.ssh/known_hosts</code> (<code>ssh-keygen -R &lt;ip&gt;</code>).</li>
+</ol>
+<p><strong>Phase 15. Notes</strong></p>
+<ol>
+<li>Update the memory notes and this book with anything that went differently. The costs on 18 Nov: two servers for roughly eight hours at about €0.03 an hour each, well under €1 in all (read the real figure on the Hetzner invoice).</li>
+</ol>
+<p><strong>What went wrong on 18 Nov, in the order it happened</strong> (so you can skip it next time)</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>What</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>First two servers had no SSH key (<code>Permission denied</code>)</td>
+<td>Delete and recreate with the key ticked</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Servers named <code>lt-fw</code> and <code>lt-net</code></td>
+<td>Rename with the pencil</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Network and firewall were not selected on the servers</td>
+<td>Select them at creation; the Docker rule covers port 8080 if they are missing</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Port 8080 open to the internet</td>
+<td>Docker rule <code>--ctorigdstport 8080</code>; added <code>--ctdir ORIGINAL</code> because the first version dropped the replies</td>
+</tr>
+<tr>
+<td>5</td>
+<td>A script piped from PowerShell failed on its first line</td>
+<td>Copy files with <code>scp</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Driver stalled twice (27 and 17 min) on the collector's <code>ssh</code></td>
+<td>Kill that <code>ssh</code> client; the collector keeps running</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Driver's first run minted links in the wrong folder</td>
+<td>Fixed in the script; check the first minute of every run</td>
+</tr>
+<tr>
+<td>8</td>
+<td>The 10 links revoked in S5 broke later runs</td>
+<td>Mint new links before another run</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Progress monitor stayed silent for an hour</td>
+<td>Check the log yourself every 10 to 20 minutes</td>
+</tr>
+<tr>
+<td>10</td>
+<td>"Servers deleted" was reported while they still ran</td>
+<td>Check with <code>ssh</code>, <code>ping</code> and the ports</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Project Delete was not inside the project</td>
+<td>Project list, <strong>⋯</strong> on the card</td>
+</tr>
+</tbody>
+</table></div>
 <hr />
 </section>
 <section class="l2">
