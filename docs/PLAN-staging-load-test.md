@@ -93,10 +93,35 @@ The 1.3 times figure comes from the PC benchmarks (Postgres 1,540 to 2,491 reque
 
 ## 9. Teardown
 
-1. Copy the results folder off both servers (to the easystore drive, for example `I:\Facyke-LoadTests`).
-2. Delete both Hetzner servers and any volumes, firewall rules and SSH keys created for the test.
-3. Confirm in the Hetzner console that nothing is still billing in `facyke-staging`.
-4. Record the numbers and the capacity statement in `docs/HOW-IT-WORKS.md` section 14 (Scaling) and in the project notes.
+Do this only after the results are safely copied off the servers.
+
+**A. Save the results**
+1. Results are in `~/ProjectsDashboard/deploy/results/` (collect CSVs) and the generator's JSON output file on each server.
+2. Copy them to the PC, then to the easystore drive, for example `I:\Facyke-LoadTests\<date>-<commit>\`.
+3. Open a few files and check they are not empty. After deletion they cannot be recovered.
+
+**B. Delete the servers (Hetzner console)**
+1. Open console.hetzner.cloud and the **`facyke-staging`** project. Check the project name at the top. Never do this in `facyke`, where `facyke-prod` lives.
+2. Servers: there should be exactly two, `lt-sut` and `lt-gen`.
+3. For each: server, Actions menu, **Delete**, type the name to confirm. Do not use "Power off": a powered-off server is still billed.
+4. Check the Servers list is empty.
+
+**C. Remove everything else created for the test**
+1. Volumes: empty (none are created).
+2. Snapshots and backups: empty (none are enabled).
+3. Firewalls created in this project: delete.
+4. Primary IPs and floating IPs: none left; an unassigned IP is billed, so delete it.
+5. SSH key in this project: remove (optional, it is only a copy of the public key).
+
+**D. Confirm nothing is billing**
+1. Check the project's Costs tab or the account's Billing page: no resource running. Charges stop when a server is deleted.
+2. Optionally delete the `facyke-staging` project (Project, Settings, Delete). A project with resources cannot be deleted, so success also proves it is empty.
+
+**E. Close the loop**
+1. Record the numbers and the capacity statement in `docs/HOW-IT-WORKS.md` section 14 (Scaling) and in the project notes.
+2. Check production was not touched: `https://admin.facyke.com` and a demo link work as before.
+
+**Safety:** set a calendar alarm for the end of the test day. If unsure which project you are in, stop: the project name `facyke-staging` and the server names `lt-sut` and `lt-gen` must all match.
 
 ## 10. Risks and how they are handled
 
