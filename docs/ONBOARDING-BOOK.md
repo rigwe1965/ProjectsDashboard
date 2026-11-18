@@ -2,7 +2,7 @@
 
 **Everything a new person needs to understand, run, support and manage this project, from day one.**
 
-*Written 17 November 2026 and updated on 18 November 2026 with the scaling pass and the staging load test (see chapters 21 to 24). It is for the repository `rigwe1965/ProjectsDashboard`. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.*
+*Written 17 November 2026 and updated on 18 November 2026 with the scaling pass and the staging load test (see chapters 21 to 25). It is for the repository `rigwe1965/ProjectsDashboard`. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.*
 
 ---
 
@@ -74,6 +74,7 @@ Pick your path:
 - **22.** [What changed on 17 November 2026](#22-what-changed-on-17-november-2026)
 - **23.** [Scaling and the staging load test, step by step](#23-scaling-and-the-staging-load-test-step-by-step)
 - **24.** [What changed on 18 November 2026](#24-what-changed-on-18-november-2026)
+- **25.** [The facyke server: how it was set up, and how to troubleshoot it](#25-the-facyke-server-how-it-was-set-up-and-how-to-troubleshoot-it)
 
 **Appendices**
 
@@ -1774,10 +1775,171 @@ A server costs about €0.03 an hour until it is **deleted**. Powering it off do
 | 5 | Temporary Hetzner project `facyke-staging` with two servers; stack started; smoke run passed | Hetzner | None on production; billed hourly |
 | 6 | First scenarios of the full run on the new code (S1, S2) | Staging | None |
 | 7 | Staging servers deleted (reported by the owner; confirm in the console) | Hetzner | Billing stops on deletion |
+| 8 | Chapter 25 added: full setup of the live server and server-side troubleshooting | This book | None |
 
 **Corrections made the same day (so you do not repeat them):** the live folder was at `201d2c3`, not at the commit the notes said; production runs Ubuntu 26.04.1 (older text said 24.04); the first staging servers had no SSH key and the console names did not match the hostnames; `ufw` does not guard Docker ports and the Docker rule needed `--ctdir ORIGINAL`; a hung `ssh` in the test driver lost 27 minutes; a first progress report said three S2 runs were done when two were.
 
 **Still open:** the results of S3 to S10 and the old-code comparison (chapter 23, part B); the review and merge of pull request #59; a copy of the database dump off the server; the GitHub Actions quota until 1 December; the "1.3 times faster" claim stays unproven until the comparison exists.
+
+
+## 25. The facyke server: how it was set up, and how to troubleshoot it
+
+This chapter is for the person who has to **keep the live server healthy**. Chapter 6 explains the shape of the hosted setup; this chapter lists every piece, how it was built in the order it was built (13 to 18 November 2026), and what to look at first when something is wrong. If you can follow Part A you could rebuild the server from nothing. Where a detail lives only on the server and not in the repository, the text says "check on the server".
+
+### Part A: What exists on the server
+
+| Piece | Where it lives | What it does | Check it with |
+| --- | --- | --- | --- |
+| Server `facyke-prod` | Hetzner project `facyke`, CPX22 (2 vCPU, 4 GB, 80 GB), Helsinki, Ubuntu 26.04.1 | Runs everything | Hetzner console; `lsb_release -ds` |
+| Docker + Compose | the server (Docker 29.9) | Runs all containers | `docker compose version` |
+| The live stack | `/home/deploy/ProjectsDashboard/deploy` (compose project `projects-dashboard`) | Caddy, console, gateway, Postgres, `db-backup`, six demos and their helpers (17 containers) | `docker compose ps` |
+| Secrets | `deploy/.env` (git-ignored) and `registry/apps.hosted.json` (git-ignored) | Passwords, keys, which demos exist | `docker compose config > /dev/null` must print nothing |
+| App sources | `/srv/apps/<repository>` (`APPS_ROOT=/srv/apps`) | Build source for the demo images | `git -C /srv/apps/<repo> log --oneline -1` |
+| Volumes | `pgdata`, `db_backups`, `gateway_data`, `console_data`, `caddy_data`, `caddy_config`, and one per demo that keeps data | Everything that must survive a restart | `docker volume ls` |
+| Helper `pd-ctl` | systemd service, socket `/run/pd-ctl/ctl.sock`, token in `/etc/pd-ctl.env` | The console's Start/Stop/Restart/Log buttons | `systemctl status pd-ctl` |
+| Egress guard | systemd service `docker-egress-guard` (check on the server: it is not in the repository) | Stops containers reaching the cloud metadata address (169.254.169.254) and the host's SSH port | `systemctl status docker-egress-guard`, `sudo iptables -S DOCKER-USER` |
+| SSH rules | `/etc/ssh/sshd_config.d/00-key-only.conf` | Key-only login, root login off, 3 attempts | `sudo sshd -T \| grep -i -E "passwordauth\|permitroot\|maxauth"` |
+| Firewall | `ufw` | Only SSH, 80 and 443 open | `sudo ufw status` |
+| Swap | 4 GB swap file | Six demos together use most of the 4 GB RAM | `free -m` |
+| Reset schedule | cron or a systemd timer on the server (check which) | Runs `reset-demos.sh` every ten minutes | `crontab -l`, `systemctl list-timers` |
+| DNS | Cloudflare, DNS-only (grey cloud): `@`, `admin`, `*.demo`, `www` | Names for the site, console and demos | `nslookup admin.facyke.com` |
+| Email | Resend, sender `alerts@facyke.com`; optional ntfy push | Alerts to the owner | chapter 20, issue I |
+
+### Part B: How it was built, in order
+
+The exact commands typed on 13 November were not saved, so the commands in step 3 are the standard equivalents of what was done (swap, firewall, Docker, the `deploy` user, key-only SSH); check each result on the server. Run every command on the server as the user `deploy` unless it says `sudo`. **Never paste a secret into chat or a ticket.**
+
+**Step 1. Domain and DNS.** Register the domain at Cloudflare (`facyke.com`, 2 years, auto-renew on). Create records **DNS only (grey cloud)** that point at the server's public address: `@`, `admin`, the wildcard `*.demo`, and `www` (a CNAME to the site). Grey cloud matters: Caddy must meet visitors directly to get its own certificates.
+
+**Step 2. The server.** In the Hetzner console create the project `facyke` (account verified, 2-step login on) and a server `facyke-prod`: CPX22, Helsinki, Ubuntu, **with your SSH key ticked at creation** (a server cannot be given a key afterwards). The private key is a file in your own `.ssh` folder with a passphrase; nobody else ever sees it. Note the public address from the console.
+
+**Step 3. Basic hardening (first login as root, once).**
+
+```text
+apt-get update && apt-get -y upgrade
+# 4 GB swap
+fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+echo '/swapfile none swap sw 0 0' >> /etc/fstab
+# firewall: SSH, HTTP, HTTPS only
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw --force enable
+# Docker and the Compose plugin (production runs Docker 29.9; Ubuntu's docker.io package, used on the staging servers, works the same)
+apt-get install -y docker.io docker-compose-v2 git curl
+# the everyday user, in the docker group, with your public key
+adduser --disabled-password --gecos '' deploy && usermod -aG docker deploy
+mkdir -p /home/deploy/.ssh && cp /root/.ssh/authorized_keys /home/deploy/.ssh/
+chown -R deploy:deploy /home/deploy/.ssh && chmod 700 /home/deploy/.ssh && chmod 600 /home/deploy/.ssh/authorized_keys
+```
+
+**Test a login as `deploy` in a second window before the next step.** Then make SSH key-only. Put these lines in `/etc/ssh/sshd_config.d/00-key-only.conf` (the `00-` makes it win over later files):
+
+```text
+PasswordAuthentication no
+PermitRootLogin no
+MaxAuthTries 3
+```
+
+Then `sudo sshd -t && sudo systemctl reload ssh`. Keep your first window open until a **new** login still works. If you lock yourself out, use the Hetzner web console (rescue) to fix the file.
+
+**Step 4. Get the code onto the server.** All repositories are public now, so no token is needed.
+
+```text
+sudo mkdir -p /srv/apps && sudo chown deploy:deploy /srv/apps
+cd /srv/apps
+git clone https://github.com/rigwe1965/ProjectsDashboard.git
+# the apps that become demos, each in its own folder under /srv/apps (CRM, RemoteManagementSystem, ClaudeOS, ImageApp, Airfinder)
+git clone https://github.com/rigwe1965/ProjectsDashboard.git /home/deploy/ProjectsDashboard     # the live copy
+```
+
+The CarRental (ClaudeWorkspace) source on the server was copied over as a tarball into `/srv/apps/ClaudeWorkspace/` (without `.env` and `node_modules`), not cloned. Later updates move code with the fast-forward recipe in chapter 15.
+
+**Step 5. Fill `deploy/.env` on the server.** Start from `deploy/.env.example` (`cp .env.example .env`, then `chmod 600 .env`). Generate every secret **on the server** with a small script (`openssl rand -hex 16`, `-hex 32`); never type secrets into chat. The groups of settings are: the database password; the three domains (`SITE_DOMAIN=facyke.com`, `ADMIN_DOMAIN=admin.facyke.com`, `DEMO_DOMAIN=demo.facyke.com`); `ACME_EMAIL`; `ADMIN_DATA_KEY` (64 hex characters, **keep a copy in a password manager**: it encrypts the console's 2-step secret and is not in any backup); `METRICS_TOKEN`; `APPS_ROOT=/srv/apps`; one block per demo (`AIRFINDER_*`, `CRM_*`, `CW_*`, `CLAUDEOS_*`, `RMM_*`); `PD_CTL_TOKEN`; and the alert settings (`RESEND_API_KEY`, `ALERT_EMAIL_TO`, optional `ALERT_WEBHOOK_URL`). Passwords that sit inside connection addresses must use letters and digits only. After every edit run `docker compose config > /dev/null`: it must print nothing (a stray character once broke every command).
+
+**Step 6. The registry for the hosted setup.** `cp ../registry/apps.hosted.example.json ../registry/apps.hosted.json`. A demo only gets a certificate and a link if its entry has `demoReady: true`.
+
+**Step 7. First start.**
+
+```text
+cd /home/deploy/ProjectsDashboard/deploy
+docker compose up -d --build                    # dashboard only: Caddy, console, gateway, Postgres, db-backup
+./check-apps-env.sh                             # refuses to go on if a needed secret is empty
+docker compose --profile apps up -d --build <services>     # name the demos you want; ClaudeWorkspace needs its source and Supabase first
+docker compose ps                               # everything running or healthy
+```
+
+**Step 8. The console password and 2-step codes** (the console refuses to start without them):
+
+```text
+docker compose run --rm console node admin-console/auth-cli.mjs set-password
+docker compose run --rm console node admin-console/auth-cli.mjs enable-totp
+docker compose up -d console
+```
+
+Scan the code into an authenticator app, then sign in at `https://admin.facyke.com`.
+
+**Step 9. Seed each demo once** (from `deploy/`):
+
+| Demo | One-time step |
+| --- | --- |
+| ImageApp | none |
+| Airfinder | none |
+| CRM | `docker compose --profile apps run --rm crm-migrate seed` |
+| RMM | `./reset-demos.sh rmm` |
+| ClaudeOS | `./reset-demos.sh claudeos` |
+| ClaudeWorkspace (CarRental) | needs its own **separate demo Supabase project** (never the production one): apply its migrations, set `CW_SUPABASE_*`, build `claudeworkspace-web` (public values are baked into the build), then `./reset-demos.sh claudeworkspace` seeds 20 vehicles |
+
+**Step 10. The demo AI key.** ClaudeOS and RMM use one key from the Anthropic workspace `facyke-demos` with a **$5 per month limit**. Install it with `deploy/set-demo-key.sh claudeos|rmm|both` (reads the key hidden, tests it, backs up `.env`, recreates only the two demo containers). The gateway's AI guide has no key and stays off.
+
+**Step 11. The console's Start/Stop buttons (`pd-ctl`).** Follow `deploy/README.md`, "Optional: Start/Stop/Restart/Log buttons": create `/etc/pd-ctl.env` with a random token (mode 600), put the same value in `deploy/.env` as `PD_CTL_TOKEN`, copy `deploy/ctl/pd-ctl.service` to `/etc/systemd/system/`, `systemctl enable --now pd-ctl`, then `docker compose up -d console`.
+
+**Step 12. The egress guard.** A small systemd service adds firewall rules (`DOCKER-USER` and `INPUT` chains) so containers cannot reach `169.254.169.254` or the host's port 22. Verify after any rebuild with `systemctl status docker-egress-guard`. Its unit file is not in the repository: if you rebuild the server, write it again to do exactly that and prove it from inside a demo container (a connection to the metadata address must fail).
+
+**Step 13. The reset schedule.** Run `./reset-demos.sh` from the `deploy` folder every ten minutes (cron or a systemd timer). Without it shared demos keep a customer's leftovers. Verify with `crontab -l` or `systemctl list-timers`.
+
+**Step 14. Alerts.** Set `RESEND_API_KEY`, `ALERT_EMAIL_TO` (and `ALERT_EMAIL_FROM`, default `alerts@facyke.com`) in `.env`, recreate the console, then `docker compose exec -T console node supervisor/alert-cli.mjs` to send a test mail. ntfy push is optional (`ALERT_WEBHOOK_URL`).
+
+**Step 15. Copy backups off the server.** The daily dumps stay on the same machine. Copy one out now and then (`docker compose cp db-backup:/backups/<file> .`) and keep `deploy/.env` somewhere private and separate: without it the server cannot be rebuilt.
+
+**Step 16. Prove it works, as a customer.** Home page `https://facyke.com` answers 200; `https://admin.facyke.com` answers 302 (to the sign-in); each of the six demo addresses answers 401 until a link is used. Create a test link named "UI test ...", open it, log in to the demo, **revoke it** and confirm "Demo ended" appears.
+
+### Part C: Troubleshooting from the server side
+
+**The first five commands for any problem** (from `/home/deploy/ProjectsDashboard/deploy`):
+
+```text
+docker compose ps                         # what is running, restarting or unhealthy
+docker compose logs --tail 100 <service>  # the last lines of the suspect
+df -h /                                   # is the disk full?
+free -m                                   # is memory or swap exhausted?
+sudo journalctl -p err -n 50 --no-pager   # recent system errors
+```
+
+| Symptom | Likely cause | What to do |
+| --- | --- | --- |
+| **Everything unreachable** | Server off, firewall, or DNS | Hetzner console: is the server running? `sudo ufw status` must allow 80 and 443. `nslookup facyke.com` must give the server's address |
+| **One demo address shows a TLS error** | The gateway does not think it is a ready demo (`demoReady`) or the live code is old | `docker compose logs caddy`; check the registry entry; check the live commit (`git rev-parse --short HEAD`) against `main` (chapter 6.4) |
+| **A container keeps restarting** | Bad `.env` value, out of memory, or missing volume | `docker compose logs --tail 100 <service>`; `docker inspect -f '{{.State.OOMKilled}}' <container>`; `docker compose config > /dev/null` |
+| **Every `docker compose` command fails** | A typo in `deploy/.env` | `docker compose config > /dev/null` shows the line; restore from the dated backup copy |
+| **Slow, or demos killed** | Memory: swap full | `free -m`; `docker stats --no-stream`; stop a demo you do not need |
+| **Disk full** | Docker images, logs or backups | `docker system df`; `docker image prune` (images only, ask first); never delete named volumes |
+| **Console cannot sign in** | Wrong code or password, clock drift, or the data key changed | Chapter 20, issue F. `timedatectl` must say the clock is synchronised |
+| **Console buttons do nothing** | `pd-ctl` stopped, or token mismatch | `systemctl status pd-ctl`; the token in `/etc/pd-ctl.env` and `PD_CTL_TOKEN` must match |
+| **A demo says "being prepared" for long** | A reset is running or stuck | `./reset-demos.sh --dry-run`; `docker compose logs <demo>`; if no link is active `--force <app>` |
+| **No alert mail** | Resend key, domain or recipient wrong | Chapter 20, issue I; run `alert-cli.mjs` |
+| **Cannot log in over SSH** | Wrong tool, key not loaded, wrong user | Use PowerShell (not Git Bash), user `deploy` (root is disabled), the full path to `ssh-add.exe`; else use the Hetzner web console |
+| **After a reboot something is missing** | A service not enabled | All containers restart by themselves; check `systemctl is-enabled pd-ctl docker-egress-guard` and the reset schedule |
+| **Certificates missing after losing `caddy_data`** | Normal | They are re-issued on the first visit (a few seconds) |
+
+**If the server dies completely.** Create a new Hetzner server (Part B steps 2 and 3), point DNS at it, clone the repositories (step 4), put your private copy of `deploy/.env` and `registry/apps.hosted.json` back (steps 5 and 6), start the stack (step 7), restore the newest database dump:
+
+```text
+docker compose exec -T postgres pg_restore -U dashboard -d dashboard --clean --if-exists < <dump file>
+```
+
+then repeat steps 8 to 16. Demo data is rebuilt by the seed steps; only the dashboard database (links, sessions, audit log) needs the dump.
+
+**Before you change anything:** take a database dump, copy `.env` to a dated backup, name only the service you change, and know your rollback (chapter 15). **After:** run the eight-host check from step 16.
+
+---
 
 ---
 
@@ -1886,6 +2048,7 @@ PORTS (PC)  4100 console · 4200 showcase · 4300 gateway · 3000/5000/8501 rese
 | See security and code reviews | `audits/` |
 | See per-product production audits (16 Nov 2026) | `audits/prod-audit-2026-11-16-*.md` |
 | Change public website text | `showcase/*.json` |
+| Set up or troubleshoot the live server | Chapter 25 of this book, `deploy/README.md` |
 | Tune scaling limits | `docs/HOW-IT-WORKS.md` section 14 |
 | Measure gateway speed on the PC | `tests/bench/gateway-bench.mjs` |
 | Run or redo the staging load test | `docs/PLAN-staging-load-test.md`, `deploy/docker-compose.loadtest.yml`, `deploy/loadtest/`, `tests/bench/` |
