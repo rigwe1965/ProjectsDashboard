@@ -1,6 +1,6 @@
 # Plan: staging load test for the gateway and database
 
-Status: proposed, not started. Written 2026-11-18, after the scaling pass (PR #58, live commit `9ffa4c0`).
+Status: scripts built (branch test/staging-load-test), servers not yet created. Written 2026-11-18, after the scaling pass (PR #58, live commit `9ffa4c0`).
 
 ## 1. Why
 
@@ -36,10 +36,10 @@ What you do: create the two servers in your Hetzner account (project `facyke-sta
 
 ## 4. What gets built (all new, none touches production)
 
-1. `deploy/docker-compose.loadtest.yml`: a staging-only override that raises the limits so the test is not stopped by its own protection (`GATEWAY_REQUESTS_PER_MINUTE=0`, `GATEWAY_REDEEM_PER_MINUTE=100000`, `GATEWAY_NO_SESSION_PER_MINUTE=100000`), turns on `METRICS_TOKEN`, sets `DEMO_SCHEME=http`, and adds the stand-in app.
+1. `deploy/docker-compose.loadtest.yml`: a staging-only override that raises the limits so the test is not stopped by its own protection (`GATEWAY_REQUESTS_PER_MINUTE=0`, `GATEWAY_REDEEM_PER_MINUTE=100000`, `GATEWAY_NO_SESSION_PER_MINUTE=100000`), turns on `METRICS_TOKEN`, sets `DEMO_SCHEME=http`, publishes the gateway on port 8080 (no Caddy, no console), and adds the stand-in app (`deploy/loadtest/standin.mjs`, registry `deploy/loadtest/apps.loadtest.json`).
 2. A stand-in demo app: a few lines of Node in a small container, answering `/` and `/asset/N` with a fixed small body, `/post` echoing a body, and `/slow` after a delay. Registered in a staging-only registry as a demo-ready product.
 3. `tests/bench/gateway-load.mjs`: the load generator. Zero dependencies, same style as `gateway-bench.mjs`. Takes the staging address, a file of demo links, a scenario name, and prints one JSON result per run (requests per second, p50, p95, p99, errors by type, status counts). Can ramp concurrency in steps.
-4. `tests/bench/mint-links.sh`: creates N demo links on the staging gateway (`grants-cli create ... --max-uses 100000`) and writes them to a file.
+4. `tests/bench/mint-links.sh`: creates N demo links on the staging gateway (`grants-cli create ... --max-uses 1000`, the most the product allows; a link open uses one, so S6 spreads its opens over all links) and writes them to a file.
 5. `tests/bench/collect.sh`: samples `docker stats` and `pg_stat_activity` every 5 seconds into a CSV while a scenario runs.
 
 These go through a normal PR (lint and unit tests apply to the scripts).
@@ -62,7 +62,7 @@ All scenarios run for the stated time after a 30 second warm-up. Each is run thr
 | S2 | Ramp | 16, 32, 64, 128, 256, 512 connections, 60 s each | 6 min | Where is the knee, and what fails first |
 | S3 | Many links | 64 connections spread over all 500 links | 5 min | Does the database lookup scale with the number of links |
 | S4 | Mixed | 90% GET, 10% POST of 20 KB | 5 min | Request bodies and proxy streaming |
-| S5 | Revocation under load | S1 running, revoke 10 links through the console API | 2 min | Time from revoke to the first refusal (under 1 s with the cache off; at most the cache time with it on) |
+| S5 | Revocation under load | S1 running, revoke 10 links with `tests/bench/revoke-links.sh` (the console is not run in staging; the revoke path is the same database write) | 2 min | Time from revoke to the first refusal (under 1 s with the cache off; at most the cache time with it on) |
 | S6 | Link-open burst | 200 link opens per second, then steady | 2 min | Redeem path: rate limit table, session creation |
 | S7 | Dead demo app | Stop the stand-in app during S1, then start it again | 3 min | Clean 503 and no stuck connections, recovery within 20 s |
 | S8 | Database restart | `docker compose restart postgres` during S1 | 3 min | Errors stay brief; the gateway recovers without a restart |
@@ -123,4 +123,4 @@ About half a day of work, plus the run time (roughly 1.5 hours per commit for S1
 
 - Two servers (recommended) or one server plus your PC as the generator?
 - Is a short-lived `facyke-staging` Hetzner project acceptable, or should it live in the existing `facyke` project?
-- Should S11 (WebSockets) be in the first run? It matters for ClaudeOS and RMM, which use sockets.
+- Should S11 (WebSockets) be in the first run? (Not built yet: the generator does not open sockets; say so if you want it.) It matters for ClaudeOS and RMM, which use sockets.

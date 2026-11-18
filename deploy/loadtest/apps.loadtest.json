@@ -1,0 +1,10 @@
+{
+  "_note": "Registry for the staging load test only (deploy/docker-compose.loadtest.yml). One stand-in demo app; no real products.",
+  "reservedPorts": [],
+  "apps": [
+    { "id": "toy", "name": "Toy", "tagline": "Load test stand-in", "path": "/unused", "hidden": true,
+      "processes": [{ "name": "app", "container": "pd-standin-unused", "host": "standin-unused", "port": 9000, "health": "/" }] },
+    { "id": "toy-demo", "name": "Toy (demo instance)", "tagline": "Load test stand-in", "path": "/unused", "demoOf": "toy", "demoReady": true,
+      "processes": [{ "name": "app", "container": "pd-standin", "host": "standin", "port": 9000, "health": "/" }] }
+  ]
+}
