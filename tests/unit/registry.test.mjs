@@ -78,3 +78,27 @@ test('the real registry still validates, and its demoRoutes all point at real pr
   assert.deepEqual(validate(reg), []);
   assert.ok(reg.apps.some((a) => a.demoRoutes?.length), 'the registry uses demoRoutes');
 });
+
+test('loadRegistry checks the file at most once per REGISTRY_RECHECK_MS, and 0 means every call', async () => {
+  const { mkdtempSync, writeFileSync, utimesSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const dir = mkdtempSync(join(tmpdir(), 'pd-reg-'));
+  const file = join(dir, 'r.json');
+  const write = (name, secs) => { writeFileSync(file, JSON.stringify({ apps: [app({ name })] })); utimesSync(file, secs, secs); };
+  const saved = process.env.REGISTRY_RECHECK_MS;
+  try {
+    process.env.REGISTRY_RECHECK_MS = '60000';
+    write('One', 1000);
+    assert.equal(loadRegistry(file).apps[0].name, 'One');
+    write('Two', 2000);
+    assert.equal(loadRegistry(file).apps[0].name, 'One', 'inside the window the file is not even looked at');
+    process.env.REGISTRY_RECHECK_MS = '0';
+    assert.equal(loadRegistry(file).apps[0].name, 'Two', 'with 0 every call sees the edit, as before');
+    write('Bad', 3000); writeFileSync(file, '{ not json'); utimesSync(file, 3000, 3000);
+    assert.throws(() => loadRegistry(file));
+  } finally {
+    if (saved === undefined) delete process.env.REGISTRY_RECHECK_MS; else process.env.REGISTRY_RECHECK_MS = saved;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

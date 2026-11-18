@@ -88,7 +88,9 @@ test('registry: perLink is validated (seats, ports, steps)', () => {
   const base = () => JSON.parse(JSON.stringify(reg));
   const bad = (mut) => { const r = base(); mut(r.apps[1]); return validate(r).join('\n'); };
   assert.match(bad((a) => { a.perLink.max = 0; }), /perLink.max/);
-  assert.match(bad((a) => { a.perLink.max = 10; }), /perLink.max/);
+  assert.match(bad((a) => { a.perLink.max = 51; }), /perLink.max/);
+  assert.equal(bad((a) => { a.perLink.max = 50; }), '', 'up to 50 copies are allowed');
+  assert.match(bad((a) => { a.perLink.max = 50; a.perLink.portBase = 65100; }), /portBase/, 'the copies must fit below port 65535');
   assert.match(bad((a) => { a.perLink.portBase = 80; }), /portBase/);
   assert.match(bad((a) => { delete a.perLink.prepare; }), /prepare/);
   assert.match(bad((a) => { a.perLink.prepare = [{ cmd: '' }]; }), /needs a cmd/);

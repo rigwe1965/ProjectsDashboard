@@ -59,6 +59,7 @@ export async function createGateway(opts = {}) {
     redeemPerMinute: num(process.env.GATEWAY_REDEEM_PER_MINUTE, 20), // link opens per IP per minute
     redeemFailLimit: num(process.env.GATEWAY_REDEEM_FAIL_LIMIT, 10), // bad links per IP per 10 minutes before it is refused
     noSessionPerMinute: num(process.env.GATEWAY_NO_SESSION_PER_MINUTE, 120), // requests per IP per minute without a valid session before a 429
+    grantCacheMs: num(process.env.GATEWAY_GRANT_CACHE_MS, 0), // 0 (default): the grant is read from the database on every request. Above 0: reused for that long, so a revoke can take that long to reach an open session (expiry is still exact)
     requestsPerMinute: num(process.env.GATEWAY_REQUESTS_PER_MINUTE, 600), // requests per link per minute (0 = no limit); a page load is often 50-150
     trustedProxies: (process.env.TRUSTED_PROXIES || '').split(',').map((s) => s.trim()).filter(Boolean),
     activityFlushMs: num(process.env.GATEWAY_ACTIVITY_FLUSH_SECONDS, 30) * 1000, // how often the per-link activity counts are written
@@ -174,11 +175,23 @@ export async function createGateway(opts = {}) {
 
   // The grant behind the request's session cookie (null when there is no valid session). The grant's own state
   // (revoked / expired / product) is checked by the caller on every request, so revocation stays immediate.
+  // One query for session and grant together. With grantCacheMs above 0 the answer is kept in memory for that long (default: not at all).
+  const grantCache = new Map(); // session hash -> { g, until }
+  const grantCacheTimer = o.grantCacheMs > 0 ? setInterval(() => { const t = Date.now(); for (const [k, v] of grantCache) if (v.until <= t) grantCache.delete(k); }, Math.max(o.grantCacheMs, 1000)) : null;
+  grantCacheTimer?.unref();
   async function grantFor(req) {
     const sid = readCookie(req, COOKIE);
     if (!SESSION_RE.test(sid)) return null;
-    const s = await store.grantSessions.get(hashSessionId(sid));
-    return s ? (await store.grants.findById(s.grantId)) : null;
+    const key = hashSessionId(sid);
+    if (o.grantCacheMs > 0) {
+      const hit = grantCache.get(key);
+      // The session's own expiry is the grant's expiry (redeem.mjs), which the caller's isActive() checks against the clock on every request.
+      if (hit && hit.until > Date.now()) return hit.g;
+      const g = await store.grantSessions.getWithGrant(key);
+      if (g) { if (grantCache.size >= 10000) grantCache.clear(); grantCache.set(key, { g, until: Date.now() + o.grantCacheMs }); } else grantCache.delete(key);
+      return g;
+    }
+    return store.grantSessions.getWithGrant(key);
   }
 
   function resolveRequest(req) {
@@ -265,7 +278,7 @@ export async function createGateway(opts = {}) {
       server.listen(o.port, host, () => { server.off('error', reject); resolve(server.address().port); });
     }),
     close: async () => {
-      clearInterval(pruneTimer); clearInterval(missTimer); clearInterval(usedTimer);
+      clearInterval(pruneTimer); clearInterval(missTimer); clearInterval(usedTimer); clearInterval(grantCacheTimer);
       for (const c of [...wsClosers]) c(); // open sockets report their time here
       guide?.stop();
       await activity.stop(); // the last batch is written before the store is closed

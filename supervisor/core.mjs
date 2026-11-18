@@ -15,6 +15,7 @@ import { instanceApp, validSlot, MAX_SLOTS, freshInstanceDir, removeInstanceDir 
 import { fill, portRefs, childEnv } from './env.mjs';
 import { createStepRunner } from './steps.mjs';
 import { rotateLog } from '../lib/log-rotate.mjs';
+import { mapLimit, num } from '../lib/util.mjs';
 
 // Thrown to end a command early with an exit code; the entry point turns it into the process exit code.
 export class Exit extends Error { constructor(code) { super(`exit ${code}`); this.code = code; } }
@@ -55,13 +56,15 @@ export function createSupervisor({ registry, store, driver, docker, logDir }) {
     const pids = Object.values(state).flatMap((procs) => Object.values(procs)).flatMap((r) => [r.pid, r.listenPid]).filter(Boolean);
     const times = driver.startTimes ? driver.startTimes(pids) : new Map();
     const timeOf = (pid) => (times.has(Number(pid)) ? times.get(Number(pid)) : null);
-    const rows = await Promise.all(registry.apps.flatMap((app) => app.processes.map(async (p) => {
+    // Probed together, but at most STATUS_CONCURRENCY (default 32) at a time, so a registry with hundreds of processes does not open hundreds of sockets at once.
+    const probes = registry.apps.flatMap((app) => app.processes.map((p) => ({ app, p })));
+    const rows = await mapLimit(probes, num(process.env.STATUS_CONCURRENCY, 32), async ({ app, p }) => {
       const rec = state[app.id]?.[p.name];
       const up = await httpUp(p.port, p.health, p.host);
       // managed = one of the PIDs we recorded is still alive (the shell wrapper may be gone while the app listens)
       const managed = await isManaged(p, rec, up, timeOf);
       return { app: app.id, proc: p.name, port: p.port, optional: !!p.optional, up, managed, url: `http://127.0.0.1:${p.port}${p.health}` };
-    })));
+    });
     if (json) { console.log(JSON.stringify(rows)); return; }
     for (const r of rows) {
       const app = registry.apps.find((a) => a.id === r.app);

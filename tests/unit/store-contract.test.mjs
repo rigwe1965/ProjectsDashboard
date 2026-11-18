@@ -75,6 +75,13 @@ for (const f of factories) {
       assert.equal((await s.grantSessions.get('gs1')).grantId, 'g1');
       assert.equal(await s.grantSessions.get('gs2'), null);
       assert.equal(await s.grantSessions.get('missing'), null);
+      // getWithGrant: the same answer as get() then findById(), in one query (the gateway calls it on every request)
+      assert.deepEqual(await s.grantSessions.getWithGrant('gs1'), await s.grants.findById('g1'));
+      assert.equal((await s.grantSessions.getWithGrant('gs1')).revoked, true, 'a revoked grant is still returned: the caller decides');
+      assert.equal(await s.grantSessions.getWithGrant('gs2'), null, 'expired session');
+      assert.equal(await s.grantSessions.getWithGrant('missing'), null);
+      await s.grantSessions.create('gs-orphan', 'no-such-grant', future());
+      assert.equal(await s.grantSessions.getWithGrant('gs-orphan'), null, 'session whose grant is gone');
       assert.equal(await s.grantSessions.prune(), 1);
       await s.sessions.create('s1', future()); await s.sessions.create('s2', past());
       assert.ok(await s.sessions.get('s1')); assert.equal(await s.sessions.get('s2'), null);
