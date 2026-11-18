@@ -195,6 +195,8 @@ What limits growth, and the settings that move those limits. Every default keeps
 | Private copies per product | `perLink.max` | 1 to 50 | Copy `k` runs process `i` on `portBase + k*10 + i`, so raising `max` never moves an existing port. Size it to the machine's memory, not just the ports |
 | Postgres connections | `DATABASE_POOL_MAX` | 10 | Raise it only if the database allows more connections |
 
-Measure with `node tests/bench/gateway-bench.mjs` (a throwaway data folder and a fake demo app; your real data is not touched).
+Measure with `node tests/bench/gateway-bench.mjs` (a throwaway data folder and a fake demo app; your real data is not touched). On the owner's PC: SQLite from about 3,000 to 4,600-5,900 requests/s, Postgres from 1,540 to 2,491 (4,164 with the cache on).
+
+A test on a real server of the same size as production (2 vCPU, 4 GB) uses `deploy/docker-compose.loadtest.yml`, `deploy/loadtest/` and `tests/bench/gateway-load.mjs`; the plan is `docs/PLAN-staging-load-test.md`. Recorded so far (stand-in app, plain HTTP): about 2,100 to 2,400 requests/s at 32 to 64 connections with p95 under 50 ms, then lower throughput and rising latency at 128 to 512 connections, with no errors. The old-versus-new comparison was not run, so no capacity figure is promised yet. Never run this against production.
 
 Not covered: the gateway is one Node process. Its request limits are counted in memory and one process owns the private-copy seat table, so running two gateways side by side is not supported yet. When one process is no longer enough, that needs its own change.

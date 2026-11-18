@@ -1,0 +1,32 @@
+# STAGING LOAD TEST ONLY. Never use this file on the production server.
+# Start only the gateway and its database (no Caddy, no console, no real apps), on plain HTTP port 8080:
+#   cd deploy && cp .env.example .env     (fresh random values; a dummy DEMO_DOMAIN, ADMIN_DOMAIN, SITE_DOMAIN, ACME_EMAIL are enough)
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build postgres gateway standin
+# Differences from production: limits raised so the test is not stopped by its own protection, plain HTTP, a stand-in app, its own registry.
+# Firewall port 8080 to the load generator's address only (see docs/PLAN-staging-load-test.md).
+services:
+  gateway:
+    ports: !override ["8080:4300"]
+    volumes: !override ["./loadtest/apps.loadtest.json:/app/registry/apps.hosted.json:ro", "gateway_data:/data"]
+    environment:
+      GATEWAY_BIND: 0.0.0.0
+      DEMO_SCHEME: http
+      DEMO_BASE_HOST: demo.test:8080
+      GATEWAY_REQUESTS_PER_MINUTE: "0"
+      GATEWAY_REDEEM_PER_MINUTE: "100000"
+      GATEWAY_NO_SESSION_PER_MINUTE: "100000"
+      METRICS_TOKEN: ${METRICS_TOKEN:-loadtest-metrics-token}
+      GATEWAY_GRANT_CACHE_MS: ${GATEWAY_GRANT_CACHE_MS:-0}   # S10 sets this to 3000
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:4300/_pd/healthz"]
+      interval: 15s
+      timeout: 4s
+      retries: 3
+  standin:
+    image: projects-dashboard
+    restart: unless-stopped
+    depends_on: [gateway]
+    command: ["node", "/standin.mjs"]
+    read_only: true
+    volumes: ["./loadtest/standin.mjs:/standin.mjs:ro"]
+    networks: [db]

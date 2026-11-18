@@ -63,7 +63,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <div class="wrap">
 <nav class="toc" aria-label="Contents">
 <p class="book">The Facyke / ProjectsDashboard Onboarding Book</p>
-<p class="sub">Management Â· Technical Â· Support</p>
+<p class="sub">Management · Technical · Support</p>
 <div class="tools"><button id="theme" type="button">Dark / light</button><button onclick="window.print()" type="button">Print</button></div>
 <details open><summary>Contents</summary><ol>
 <li><a href="#how-to-use-this-book">How to use this book</a></li>
@@ -101,6 +101,8 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <li><a class="part" href="#part-6-where-each-project-stands">Part 6: Where each project stands</a><ol>
 <li><a href="#21-project-by-project-state-at-the-end-of-17-november-2026">21. Project by project (state at the end of 17 November 2026)</a></li>
 <li><a href="#22-what-changed-on-17-november-2026">22. What changed on 17 November 2026</a></li>
+<li><a href="#23-scaling-and-the-staging-load-test-step-by-step">23. Scaling and the staging load test, step by step</a></li>
+<li><a href="#24-what-changed-on-18-november-2026">24. What changed on 18 November 2026</a></li>
 </ol></li>
 <li><a class="part" href="#appendix-a-checklists">Appendices</a><ol>
 <li><a href="#appendix-a-checklists">Appendix A: Checklists</a></li>
@@ -114,7 +116,8 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <main>
 <div class="cover"><h1>The Facyke / ProjectsDashboard Onboarding Book</h1><p>Everything a new person needs to understand, run, support and manage this project, from day one.</p></div>
 <p><strong>Everything a new person needs to understand, run, support and manage this project, from day one.</strong></p>
-<p><em>Written 17 November 2026 and fully updated the same evening with everything changed that day (see chapters 21 and 22). It is for the repository <code>rigwe1965/ProjectsDashboard</code>. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.</em></p>
+<p><em>Written 17 November 2026 and updated on 18 November 2026 with the scaling pass and the staging load test (see chapters 21 to 24). It is for the repository <code>rigwe1965/ProjectsDashboard</code>. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.</em></p>
+<hr />
 <section class="l2">
 <h2 id="how-to-use-this-book">How to use this book</h2>
 <p>This book is written for people who have <strong>never seen the project</strong>. You do not need to know programming to read Parts 1, 2 and 3. Every idea is explained in plain words first, then shown with examples.</p>
@@ -203,6 +206,8 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <ul>
 <li><strong>21.</strong> <a href="#21-project-by-project-state-at-the-end-of-17-november-2026">Project by project (state at the end of 17 November 2026)</a></li>
 <li><strong>22.</strong> <a href="#22-what-changed-on-17-november-2026">What changed on 17 November 2026</a></li>
+<li><strong>23.</strong> <a href="#23-scaling-and-the-staging-load-test-step-by-step">Scaling and the staging load test, step by step</a></li>
+<li><strong>24.</strong> <a href="#24-what-changed-on-18-november-2026">What changed on 18 November 2026</a></li>
 </ul>
 <p><strong>Appendices</strong></p>
 <ul>
@@ -317,9 +322,11 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <ol>
 <li><strong>Showcase + demo links</strong> bring in interest. A prospect sees the public page, asks for a demo, and gets a link.</li>
 <li><strong>Activity numbers</strong> (chapter 10) tell the owner who actually used the demo, so sales time goes to people who are really interested.</li>
-<li><strong>Two ways to sell</strong></li>
+<li><strong>Two ways to sell</strong><ul>
 <li><strong>CRM</strong> is sold as a service with plans and included AI.</li>
 <li><strong>RMM, CarRental and ClaudeOS</strong> are sold <em>one copy per customer</em> ("per deployment"): each customer gets their own copy that they (or Facyke) run. They bring their own Anthropic key and choose their own Claude model, so the AI cost is theirs. Chapter 11 explains the licence idea.</li>
+</ul>
+</li>
 </ol>
 <h3 id="five-examples-which-product-would-i-show">Five examples: "which product would I show?"</h3>
 <ol>
@@ -541,19 +548,18 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <h2 id="4-the-big-picture-how-the-parts-fit">4. The big picture: how the parts fit</h2>
 <h3 id="the-parts">The parts</h3>
 <pre class="mermaid">flowchart TD
-  R[&quot;Registry&lt;br/&gt;registry/apps.json&lt;br/&gt;(the list of apps)&quot;]
-  R --&gt; S[&quot;Supervisor&lt;br/&gt;start · stop · check&quot;]
-  R --&gt; C[&quot;Admin console&lt;br/&gt;owner only&quot;]
-  R --&gt; G[&quot;Demo gateway&lt;br/&gt;checks customer links&quot;]
-  S --&gt; A[&quot;Real apps&lt;br/&gt;your data&quot;]
-  S --&gt; D[&quot;Demo copies&lt;br/&gt;sample data&quot;]
+  R["Registry&lt;br/&gt;registry/apps.json&lt;br/&gt;(the list of apps)"]
+  R --&gt; S["Supervisor&lt;br/&gt;start · stop · check"]
+  R --&gt; C["Admin console&lt;br/&gt;owner only"]
+  R --&gt; G["Demo gateway&lt;br/&gt;checks customer links"]
+  S --&gt; A["Real apps&lt;br/&gt;your data"]
+  S --&gt; D["Demo copies&lt;br/&gt;sample data"]
   G --&gt; D
   C --&gt; S
-  C --&gt; DB[(&quot;Store&lt;br/&gt;SQLite locally&lt;br/&gt;Postgres on server&quot;)]
+  C --&gt; DB[("Store&lt;br/&gt;SQLite locally&lt;br/&gt;Postgres on server")]
   G --&gt; DB
-  SH[&quot;Showcase&lt;br/&gt;public product pages&quot;]
-  M[&quot;MCP server&lt;br/&gt;for an AI assistant&quot;] --&gt; DB
-</pre>
+  SH["Showcase&lt;br/&gt;public product pages"]
+  M["MCP server&lt;br/&gt;for an AI assistant"] --&gt; DB</pre>
 <h3 id="a-customers-journey-step-by-step">A customer's journey, step by step</h3>
 <pre><code class="language-text"> Owner                    Gateway                      Demo copy
    |  1. create link         |                              |
@@ -808,7 +814,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 </tr>
 <tr>
 <td><strong>Server</strong></td>
-<td><strong>Hetzner Cloud</strong>, server name <code>facyke-prod</code>, type CPX22 (2 CPU, 4 GB RAM, 80 GB disk), Helsinki, Ubuntu 24.04</td>
+<td><strong>Hetzner Cloud</strong>, server name <code>facyke-prod</code>, type CPX22 (2 CPU, 4 GB RAM, 80 GB disk), Helsinki, Ubuntu 26.04.1, Docker 29.9</td>
 <td>The owner is in Germany; Hetzner is cheap, European and reliable. About €20 a month, billed hourly</td>
 </tr>
 <tr>
@@ -920,7 +926,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 </tr>
 </tbody>
 </table></div>
-<h3 id="67-the-start-stop-restart-log-buttons-on-the-hosted-console">6.7 The Start / Stop / Restart / Log buttons on the hosted console</h3>
+<h3 id="67-the-start--stop--restart--log-buttons-on-the-hosted-console">6.7 The Start / Stop / Restart / Log buttons on the hosted console</h3>
 <p>The console runs <em>inside</em> a container and must not control Docker directly (that would hand a web-facing program control of the whole server). Instead a tiny helper on the host, <strong><code>pd-ctl</code></strong>, offers exactly four actions (start, stop, restart, logs), only for the demo containers named in the registry, never for the gateway, console, Caddy or database, and only to the console through a private socket with a shared token.</p>
 <h3 id="68-examples-what-does-hosting-mean-for">6.8 Examples: "what does hosting mean for…?"</h3>
 <ol>
@@ -962,6 +968,11 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <td>AI guide</td>
 <td>About <strong>$0.003 per product per full test run</strong> on Haiku 5.5; per-link cost shown in the console</td>
 <td>Off unless a link opts in and a key is set on the gateway</td>
+</tr>
+<tr>
+<td>Staging load-test servers (temporary)</td>
+<td>about <strong>€0.03 per hour per server</strong> (CPX22 is €19.62 / month), billed until the server is <strong>deleted</strong></td>
+<td>Powering off does not stop billing. See chapter 23, part C</td>
 </tr>
 <tr>
 <td>Resend email</td>
@@ -1251,7 +1262,7 @@ npm run console:auth -- enable-totp
 <li><strong>Put the printed public key</strong> into the product that checks it.</li>
 <li><strong>Issue licences:</strong></li>
 </ol>
-<pre><code class="language-text">node licensing/cli.mjs issue --product rmm --customer &quot;Acme IT&quot; --tier premium --limit devices=250 --limit users=25 --until 2027-11-30
+<pre><code class="language-text">node licensing/cli.mjs issue --product rmm --customer "Acme IT" --tier premium --limit devices=250 --limit users=25 --until 2027-11-30
 node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --use devices=262
 </code></pre>
 <p>Renewal is just issuing a new licence. Early revocation is not part of version one: a licence ends on its date.</p>
@@ -1340,6 +1351,10 @@ node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --u
 <li><strong>CRM <code>TRUSTED_PROXY_COUNT</code></strong> on the server is unresolved (two proxy hops: Caddy and the gateway).</li>
 <li><strong>RMM</strong> on the server has no scheduled-jobs worker and no device can enrol into the hosted demo.</li>
 <li><strong>Customer licence agreement</strong>: needs a lawyer.</li>
+<li><strong>Staging load test, unfinished record (18 Nov):</strong> only the smoke run and the first scenarios (S1 and S2, new code) are written down (chapter 23, part B). The results of S3 to S10, if they were saved, are not in this repository, and the old-versus-new comparison (<code>201d2c3</code> against <code>9ffa4c0</code>) was never run, so the plan's "1.3 times faster" bar is <strong>not yet proven</strong>. The <code>run-all.sh</code> driver that ran the scenarios was a throw-away script and is not in the repository.</li>
+<li><strong>PR #59</strong> (load-test tooling and plan) is open.</li>
+<li><strong>GitHub Actions quota (18 Nov):</strong> the Windows and Linux checks for this repository were blocked by a quota when PR #58 merged (the owner's notes say until 1 December), so #58 was merged with the admin override after its Postgres tests were run locally. This contradicts the "CI runs free" statements in chapters 7 and 17: check GitHub's billing page before trusting either.</li>
+<li><strong>Backup copy off the server:</strong> the pre-deploy database dump of 18 Nov (<code>/home/deploy/dashboard-2026-11-18-0749.sql.gz</code>) exists only on the server.</li>
 <li><strong>Uptime check from outside</strong>: the built-in alerts cannot report the <em>server</em> or the <em>console itself</em> being gone. An external uptime monitor would.</li>
 </ul>
 <h3 id="decisions-already-taken-do-not-re-argue-without-a-reason">Decisions already taken (do not re-argue without a reason)</h3>
@@ -1387,15 +1402,15 @@ node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --u
 <h3 id="131-the-registry-registryappsjson">13.1 The registry (<code>registry/apps.json</code>)</h3>
 <p>The single source of truth. To add or change an app you edit this file. One entry:</p>
 <pre><code class="language-jsonc">{
-  &quot;id&quot;: &quot;airfinder&quot;,
-  &quot;name&quot;: &quot;Airfinder&quot;,
-  &quot;path&quot;: &quot;${APPS_ROOT}\\Airfinder&quot;,     // where the app lives
-  &quot;processes&quot;: [{
-    &quot;name&quot;: &quot;app&quot;,
-    &quot;cmd&quot;: &quot;python run.py&quot;,              // how to start it
-    &quot;port&quot;: 5200,                        // dashboard-chosen port
-    &quot;health&quot;: &quot;/&quot;,                       // the address that proves it is alive
-    &quot;env&quot;: { &quot;PORT&quot;: &quot;{port}&quot; }          // settings for this process only
+  "id": "airfinder",
+  "name": "Airfinder",
+  "path": "${APPS_ROOT}\\Airfinder",     // where the app lives
+  "processes": [{
+    "name": "app",
+    "cmd": "python run.py",              // how to start it
+    "port": 5200,                        // dashboard-chosen port
+    "health": "/",                       // the address that proves it is alive
+    "env": { "PORT": "{port}" }          // settings for this process only
   }]
 }
 </code></pre>
@@ -1578,7 +1593,7 @@ npm run console:auth -- status | sign-out-all | gen-key
 </tr>
 <tr>
 <td>Test the AI guide answers</td>
-<td><code>npm run eval:guide -- &lt;crm\|rmm&gt; --yes</code></td>
+<td><code>npm run eval:guide -- &lt;crm|rmm&gt; --yes</code></td>
 </tr>
 <tr>
 <td>Start the assistant helper</td>
@@ -1707,6 +1722,8 @@ docker compose --profile apps up -d &lt;service...&gt;
 <li><strong>Git Bash on Windows rewrites paths</strong> that start with <code>/</code> (for example <code>vercel curl /</code>): prefix the command with <code>MSYS_NO_PATHCONV=1</code>.</li>
 <li><strong>Windows cannot delete deep <code>node_modules</code> folders</strong> (path too long): use PowerShell <code>Remove-Item -LiteralPath</code> with a <code>\\?\</code> long-path prefix.</li>
 <li><strong>Do not record "applied" or "done" from memory.</strong> Run the read-only check first (a 17 Nov note said a database migration was applied when it was not).</li>
+<li><strong>Check the live commit before you update, never trust a note.</strong> On 18 Nov the live folder was at <code>201d2c3</code>, not at the commit the notes said. Run <code>git rev-parse --short HEAD</code> in <code>/home/deploy/ProjectsDashboard</code> first.</li>
+<li><strong>A <code>docker tag</code> of the old image can fail</strong> (it did on 18 Nov), leaving no saved rollback image. Rollback then is <code>git checkout &lt;old commit&gt;</code> and a rebuild of that service. Make a database dump before every gateway update (chapter 23, part A, step 4).</li>
 <li>Demo containers have a <strong>read-only</strong> root. If an app writes elsewhere, give it a <code>tmpfs</code> or volume; do not remove <code>read_only</code>.</li>
 </ul>
 <hr />
@@ -2021,35 +2038,35 @@ docker compose --profile apps up -d &lt;service...&gt;
 <hr />
 <h3 id="issue-a-my-demo-link-does-not-work">Issue A: "My demo link does not work"</h3>
 <p><em>The customer clicks the link and gets a refusal page, an error, or nothing.</em> <strong>First check, always:</strong> console → <em>Links you have sent</em> → find the customer → look at <strong>state, expiry, opens used, device lock</strong>.</p>
-<p class="ex"><strong>A1. The link has expired</strong></p>
+<p><strong>A1. The link has expired</strong></p>
 <ul>
 <li><em>Situation:</em> "It worked yesterday, now it says the link ended."</li>
 <li><em>Cause:</em> Links stop after the hours set when created (default 48). The console shows "expired".</li>
 <li><em>Fix:</em> Create a new link (a link can never be extended or recovered). Choose a sensible length.</li>
 <li><em>Lesson:</em> If the sales conversation is still going, make the first link longer.</li>
 </ul>
-<p class="ex"><strong>A2. All uses are spent</strong></p>
+<p><strong>A2. All uses are spent</strong></p>
 <ul>
 <li><em>Situation:</em> The customer opened the link three times (<code>--max-uses 3</code>) and the fourth try is refused.</li>
 <li><em>Cause:</em> Each button press spends one use; reopening later in a new browser session also spends one.</li>
 <li><em>Fix:</em> New link with a higher limit. Remember: just <em>looking</em> at the link page spends nothing; only the button does.</li>
 <li><em>Lesson:</em> For a customer who will share it with a team, set 5–10 uses or no limit.</li>
 </ul>
-<p class="ex"><strong>A3. "Lock to first browser" blocked a colleague (or the same person on a phone)</strong></p>
+<p><strong>A3. "Lock to first browser" blocked a colleague (or the same person on a phone)</strong></p>
 <ul>
 <li><em>Situation:</em> Dana opened the link on her laptop; later on her phone it is refused.</li>
 <li><em>Cause:</em> The device lock pinned the link to the first browser's random cookie.</li>
 <li><em>Fix:</em> If it was legitimate, revoke and create a new link without the lock (or with a separate link for the phone). If it was a forward, the lock did its job.</li>
 <li><em>Lesson:</em> The Activity feed shows refusals. Read it before assuming a fault.</li>
 </ul>
-<p class="ex"><strong>A4. The link was revoked</strong></p>
+<p><strong>A4. The link was revoked</strong></p>
 <ul>
 <li><em>Situation:</em> "It stopped working while I was using it."</li>
 <li><em>Cause:</em> The owner (or the MCP assistant) revoked it. Revocation applies instantly, including to open pages.</li>
 <li><em>Fix:</em> Check the audit log: "link revoked" with the time and who did it (<code>by: console</code> / <code>by: mcp</code>). If revoked by mistake, issue a new link.</li>
 <li><em>Lesson:</em> Revocation cannot be undone; only a new link helps.</li>
 </ul>
-<p class="ex"><strong>A5. The link was made on the PC and opened elsewhere</strong></p>
+<p><strong>A5. The link was made on the PC and opened elsewhere</strong></p>
 <ul>
 <li><em>Situation:</em> "This site can't be reached" on a link that starts with <code>http://crm.localhost:4300/…</code>.</li>
 <li><em>Cause:</em> <code>localhost</code> links exist only on the owner's PC.</li>
@@ -2063,7 +2080,7 @@ docker compose --profile apps up -d &lt;service...&gt;
 <li><em>Fix:</em> Send it as plain text on its own line, or by a chat message. Do not retype it.</li>
 <li><em>Lesson:</em> Test the link you are about to send by opening it yourself first… then revoke, because the test spends a use. Better: create the link with 2 extra uses.</li>
 </ul>
-<p class="ex"><strong>A7. The page says "Demo access needed" or <code>{"error":"Not found"}</code></strong></p>
+<p><strong>A7. The page says "Demo access needed" or <code>{"error":"Not found"}</code></strong></p>
 <ul>
 <li><em>Situation:</em> The address bar shows only <code>airfinder.demo.facyke.com</code> (page: "Demo access needed. Please open the personal demo link you were sent."), or <code>.../d/</code> with nothing after it (page: <code>{"error":"Not found"}</code>). The console shows the link with <strong>0 uses</strong>.</li>
 <li><em>Cause:</em> The link was cut short when it was copied. A real link is <code>https://&lt;product&gt;.demo.facyke.com/d/&lt;long code&gt;</code>; without the code the gateway cannot find the link. The demo itself is fine (on 17 Nov 2026 eight links in a row were never counted; the ninth, sent in a code block, was).</li>
@@ -2072,35 +2089,35 @@ docker compose --profile apps up -d &lt;service...&gt;
 </ul>
 <hr />
 <h3 id="issue-b-the-demo-is-slow-stuck-or-says-it-is-being-prepared">Issue B: "The demo is slow, stuck, or says it is being prepared"</h3>
-<p class="ex"><strong>B1. "Preparing your demo" appears for a private-copy product</strong></p>
+<p><strong>B1. "Preparing your demo" appears for a private-copy product</strong></p>
 <ul>
 <li><em>Situation:</em> First visit to ImageApp, Airfinder or ClaudeOS shows a self-refreshing page.</li>
 <li><em>Cause:</em> The first request starts a fresh private copy (a few seconds; ClaudeOS longer).</li>
 <li><em>Fix:</em> Nothing: wait; it refreshes by itself. If over two minutes, an operator checks the container log.</li>
 <li><em>Lesson:</em> This is normal behaviour, not a fault.</li>
 </ul>
-<p class="ex"><strong>B2. "All demo seats are taken"</strong></p>
+<p><strong>B2. "All demo seats are taken"</strong></p>
 <ul>
 <li><em>Situation:</em> A customer cannot get in; no use was spent.</li>
 <li><em>Cause:</em> The product's private-copy seats (for example ImageApp 4, ClaudeOS 3) are in use.</li>
 <li><em>Fix:</em> Ask the customer to try again in a few minutes. Check the console for idle links; revoke an unused one to free a seat. Raise <code>perLink.max</code> only if the machine has the memory (each Streamlit copy uses a few hundred MB).</li>
 <li><em>Lesson:</em> Seats free themselves after 120 idle minutes.</li>
 </ul>
-<p class="ex"><strong>B3. A shared demo says "being prepared" for a long time</strong></p>
+<p><strong>B3. A shared demo says "being prepared" for a long time</strong></p>
 <ul>
 <li><em>Situation:</em> The CRM demo has said "being prepared" for ten minutes.</li>
 <li><em>Cause:</em> A reset is running (or stuck): the gateway holds customers until it ends.</li>
 <li><em>Fix (operator):</em> <code>docker compose logs --tail 100 gateway</code>, then the demo's own log. If the reset script failed, run <code>./reset-demos.sh --force crm</code> again and watch the output.</li>
 <li><em>Lesson:</em> A reset is expected between customers; a long one is a fault.</li>
 </ul>
-<p class="ex"><strong>B4. Everything is slow on the server</strong></p>
+<p><strong>B4. Everything is slow on the server</strong></p>
 <ul>
 <li><em>Situation:</em> All demos crawl.</li>
 <li><em>Cause:</em> RAM exhausted. Six demos on a 4 GB server leave little spare and the swap fills.</li>
 <li><em>Fix (operator):</em> <code>free -h</code>, <code>docker stats --no-stream</code>. Stop a demo nobody needs (console Stop button), or upgrade the Hetzner server size.</li>
 <li><em>Lesson:</em> Capacity is the cost of showing six products at once.</li>
 </ul>
-<p class="ex"><strong>B5. One product is slow, others fine</strong></p>
+<p><strong>B5. One product is slow, others fine</strong></p>
 <ul>
 <li><em>Situation:</em> Only the RMM demo is slow.</li>
 <li><em>Cause:</em> It has the most containers (API, dashboard, Postgres, Redis) and the first load after idle is heavy; also the 60-second upstream timeout returns a 504 if it stays silent.</li>
@@ -2113,34 +2130,34 @@ docker compose --profile apps up -d &lt;service...&gt;
 </ul>
 <hr />
 <h3 id="issue-c-i-cannot-sign-in-to-the-demo">Issue C: "I cannot sign in to the demo"</h3>
-<p class="ex"><strong>C1. Wrong demo password</strong></p>
+<p><strong>C1. Wrong demo password</strong></p>
 <ul>
 <li><em>Situation:</em> CRM demo says "Invalid email or password".</li>
 <li><em>Cause:</em> The demo users are <code>admin@crm.test</code>, <code>sales@crm.test</code>, <code>support@crm.test</code>; the shared password is the <code>SEED_USER_PASSWORD</code> value in the demo's env file (<code>data/crm-demo.env</code> locally, <code>CRM_*</code> settings on the server).</li>
-<li><em>Fix:</em> Give the customer the right credentials through a safe channel (the opening-page welcome note is visible to the customer, so use it only for non-secret hints such as "Sign in as sales@crm.test").</li>
+<li><em>Fix:</em> Give the customer the right credentials through a safe channel (the opening-page welcome note is visible to the customer, so use it only for non-secret hints such as "Sign in as <a href="mailto:sales@crm.test">sales@crm.test</a>").</li>
 <li><em>Lesson:</em> Decide how credentials are shared <em>before</em> the first link.</li>
 </ul>
-<p class="ex"><strong>C2. Signs in, then bounces back to sign-in</strong></p>
+<p><strong>C2. Signs in, then bounces back to sign-in</strong></p>
 <ul>
 <li><em>Situation:</em> Login seems to work but the page returns to the sign-in form.</li>
 <li><em>Cause:</em> A password-change time stored in the database is in the <strong>future</strong> (CRM stores timestamps as UTC without a time zone; writing local time directly makes the session look stale).</li>
 <li><em>Fix (operator):</em> Use <code>now() at time zone 'UTC'</code> when writing times, or reseed the demo.</li>
 <li><em>Lesson:</em> Direct database edits are a last resort; use the app's tools.</li>
 </ul>
-<p class="ex"><strong>C3. ClaudeOS demo login rejected</strong></p>
+<p><strong>C3. ClaudeOS demo login rejected</strong></p>
 <ul>
 <li><em>Cause:</em> The demo login is user <code>demo</code> with <code>CLAUDEOS_DEMO_PASSWORD</code>, and that password <strong>must not contain the word "demo"</strong>.</li>
 <li><em>Fix:</em> Set a compliant password in <code>deploy/.env</code>, recreate <code>claudeos-demo</code>, <code>./reset-demos.sh claudeos</code>.</li>
 <li><em>Lesson:</em> Passwords with the product's own forbidden words are silently refused.</li>
 </ul>
-<p class="ex"><strong>C4. The demo user is gone after a customer "cleaned up"</strong></p>
+<p><strong>C4. The demo user is gone after a customer "cleaned up"</strong></p>
 <ul>
 <li><em>Situation:</em> A customer deleted the demo admin; nobody can sign in.</li>
 <li><em>Cause:</em> Shared demos let customers change anything.</li>
 <li><em>Fix:</em> <code>./reset-demos.sh --force crm</code> puts the demo back (this ends anything the customer was doing; check <em>busy</em> first).</li>
 <li><em>Lesson:</em> This is exactly why shared demos reset between customers.</li>
 </ul>
-<p class="ex"><strong>C5. The RMM sign-in card looks squeezed</strong></p>
+<p><strong>C5. The RMM sign-in card looks squeezed</strong></p>
 <ul>
 <li><em>Situation:</em> In the guide's split view the sign-in box is cramped.</li>
 <li><em>Cause:</em> A narrow frame. Fixed in the RMM code (breakpoint raised to 1500 px).</li>
@@ -2149,31 +2166,31 @@ docker compose --profile apps up -d &lt;service...&gt;
 <hr />
 <h3 id="issue-d-the-ai-part-does-not-work">Issue D: "The AI part does not work"</h3>
 <p>First decide <strong>which AI</strong>: the product's own assistant inside the demo, or the guide beside the demo (chapter 18).</p>
-<p class="ex"><strong>D1. "API unreachable" / "AI unavailable" in ClaudeOS or RMM</strong></p>
+<p><strong>D1. "API unreachable" / "AI unavailable" in ClaudeOS or RMM</strong></p>
 <ul>
 <li><em>Cause:</em> Usually (a) the monthly $5 limit on the <code>facyke-demos</code> workspace is used up, (b) the key was revoked or mistyped, or (c) an old bug in the demo image.</li>
 <li><em>Fix (operator):</em> Check Anthropic Console spend; check the container log for HTTP 401 (bad key) or 429 (limit). Replace the key with <code>deploy/set-demo-key.sh</code>. A test call should return 200.</li>
 <li><em>Lesson:</em> Look at spend and key validity before suspecting code.</li>
 </ul>
-<p class="ex"><strong>D2. "The guide button is missing on the link page"</strong></p>
+<p><strong>D2. "The guide button is missing on the link page"</strong></p>
 <ul>
 <li><em>Cause:</em> The guide needs <em>all four</em>: the link created with <code>guideMessages</code> above 0, <code>"guide": true</code> on the product, a guide file without the draft marker, and an <code>ANTHROPIC_API_KEY</code> on the gateway. Only CRM and RMM have guides.</li>
 <li><em>Fix:</em> Check each of the four. On the server the guide has no key at present (off).</li>
 <li><em>Lesson:</em> "Opt-in per link" means a link made without messages has no guide.</li>
 </ul>
-<p class="ex"><strong>D3. The guide gave a wrong answer</strong></p>
+<p><strong>D3. The guide gave a wrong answer</strong></p>
 <ul>
 <li><em>Cause:</em> The guide only knows <code>guides/&lt;product&gt;.md</code> and its rules. If the guide text is missing or wrong, the answer is.</li>
 <li><em>Fix:</em> Correct the guide file, then run <code>npm run eval:guide -- &lt;product&gt; --yes</code>; expect 37/37.</li>
 <li><em>Lesson:</em> Fix the source text, not the individual answer.</li>
 </ul>
-<p class="ex"><strong>D4. "The guide stopped after N messages"</strong></p>
+<p><strong>D4. "The guide stopped after N messages"</strong></p>
 <ul>
 <li><em>Cause:</em> The link's message allowance, the per-minute cap, or the daily cap was reached.</li>
 <li><em>Fix:</em> Create a new link with more messages if the owner agrees, or wait for the day to roll.</li>
 <li><em>Lesson:</em> Each message reserves its worst-case cost first, so limits are firm.</li>
 </ul>
-<p class="ex"><strong>D5. A model change broke a feature</strong></p>
+<p><strong>D5. A model change broke a feature</strong></p>
 <ul>
 <li><em>Cause:</em> A new model rejects a setting (<code>temperature</code>, forced tool choice, <code>effort</code>).</li>
 <li><em>Fix:</em> Return to the allowlisted model; run the product's real request against the new one before offering it.</li>
@@ -2182,86 +2199,86 @@ docker compose --profile apps up -d &lt;service...&gt;
 <hr />
 <h3 id="issue-e-an-alert-arrived-or-something-is-down">Issue E: "An alert arrived" or "something is down"</h3>
 <p>An alert means: two checks in a row failed (the database did not answer, or a process the supervisor started stopped answering). It names apps only, never customers or links.</p>
-<p class="ex"><strong>E1. "The database is not responding" (server)</strong></p>
+<p><strong>E1. "The database is not responding" (server)</strong></p>
 <ul>
 <li><em>Fix (operator):</em> <code>docker compose ps</code> (postgres up?), <code>docker compose logs --tail 80 postgres</code>, disk space <code>df -h</code>. A full disk is the usual cause. Free space (old images: <code>docker image prune</code>, after checking), restart postgres.</li>
 <li><em>Lesson:</em> Disk full is the quietest killer.</li>
 </ul>
-<p class="ex"><strong>E2. A demo process is down</strong></p>
+<p><strong>E2. A demo process is down</strong></p>
 <ul>
 <li><em>Fix:</em> In the console press Restart (the <code>pd-ctl</code> button), or <code>docker compose --profile apps up -d &lt;service&gt;</code>. Read the log if it fails again immediately.</li>
 <li><em>Lesson:</em> A demo you <strong>stopped yourself</strong> is never reported; a report always means something stopped on its own.</li>
 </ul>
-<p class="ex"><strong>E3. "Recovered" message arrives right after "down"</strong></p>
+<p><strong>E3. "Recovered" message arrives right after "down"</strong></p>
 <ul>
 <li><em>Cause:</em> A brief hiccup (restart, deploy).</li>
 <li><em>Fix:</em> None. If it repeats, look at memory use and logs.</li>
 </ul>
-<p class="ex"><strong>E4. No alert but the site is plainly down</strong></p>
+<p><strong>E4. No alert but the site is plainly down</strong></p>
 <ul>
 <li><em>Cause:</em> The built-in alerts live inside the console; if the <em>server</em> or <em>console</em> is gone, nothing can send.</li>
 <li><em>Fix:</em> Open the Hetzner console to check the server's state; start it if off. Add an outside uptime check.</li>
 <li><em>Lesson:</em> Monitoring the watcher needs a second watcher.</li>
 </ul>
-<p class="ex"><strong>E5. The same alert repeats every six hours</strong></p>
+<p><strong>E5. The same alert repeats every six hours</strong></p>
 <ul>
 <li><em>Cause:</em> Designed: it repeats every 6 hours while the problem lasts.</li>
 <li><em>Fix:</em> Fix the cause; the "recovered" message ends it. If the app is intentionally off, stop it from the console so it is not reported.</li>
 </ul>
 <hr />
 <h3 id="issue-f-the-owner-cannot-get-into-the-console">Issue F: "The owner cannot get into the console"</h3>
-<p class="ex"><strong>F1. 2-step code always rejected</strong></p>
+<p><strong>F1. 2-step code always rejected</strong></p>
 <ul>
 <li><em>Cause:</em> Phone clock off by more than 30 seconds, or after a restore the <code>ADMIN_DATA_KEY</code> is missing or wrong so the stored secret cannot be read.</li>
 <li><em>Fix:</em> Sync the phone clock. If the key is lost: <code>npm run console:auth -- disable-totp</code>, then <code>enable-totp</code> and scan a new code. Nothing else is lost.</li>
 <li><em>Lesson:</em> Keep a copy of <code>ADMIN_DATA_KEY</code> in a password manager.</li>
 </ul>
-<p class="ex"><strong>F2. "Too many attempts"</strong></p>
+<p><strong>F2. "Too many attempts"</strong></p>
 <ul>
 <li><em>Cause:</em> The limit (8 per address, 40 overall per 15 minutes).</li>
 <li><em>Fix:</em> Wait 15 minutes. If you did not cause it, look at the audit log for failed sign-ins from other addresses and consider changing the password.</li>
 </ul>
-<p class="ex"><strong>F3. The console will not start on the server</strong></p>
+<p><strong>F3. The console will not start on the server</strong></p>
 <ul>
 <li><em>Cause:</em> On the server it refuses to start until a password <strong>and</strong> 2-step codes are set (it is reachable from the internet).</li>
 <li><em>Fix:</em> <code>docker compose run --rm console node admin-console/auth-cli.mjs set-password</code>, then <code>enable-totp</code>, then <code>docker compose up -d console</code>.</li>
 </ul>
-<p class="ex"><strong>F4. Token URL no longer works</strong></p>
+<p><strong>F4. Token URL no longer works</strong></p>
 <ul>
 <li><em>Cause:</em> After a password is set, token mode is off.</li>
 <li><em>Fix:</em> Use the password and the code.</li>
 </ul>
-<p class="ex"><strong>F5. A forgotten password</strong></p>
+<p><strong>F5. A forgotten password</strong></p>
 <ul>
 <li><em>Fix:</em> On the PC <code>npm run console:auth -- set-password</code> (this needs access to the PC). On the server run the same command in the console container. <code>sign-out-all</code> ends every session afterwards.</li>
 <li><em>Lesson:</em> Anyone with server access can reset it, so protect the server login.</li>
 </ul>
 <hr />
 <h3 id="issue-g-the-site-or-server-is-wrong-hosting">Issue G: "The site or server is wrong" (hosting)</h3>
-<p class="ex"><strong>G1. A TLS / certificate error on one demo address</strong></p>
+<p><strong>G1. A TLS / certificate error on one demo address</strong></p>
 <ul>
 <li><em>Cause:</em> The gateway does not treat that product as <code>demoReady</code> (code on the server too old, or <code>demoReady</code> false in <code>registry/apps.hosted.json</code>). Caddy only asks for certificates for ready demos. (Real case 14 Nov 2026.)</li>
 <li><em>Fix:</em> Update the server code and registry; confirm <code>demoReady: true</code>; reload.</li>
 <li><em>Lesson:</em> TLS errors on a <em>new</em> demo name usually mean "not ready", not "broken HTTPS".</li>
 </ul>
-<p class="ex"><strong>G2. Every <code>docker compose</code> command fails after editing <code>.env</code></strong></p>
+<p><strong>G2. Every <code>docker compose</code> command fails after editing <code>.env</code></strong></p>
 <ul>
 <li><em>Cause:</em> A typo (a stray character before a variable name). Real case.</li>
 <li><em>Fix:</em> <code>docker compose config &gt; /dev/null</code> shows the parse error; fix the line; restore from the dated backup if needed.</li>
 <li><em>Lesson:</em> Always back up <code>.env</code> before editing and check it parses afterwards.</li>
 </ul>
-<p class="ex"><strong>G3. The new code does not appear on the site</strong></p>
+<p><strong>G3. The new code does not appear on the site</strong></p>
 <ul>
 <li><em>Cause:</em> The image was not rebuilt, or the wrong service was rebuilt. Containers use the image built at the time.</li>
 <li><em>Fix:</em> <code>docker compose build &lt;service&gt;</code> then <code>up -d &lt;service&gt;</code>; confirm with <code>docker compose ps</code> that the container is newly created.</li>
 <li><em>Lesson:</em> Name the services explicitly.</li>
 </ul>
-<p class="ex"><strong>G4. The www address or the base domain gives a different page</strong></p>
+<p><strong>G4. The www address or the base domain gives a different page</strong></p>
 <ul>
 <li><em>Cause:</em> DNS missing or wrong. <code>www</code> needs its own CNAME; records must be <strong>DNS-only (grey cloud)</strong>.</li>
 <li><em>Fix:</em> Check Cloudflare DNS: <code>@</code>, <code>www</code>, <code>admin</code>, <code>*.demo</code> all pointing to the server.</li>
 </ul>
-<p class="ex"><strong>G5. I cannot SSH to the server</strong></p>
+<p><strong>G5. I cannot SSH to the server</strong></p>
 <ul>
 <li><em>Cause:</em> Using Git Bash (cannot see the agent), the key not loaded, the wrong user (use <code>deploy</code>, root is disabled), or a passphrase issue.</li>
 <li><em>Fix:</em> Use PowerShell, load the key with the full path to <code>ssh-add.exe</code>, use <code>-o IdentitiesOnly=yes</code>. If still locked out, use the Hetzner web console (rescue) to check <code>sshd</code>. <em>Never open a password login to get in.</em></li>
@@ -2272,99 +2289,99 @@ docker compose --profile apps up -d &lt;service...&gt;
 </ul>
 <hr />
 <h3 id="issue-h-data-is-missing-or-i-need-a-reset-or-a-restore">Issue H: "Data is missing, or I need a reset or a restore"</h3>
-<p class="ex"><strong>H1. A shared demo has a customer's leftovers</strong></p>
+<p><strong>H1. A shared demo has a customer's leftovers</strong></p>
 <ul>
 <li><em>Fix:</em> <code>./reset-demos.sh --dry-run</code> to see why it did not reset (usually a link is still active); <code>--force &lt;app&gt;</code> to reset now.</li>
 <li><em>Lesson:</em> Resets wait for all opened links to end; that is by design.</li>
 </ul>
-<p class="ex"><strong>H2. Restore the dashboard database on the PC</strong></p>
+<p><strong>H2. Restore the dashboard database on the PC</strong></p>
 <ul>
 <li><em>Steps:</em> Stop the console and gateway → copy the chosen backup over <code>data/dashboard.db</code> → <strong>delete <code>data/dashboard.db-wal</code> and <code>data/dashboard.db-shm</code></strong> → start again. If the 2-step code fails, the data key is wrong (issue F1).</li>
 <li><em>Lesson:</em> Forgetting to delete the two side files can resurrect old data or corrupt the restore.</li>
 </ul>
-<p class="ex"><strong>H3. Restore Postgres on the server</strong></p>
+<p><strong>H3. Restore Postgres on the server</strong></p>
 <ul>
 <li><em>Steps:</em> Copy a backup out of the <code>db-backup</code> volume: <code>docker compose cp db-backup:/backups/&lt;file&gt; .</code>; restore: <code>docker compose exec -T postgres pg_restore -U dashboard -d dashboard --clean --if-exists &lt; &lt;file&gt;</code>.</li>
 <li><em>Lesson:</em> Backups live on the same machine as the database, so also copy some off the server. The <code>caddy_data</code> volume holds only certificates (re-issued if lost).</li>
 </ul>
-<p class="ex"><strong>H4. A customer says "my data vanished" in a demo</strong></p>
+<p><strong>H4. A customer says "my data vanished" in a demo</strong></p>
 <ul>
 <li><em>Cause:</em> Demos are temporary: private copies are deleted when the link ends or idles 120 minutes; shared demos reset.</li>
 <li><em>Fix:</em> Explain that demos hold sample data only. Customer data belongs in a real deployment.</li>
 <li><em>Lesson:</em> Say it at the start: "this is a sandbox".</li>
 </ul>
-<p class="ex"><strong>H5. "Forget" a customer (privacy request)</strong></p>
+<p><strong>H5. "Forget" a customer (privacy request)</strong></p>
 <ul>
 <li><em>Fix:</em> In the console press <strong>Forget</strong> on the finished link. It deletes the audit events, the activity counts and the customer label for that link. (A batch still in the gateway's memory can write one last anonymous row seconds later; normal retention removes it.)</li>
 <li><em>Lesson:</em> Audit events are otherwise kept 90 days.</li>
 </ul>
 <hr />
 <h3 id="issue-i-email-alerts-are-missing-or-wrong">Issue I: "Email alerts are missing or wrong"</h3>
-<p class="ex"><strong>I1. No emails arrive</strong></p>
+<p><strong>I1. No emails arrive</strong></p>
 <ul>
 <li><em>Check:</em> <code>RESEND_API_KEY</code>, <code>ALERT_EMAIL_TO</code>, <code>ALERT_EMAIL_FROM</code> in the console's environment (compose passes them), the Resend domain still verified, and the spam folder. Test: <code>docker compose exec -T console node supervisor/alert-cli.mjs</code> (three test mails were received on 15 Nov 2026).</li>
 </ul>
-<p class="ex"><strong>I2. Phone push but no email (or the reverse)</strong></p>
+<p><strong>I2. Phone push but no email (or the reverse)</strong></p>
 <ul>
 <li><em>Cause:</em> The two channels are independent: ntfy (<code>ALERT_WEBHOOK_URL</code>) and Resend email. One can be misconfigured.</li>
 </ul>
-<p class="ex"><strong>I3. The email comes from the wrong sender or lands in spam</strong></p>
+<p><strong>I3. The email comes from the wrong sender or lands in spam</strong></p>
 <ul>
 <li><em>Cause:</em> DNS records for the sending domain changed or are missing (DKIM/SPF CNAMEs, DNS-only in Cloudflare).</li>
 <li><em>Fix:</em> Re-verify the domain in Resend.</li>
 </ul>
-<p class="ex"><strong>I4. The ntfy topic leaked</strong></p>
+<p><strong>I4. The ntfy topic leaked</strong></p>
 <ul>
 <li><em>Cause:</em> Anyone who knows the topic can read it.</li>
 <li><em>Fix:</em> Pick a new long random topic, set it in the console's environment, restart the console, <code>npm run alert:test</code>.</li>
 </ul>
-<p class="ex"><strong>I5. A settings change had no effect</strong></p>
+<p><strong>I5. A settings change had no effect</strong></p>
 <ul>
 <li><em>Cause:</em> Environment variables only reach programs started <em>after</em> they were set. Restart the console.</li>
 <li><em>Check (PC):</em> <code>data\logs\console-launcher.out</code> should contain <code>alerts are on</code>.</li>
 </ul>
 <hr />
 <h3 id="issue-j-ci-is-red-or-i-cannot-merge">Issue J: "CI is red, or I cannot merge"</h3>
-<p class="ex"><strong>J1. The run fails in two seconds</strong></p>
+<p><strong>J1. The run fails in two seconds</strong></p>
 <ul>
 <li><em>Cause:</em> Rare now. A repository that is private again, or a GitHub billing or spending-limit problem ("payments failed").</li>
 <li><em>Fix:</em> Check the repository is public and billing is fine; meanwhile run lint and tests locally and quote the results in the PR.</li>
 </ul>
-<p class="ex"><strong>J2. Lint fails but tests pass</strong></p>
+<p><strong>J2. Lint fails but tests pass</strong></p>
 <ul>
 <li><em>Cause:</em> CI runs lint first. Typical: a rule such as <code>no-regex-spaces</code>.</li>
 <li><em>Fix:</em> <code>npm run lint</code> locally, fix, push.</li>
 </ul>
-<p class="ex"><strong>J3. One test fails only on my PC</strong></p>
+<p><strong>J3. One test fails only on my PC</strong></p>
 <ul>
 <li><em>Cause:</em> <code>DEMO_BRAND_NAME</code> or <code>DEMO_BOOKING_URL</code> set in your shell.</li>
 <li><em>Fix:</em> Run with them unset.</li>
 </ul>
-<p class="ex"><strong>J4. A shell-script test fails on Windows</strong></p>
+<p><strong>J4. A shell-script test fails on Windows</strong></p>
 <ul>
 <li><em>Cause:</em> A test ran <code>sh -n</code> on a bash-only script. (Real case, fixed.)</li>
 <li><em>Fix:</em> Use the right checker or skip on the wrong platform.</li>
 </ul>
-<p class="ex"><strong>J5. Two PRs conflict because one is "stacked" on the other</strong></p>
+<p><strong>J5. Two PRs conflict because one is "stacked" on the other</strong></p>
 <ul>
 <li><em>Fix:</em> Merge the base first, then update the second branch with <code>main</code> before merging.</li>
 </ul>
 <h3 id="issue-k-a-demo-device-does-nothing-when-i-press-a-button-rmm">Issue K: "A demo device does nothing when I press a button" (RMM)</h3>
-<p class="ex"><strong>K1. Remote Terminal, Disk Management, Maintenance, Scripts, Software Patches or Devices (Reboot, Shutdown) says "This is a demo device, so it is simulated..."</strong></p>
+<p><strong>K1. Remote Terminal, Disk Management, Maintenance, Scripts, Software Patches or Devices (Reboot, Shutdown) says "This is a demo device, so it is simulated..."</strong></p>
 <ul>
 <li><em>Cause:</em> The hosted demo's devices are fictional (<code>agent_version</code> is <code>demo-simulated</code>); no real agent exists to carry out the action. This is correct behaviour since 17 Nov 2026; before that the pages queued tasks nobody would ever run.</li>
 <li><em>Fix:</em> None. Explain it to the customer: on a real device the agent does it on its next check-in.</li>
 </ul>
-<p class="ex"><strong>K2. A <em>real</em> device (enrolled agent) shows the same message</strong></p>
+<p><strong>K2. A <em>real</em> device (enrolled agent) shows the same message</strong></p>
 <ul>
 <li><em>Cause:</em> Its <code>agent_version</code> is wrongly set to the demo marker.</li>
 <li><em>Fix:</em> Check the device record; real agents report their own version.</li>
 </ul>
-<p class="ex"><strong>K3. I am adding a new page that queues work for devices</strong></p>
+<p><strong>K3. I am adding a new page that queues work for devices</strong></p>
 <ul>
 <li><em>Fix:</em> Use <code>from utils.demo import is_simulated, demo_note</code> (file <code>dashboard/utils/demo.py</code> in the RMM repository): skip the API call for simulated devices and show <code>demo_note("what it would do")</code>. Add a test that fails without the guard (see <code>dashboard/tests/test_demo_simulated_devices.py</code>).</li>
 </ul>
-<p class="ex"><strong>K4. "Software Patches shows No packages found"</strong></p>
+<p><strong>K4. "Software Patches shows No packages found"</strong></p>
 <ul>
 <li><em>Cause:</em> The demo's installed-software table was empty. Fixed on 17 Nov 2026 (112 rows for 8 devices).</li>
 <li><em>Fix:</em> Re-run the seed script (it adds only what is missing) or <code>reset-demos.sh</code>, which reseeds it.</li>
@@ -2387,6 +2404,8 @@ docker compose --profile apps up -d &lt;service...&gt;
 <li>Deployment change (PR #53): the hosted RMM demo API now runs with <code>FLASK_ENV: production</code> (debug off, secure cookies; the dashboard uses bearer tokens so nothing breaks).</li>
 <li>Demo seed (PR #54): <code>supervisor/demo-fixes/seed-rmm-demo.py</code> now seeds installed software for the demo devices.</li>
 <li>This book and a README change were the only uncommitted local files when the book was written.</li>
+<li><strong>Scaling pass (18 Nov, PR #58, live commit <code>9ffa4c0</code>):</strong> faster grant lookup, throttled registry check, seat-table cache, bounded status probes, up to 50 private copies per product. Details and how to check it: chapter 23, part A.</li>
+<li><strong>Staging load test (18 Nov, PR #59, still open):</strong> tooling to push the gateway hard on temporary servers, with its plan (<code>docs/PLAN-staging-load-test.md</code>). Chapter 23, parts B and C.</li>
 </ul>
 <h3 id="rmm-remote-management">RMM (Remote Management)</h3>
 <ul>
@@ -2396,7 +2415,7 @@ docker compose --profile apps up -d &lt;service...&gt;
 <li><strong>Audited and left alone:</strong> OS Patches (database only), MDM actions (no phones in the demo), Network Discovery (the demo's API container has no <code>ping</code>, no capabilities and a private network, so a scan finds nothing and cannot reach outward), Automation "Run Now" (message already accurate).</li>
 <li>Hosted demo: production mode, software data present, assistant working. Not done: a browser click-through of the deployed Remote Terminal.</li>
 </ul>
-<h3 id="carrental-reci-claudeworkspace">CarRental / RECI (ClaudeWorkspace)</h3>
+<h3 id="carrental--reci-claudeworkspace">CarRental / RECI (ClaudeWorkspace)</h3>
 <ul>
 <li><strong>Repository public</strong> (17 Nov), history scanned (no real secrets; only old weak demo passwords for accounts that were deleted). <code>main</code> protected (3 required checks). Standard files merged.</li>
 <li><strong>CI works for the first time:</strong> lint, type-check, unit tests, full build of web and admin, and Playwright end-to-end tests in mock mode (PRs #21, #22).</li>
@@ -2422,7 +2441,8 @@ docker compose --profile apps up -d &lt;service...&gt;
 </ul>
 <h3 id="hosting-hetzner">Hosting (Hetzner)</h3>
 <ul>
-<li>Everything stayed up all day: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows <code>main</code> by fast-forward only.</li>
+<li><strong>18 Nov:</strong> the scaling pass went live (gateway, then console, one at a time; all post-deploy checks passed). Two temporary servers in a separate Hetzner project <code>facyke-staging</code> were used for the load test and then deleted (chapter 23). Production was not touched by the test.</li>
+<li>Everything stayed up on 17 Nov: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows <code>main</code> by fast-forward only.</li>
 </ul>
 </section>
 <section class="l2">
@@ -2531,6 +2551,293 @@ docker compose --profile apps up -d &lt;service...&gt;
 </table></div>
 <p><strong>Corrections made the same day (so you do not repeat them):</strong> the RMM demo <em>does</em> have an AI assistant; migration 015 was first recorded as applied but was not; a verification script named a table that does not exist; and a deploy "conflict" was only a missing git identity on the server.</p>
 <p><strong>Still the owner's to do:</strong> Stripe and Resend for RECI; confirm the offline key backup opens; optionally annotate the three test lines in the licence log; later, remove the RMM audit exception.</p>
+</section>
+<section class="l2">
+<h2 id="23-scaling-and-the-staging-load-test-step-by-step">23. Scaling and the staging load test, step by step</h2>
+<p>This chapter covers three things done on 18 November 2026: <strong>A.</strong> the scaling pass of the gateway, <strong>B.</strong> building a temporary staging server to test it, <strong>C.</strong> deleting that server afterwards. Every step below was carried out. Where a result or a status could not be confirmed from this repository, the text says so.</p>
+<h3 id="part-a-the-scaling-pass-live-since-18-nov-2026-commit-9ffa4c0-pr-58">Part A: The scaling pass (live since 18 Nov 2026, commit <code>9ffa4c0</code>, PR #58)</h3>
+<p><strong>What it is, in plain words.</strong> Every time a customer's browser asks the gateway for a page, the gateway checks that the link is still valid. The scaling pass makes that check cheaper and caps the places where work could pile up. Nothing a customer sees changes, and every default keeps the old behaviour.</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Setting</th>
+<th>Default</th>
+<th>Plain meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One database query instead of two to find a customer's session and link</td>
+<td>none</td>
+<td>always on</td>
+<td>Fewer round trips to Postgres</td>
+</tr>
+<tr>
+<td>Registry file checked at most once a second</td>
+<td><code>REGISTRY_RECHECK_MS</code></td>
+<td>1000</td>
+<td>An edit to <code>apps.json</code> is seen within a second. <code>0</code> = check on every request, as before</td>
+</tr>
+<tr>
+<td>Private-copy seat table read from memory</td>
+<td>none</td>
+<td>1 second</td>
+<td>Fewer file reads when a product gives each link its own copy</td>
+</tr>
+<tr>
+<td>Status probes capped</td>
+<td><code>STATUS_CONCURRENCY</code></td>
+<td>32</td>
+<td>The console cannot flood the server when the registry is large</td>
+</tr>
+<tr>
+<td>Audit-table indexes</td>
+<td>none</td>
+<td>always on</td>
+<td>Faster reports</td>
+</tr>
+<tr>
+<td>Optional grant cache</td>
+<td><code>GATEWAY_GRANT_CACHE_MS</code></td>
+<td>0 (off)</td>
+<td>Above 0, a revoked link can keep working on an already open session for up to that many milliseconds. Expiry stays exact. <strong>Left off in production</strong></td>
+</tr>
+<tr>
+<td>Private copies per product</td>
+<td><code>perLink.max</code></td>
+<td>1 to 50 (was 9)</td>
+<td>No existing port moves when you raise it. Size it to the server's memory</td>
+</tr>
+<tr>
+<td>Postgres connections</td>
+<td><code>DATABASE_POOL_MAX</code></td>
+<td>10</td>
+<td>Raise only if the database allows more</td>
+</tr>
+</tbody>
+</table></div>
+<p>The full reference is <code>docs/HOW-IT-WORKS.md</code>, section 14. Not covered: the gateway is <strong>one</strong> Node process, and its rate limits and seat table live in that process's memory, so two gateways side by side are not supported yet.</p>
+<p><strong>Step 1. Check it on your PC (from the project folder).</strong></p>
+<pre><code class="language-text">npm run lint
+npm test
+node tests/bench/gateway-bench.mjs
+</code></pre>
+<p><code>npm test</code> fails one test if <code>DEMO_BRAND_NAME</code> or <code>DEMO_BOOKING_URL</code> is set in your shell: unset them for the run. The benchmark uses a throw-away data folder and a fake demo app, so your real data is untouched. Results recorded on the owner's PC:</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Store</th>
+<th>Before</th>
+<th>After</th>
+<th>After, cache on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLite</td>
+<td>about 3,000 requests/s</td>
+<td>4,600 to 5,900</td>
+<td>about 6,500</td>
+</tr>
+<tr>
+<td>Postgres (throw-away container)</td>
+<td>1,540</td>
+<td>2,491</td>
+<td>4,164</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Step 2. Merge.</strong> PR #58 was merged on 18 Nov. GitHub's Windows and Linux checks were blocked by a quota at that moment, so it was merged with the admin override after the Postgres tests had been run locally (open items, chapter 12).</p>
+<p><strong>Step 3. Check the live commit.</strong> On the server, <code>cd /home/deploy/ProjectsDashboard &amp;&amp; git rev-parse --short HEAD</code>. On 18 Nov it was <code>201d2c3</code>, not the commit the notes claimed. Never trust a note here.</p>
+<p><strong>Step 4. Back up first.</strong> Take a database dump on the server and keep it (on 18 Nov the file was <code>/home/deploy/dashboard-2026-11-18-0749.sql.gz</code>):</p>
+<pre><code class="language-text">cd /home/deploy/ProjectsDashboard/deploy
+docker compose exec -T postgres pg_dump -U dashboard dashboard | gzip &gt; ~/dashboard-$(date +%F-%H%M).sql.gz
+</code></pre>
+<p><strong>Step 5. Update.</strong> Use the recipe in chapter 15 (fast-forward only). Only the gateway and the console changed, so recreate just those, one at a time: <code>docker compose build gateway</code>, <code>docker compose up -d --no-deps gateway</code>, then <code>docker compose up -d --no-deps console</code>. No <code>deploy/</code> or registry file changed.</p>
+<p><strong>Step 6. Check as a customer.</strong> All of these passed on 18 Nov: <code>/_pd/healthz</code> answers; a test demo link opens; the demo login works; <strong>revoking</strong> the test link shows "Demo ended" at once; the console signs in and shows all six apps Running. The test link was revoked afterwards.</p>
+<p><strong>Step 7. Roll back if needed.</strong> The <code>docker tag</code> of the old image failed on 18 Nov, so no rollback image exists. Rollback is <code>git checkout 201d2c3</code> in the live folder and a rebuild of the gateway (then the console).</p>
+<h3 id="part-b-the-staging-server-a-temporary-copy-to-push-hard">Part B: The staging server (a temporary copy to push hard)</h3>
+<p><strong>Why.</strong> The PC benchmark has no "before and after on a real server" numbers, and the live server must never be pushed to its limit. The plan is <code>docs/PLAN-staging-load-test.md</code>.</p>
+<p><strong>Safety rules (never break these).</strong> Never aim the test at <code>facyke.com</code>, <code>*.demo.facyke.com</code> or <code>admin.facyke.com</code> (the load generator refuses any address containing "facyke"). No real data, no real keys: fresh random passwords, no Anthropic key. Not reachable by the public: plain HTTP on port 8080, closed to everyone but the generator. The raised rate limits live only in <code>deploy/docker-compose.loadtest.yml</code>, which is never used on production.</p>
+<p><strong>What the tooling is (all in PR #59).</strong></p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Job</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploy/docker-compose.loadtest.yml</code></td>
+<td>Staging-only override: raises the limits, plain HTTP on port 8080, adds the stand-in app, turns on metrics</td>
+</tr>
+<tr>
+<td><code>deploy/loadtest/standin.mjs</code>, <code>apps.loadtest.json</code></td>
+<td>A tiny fake demo app and its own registry, so only the gateway and database are measured</td>
+</tr>
+<tr>
+<td><code>tests/bench/gateway-load.mjs</code></td>
+<td>The load generator (no dependencies). Scenarios <code>get</code>, <code>mixed</code>, <code>spread</code>, <code>burst</code>, <code>ramp</code></td>
+</tr>
+<tr>
+<td><code>tests/bench/mint-links.sh</code></td>
+<td>Creates N demo links on the staging gateway</td>
+</tr>
+<tr>
+<td><code>tests/bench/collect.sh</code></td>
+<td>Writes CPU, memory, Postgres connections and request counter to a CSV every 5 seconds</td>
+</tr>
+<tr>
+<td><code>tests/bench/revoke-links.sh</code></td>
+<td>Revokes links and prints millisecond timestamps (for the revoke-speed test)</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Step 1. Create the Hetzner project and two servers (you, in console.hetzner.cloud).</strong></p>
+<ol>
+<li>Create a <strong>new project named <code>facyke-staging</code></strong>. Always check the project name at the top of the page before you click anything. Never create or delete things in <code>facyke</code>, where <code>facyke-prod</code> lives.</li>
+<li>Add your SSH public key to the project (the test used a key named <code>lt-key</code>).</li>
+<li>Create two servers of the same size as production (CPX22: 2 vCPU, 4 GB): <strong><code>lt-sut</code></strong> (system under test) and <strong><code>lt-gen</code></strong> (load generator). <strong>Tick the SSH key on each at creation</strong>: a server cannot be given a key afterwards, and the first pair on 18 Nov had to be deleted and recreated because the key was not ticked.</li>
+<li>Do not tick backups. Do not create volumes.</li>
+<li>Mistake to avoid: on 18 Nov the servers were first named <code>lt-fw</code> and <code>lt-net</code> (the names of a firewall and a network). To rename a server, open it, hover over its name next to the green dot, click the pencil, type the new name, press Enter. The wrong names matter at teardown time, because the IP and the name must agree.</li>
+<li>Send the two public IPs to whoever runs the test. After a recreate the SSH host key changes: run <code>ssh-keygen -R &lt;ip&gt;</code> on your PC before connecting.</li>
+</ol>
+<p><strong>Step 2. Install the tools.</strong></p>
+<ul>
+<li>On <code>lt-sut</code> (Ubuntu 26.04.1, the same as production): <code>hostnamectl set-hostname lt-sut</code>; <code>apt-get install -y docker.io docker-compose-v2 git ufw curl</code>; create a user <code>deploy</code> in the <code>docker</code> group with your public key in its <code>authorized_keys</code>. Versions used: Docker 29.1.3, Compose 2.40.3.</li>
+<li>On <code>lt-gen</code>: <code>hostnamectl set-hostname lt-gen</code>; install <code>git</code> and Node 22 (v22.22.1 was used).</li>
+</ul>
+<p><strong>Step 3. Start the stack on <code>lt-sut</code></strong> (as <code>deploy</code>). The repository is public, so no token is needed.</p>
+<pre><code class="language-text">git clone https://github.com/rigwe1965/ProjectsDashboard.git
+cd ProjectsDashboard &amp;&amp; git checkout test/staging-load-test
+cd deploy
+# deploy/.env with fresh random values and dummy domains, never real ones:
+#   POSTGRES_PASSWORD, ADMIN_DATA_KEY, METRICS_TOKEN  = random (openssl rand -hex 16 / 32 / 12)
+#   DEMO_DOMAIN=demo.test  ADMIN_DOMAIN=admin.test  SITE_DOMAIN=site.test  ACME_EMAIL=nobody@example.invalid
+chmod 600 .env
+docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build postgres gateway standin
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/_pd/healthz     # wait about 15 s, expect 200
+</code></pre>
+<p>Only three services run: Postgres, the gateway and the stand-in app. There is no Caddy, no console and no real demo. The gateway log says "AI guide is off", which is correct.</p>
+<p><strong>Step 4. Close port 8080 to everyone except the generator</strong> (as <code>root</code> on <code>lt-sut</code>). <code>ufw</code> does <strong>not</strong> protect ports that Docker publishes, and the Hetzner firewall was not attached to these servers, so the test used Docker's own firewall chain. Replace <code>&lt;GEN&gt;</code> with the generator's IP:</p>
+<pre><code class="language-text">iptables  -I DOCKER-USER -p tcp -s &lt;GEN&gt; -m conntrack --ctorigdstport 8080 -j ACCEPT
+iptables  -A DOCKER-USER -p tcp -m conntrack --ctorigdstport 8080 --ctdir ORIGINAL -j DROP
+ip6tables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport 8080 --ctdir ORIGINAL -j DROP
+iptables -S DOCKER-USER          # the ACCEPT line must come before the DROP line
+</code></pre>
+<p><code>--ctorigdstport</code> is needed because Docker rewrites the port before this chain sees the packet. <code>--ctdir ORIGINAL</code> is needed because without it the replies are dropped too and the generator gets nothing (this happened on 18 Nov). <strong>Check it both ways:</strong> from your PC <code>curl -4 -m 6 http://&lt;SUT&gt;:8080/_pd/healthz</code> must time out, and from <code>lt-gen</code> it must print <code>200</code>. The rules are not saved: they vanish if the server reboots, so do not reboot it.</p>
+<p><strong>Step 5. Prepare the generator.</strong> On <code>lt-gen</code>: clone the repository and check out <code>test/staging-load-test</code> the same way. On <code>lt-sut</code>, create links (the smoke run used 5; the full test 500) and copy the file to <code>lt-gen</code> as <code>/root/links.txt</code>:</p>
+<pre><code class="language-text">cd ProjectsDashboard/deploy &amp;&amp; sh ../tests/bench/mint-links.sh 5 /tmp/links.txt
+</code></pre>
+<p><strong>Step 6. Smoke run (proves the pipeline, is not a result).</strong> On <code>lt-gen</code>:</p>
+<pre><code class="language-text">cd /root/ProjectsDashboard
+node tests/bench/gateway-load.mjs --target=&lt;SUT&gt;:8080 --links=/root/links.txt --scenario=get --connections=16 --duration=10
+</code></pre>
+<p>Recorded on 18 Nov: 22,670 requests, all HTTP 200, 2,266 requests/s, p50 6.3 ms, p95 12.5 ms, p99 20.3 ms, no errors.</p>
+<p><strong>Step 7. Full run.</strong> The scenarios are S1 to S11 in <code>docs/PLAN-staging-load-test.md</code> section 6, three runs each, results written to a <code>.jsonl</code> file on <code>lt-gen</code> and a CSV from <code>collect.sh</code> on <code>lt-sut</code>. A driver script on <code>lt-gen</code> ran them in order (it was a throw-away script and is <strong>not</strong> in the repository: write a new one from the plan if you rerun). A hung step cost 27 minutes on 18 Nov (an <code>ssh</code> that started the metrics collector never returned): start background jobs with <code>setsid nohup ... &amp;</code> and <code>&lt; /dev/null</code>.</p>
+<p><strong>What is on record from the run on the new code</strong> (label <code>new-65efc49</code>; stand-in app, plain HTTP, public network between the two servers; zero errors, every response HTTP 200):</p>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>S1, 64 connections, 5 min, three runs</td>
+<td>2,420, 2,364 and 2,143 requests/s; p95 41, 41 and 47 ms</td>
+</tr>
+<tr>
+<td>S2, one ramp run, 60 s per step</td>
+<td>32 conn: 2,139/s, p95 23 ms · 64: 2,331/s, p95 42 ms · 128: 1,811/s, p95 102 ms · 256: 1,643/s, p95 217 ms · 512: 1,739/s, p95 388 ms</td>
+</tr>
+</tbody>
+</table></div>
+<p>Reading: throughput stops rising at about 64 connections and latency then grows, with no errors. The gateway container is capped at one CPU, as in production, so the gateway is the likely first limit. The load generator used about 45% of one core, so it was not the limit. The metrics CSV was meant to confirm the CPU limit, and that confirmation is <strong>not on record</strong>.</p>
+<p><strong>What is not on record:</strong> S3 to S10 results, and the old-code comparison on <code>201d2c3</code>. Because of the second gap, the plan's pass bar ("new at least 1.3 times old") is <strong>unproven</strong>; the PC benchmark (1.6 times on Postgres) is the only evidence. Do not quote a capacity sentence for the server until the full results exist.</p>
+<h3 id="part-c-deleting-the-staging-servers-the-step-that-stops-the-billing">Part C: Deleting the staging servers (the step that stops the billing)</h3>
+<p>A server costs about €0.03 an hour until it is <strong>deleted</strong>. Powering it off does <strong>not</strong> stop the bill. The owner reported both servers deleted after the test. This chapter cannot see the Hetzner console, so confirm it yourself in step 4 below.</p>
+<p><strong>Step 1. Save the results first.</strong> On <code>lt-gen</code>: <code>/root/results/</code> (the <code>.jsonl</code> file, the driver log, the environment file). On <code>lt-sut</code>: <code>/home/deploy/ProjectsDashboard/deploy/results/</code> (the CSVs). Copy them to your PC with <code>scp</code>, then to the backup drive, for example <code>I:\Facyke-LoadTests\&lt;date&gt;-&lt;commit&gt;\</code>. Open a few files and check they are not empty. After the servers are deleted nothing can be recovered. <strong>No saved copy was found on the owner's PC when this chapter was written</strong>, so if the results were not copied, they are gone.</p>
+<p><strong>Step 2. Delete the servers (console.hetzner.cloud).</strong></p>
+<ol>
+<li>Open the project <strong><code>facyke-staging</code></strong> and read its name at the top. If it says <code>facyke</code>, stop.</li>
+<li>Servers: there must be exactly two, <code>lt-sut</code> and <code>lt-gen</code>. If a name and an IP do not agree, the IP decides (the system under test and the generator are told apart by the notes, never by guessing).</li>
+<li>For each server: Actions menu, <strong>Delete</strong>, type its name to confirm. Never <strong>Power off</strong>.</li>
+</ol>
+<p><strong>Step 3. Remove everything else created for the test.</strong> Volumes (none were created), snapshots and backups (none enabled), any firewall created in this project, any Primary or Floating IP left over (an unassigned IP is billed), and the <code>lt-key</code> SSH key (optional; it is only a copy of the public key).</p>
+<p><strong>Step 4. Confirm nothing bills.</strong> The project's <strong>Costs</strong> tab, or the account's Billing page, must show no running resource. Optionally delete the <code>facyke-staging</code> project itself (Settings, Delete): a project that still holds resources cannot be deleted, so success also proves it is empty.</p>
+<p><strong>Step 5. Close the loop on your PC and in the notes.</strong> On your PC, remove the staging servers' lines from <code>~/.ssh/known_hosts</code> (<code>ssh-keygen -R &lt;ip&gt;</code>). Record the numbers in <code>docs/HOW-IT-WORKS.md</code> section 14. Check that production was untouched: <code>https://admin.facyke.com</code> and a demo link work as before.</p>
+<p><strong>Examples of mistakes this chapter prevents.</strong></p>
+<ol>
+<li><em>"I powered the server off, it is safe."</em> → It is still billed. Delete it.</li>
+<li><em>"I created the servers in the <code>facyke</code> project."</em> → Then the teardown list also shows <code>facyke-prod</code>. Always use the separate <code>facyke-staging</code> project, and read the project name before every delete.</li>
+<li><em>"Port 8080 is closed because I enabled <code>ufw</code>."</em> → <code>ufw</code> does not cover Docker's published ports. Test from outside.</li>
+<li><em>"The generator suddenly gets no answer after I added the firewall rule."</em> → The drop rule needs <code>--ctdir ORIGINAL</code>.</li>
+<li><em>"The server rebooted and the test is open to the internet."</em> → The Docker firewall rules are not saved. Re-check after any reboot.</li>
+</ol>
+<hr />
+</section>
+<section class="l2">
+<h2 id="24-what-changed-on-18-november-2026">24. What changed on 18 November 2026</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Change</th>
+<th>Where</th>
+<th>Live effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Scaling pass (PR #58) merged and deployed, commit <code>9ffa4c0</code></td>
+<td>ProjectsDashboard, Hetzner</td>
+<td>Gateway and console recreated; no customer-visible change; all checks passed</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Database dump taken before the deploy</td>
+<td>Hetzner</td>
+<td>Exists only on the server</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Scaling notes in <code>docs/HOW-IT-WORKS.md</code> section 14 and the changelog</td>
+<td>ProjectsDashboard</td>
+<td>Documentation</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Load-test plan, stand-in app, load generator and scripts (PR #59, open)</td>
+<td>ProjectsDashboard</td>
+<td>None on production</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Temporary Hetzner project <code>facyke-staging</code> with two servers; stack started; smoke run passed</td>
+<td>Hetzner</td>
+<td>None on production; billed hourly</td>
+</tr>
+<tr>
+<td>6</td>
+<td>First scenarios of the full run on the new code (S1, S2)</td>
+<td>Staging</td>
+<td>None</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Staging servers deleted (reported by the owner; confirm in the console)</td>
+<td>Hetzner</td>
+<td>Billing stops on deletion</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Corrections made the same day (so you do not repeat them):</strong> the live folder was at <code>201d2c3</code>, not at the commit the notes said; production runs Ubuntu 26.04.1 (older text said 24.04); the first staging servers had no SSH key and the console names did not match the hostnames; <code>ufw</code> does not guard Docker ports and the Docker rule needed <code>--ctdir ORIGINAL</code>; a hung <code>ssh</code> in the test driver lost 27 minutes; a first progress report said three S2 runs were done when two were.</p>
+<p><strong>Still open:</strong> the results of S3 to S10 and the old-code comparison (chapter 23, part B); the review and merge of pull request #59; a copy of the database dump off the server; the GitHub Actions quota until 1 December; the "1.3 times faster" claim stays unproven until the comparison exists.</p>
 <hr />
 </section>
 <section class="l1">
@@ -2540,44 +2847,44 @@ docker compose --profile apps up -d &lt;service...&gt;
 <h2 id="appendix-a-checklists">Appendix A: Checklists</h2>
 <h3 id="a1-handover-checklist-new-owner">A.1 Handover checklist (new owner)</h3>
 <ul>
-<li>[ ] Repository opens; <code>npm install</code>, <code>npm test</code> and <code>npm run lint</code> succeed.</li>
-<li>[ ] Signed in to the console with a password and a 2-step code.</li>
-<li>[ ] A copy of <code>ADMIN_DATA_KEY</code> is in a password manager.</li>
-<li>[ ] The alert topic is understood as a secret; a test alert (<code>npm run alert:test</code>) arrived.</li>
-<li>[ ] The backup folder contains a recent file; the restore steps were read (issue H2 and H3).</li>
-<li>[ ] You created, opened and revoked a link yourself (chapter 9).</li>
-<li>[ ] You have read the golden rules (Appendix D).</li>
-<li>[ ] You know where logs are (<code>data\logs\</code>, <code>docker compose logs</code>) and where the written audits are (<code>audits/</code>).</li>
-<li>[ ] Access to: Cloudflare, Hetzner (with 2FA), Anthropic (workspace <code>facyke-demos</code>), GitHub, Resend, cal.com; each person has their <em>own</em> login.</li>
-<li>[ ] The Hetzner SSH key is held by the operator only; the passphrase is not written anywhere shared.</li>
-<li>[ ] A private, backed-up copy of <code>deploy/.env</code> exists.</li>
-<li>[ ] The signing key for licences exists and is backed up privately (chapter 11); you have checked the backup opens (it starts with <code>-----BEGIN PRIVATE KEY-----</code>).</li>
-<li>[ ] You know every repository is public: before any commit, no keys, passwords, <code>.env</code> files or private addresses.</li>
+<li><input disabled="" type="checkbox"> Repository opens; <code>npm install</code>, <code>npm test</code> and <code>npm run lint</code> succeed.</li>
+<li><input disabled="" type="checkbox"> Signed in to the console with a password and a 2-step code.</li>
+<li><input disabled="" type="checkbox"> A copy of <code>ADMIN_DATA_KEY</code> is in a password manager.</li>
+<li><input disabled="" type="checkbox"> The alert topic is understood as a secret; a test alert (<code>npm run alert:test</code>) arrived.</li>
+<li><input disabled="" type="checkbox"> The backup folder contains a recent file; the restore steps were read (issue H2 and H3).</li>
+<li><input disabled="" type="checkbox"> You created, opened and revoked a link yourself (chapter 9).</li>
+<li><input disabled="" type="checkbox"> You have read the golden rules (Appendix D).</li>
+<li><input disabled="" type="checkbox"> You know where logs are (<code>data\logs\</code>, <code>docker compose logs</code>) and where the written audits are (<code>audits/</code>).</li>
+<li><input disabled="" type="checkbox"> Access to: Cloudflare, Hetzner (with 2FA), Anthropic (workspace <code>facyke-demos</code>), GitHub, Resend, cal.com; each person has their <em>own</em> login.</li>
+<li><input disabled="" type="checkbox"> The Hetzner SSH key is held by the operator only; the passphrase is not written anywhere shared.</li>
+<li><input disabled="" type="checkbox"> A private, backed-up copy of <code>deploy/.env</code> exists.</li>
+<li><input disabled="" type="checkbox"> The signing key for licences exists and is backed up privately (chapter 11); you have checked the backup opens (it starts with <code>-----BEGIN PRIVATE KEY-----</code>).</li>
+<li><input disabled="" type="checkbox"> You know every repository is public: before any commit, no keys, passwords, <code>.env</code> files or private addresses.</li>
 </ul>
 <h3 id="a2-weekly-checklist">A.2 Weekly checklist</h3>
 <ul>
-<li>[ ] Console green; no unexpected alerts.</li>
-<li>[ ] Links sent: follow up on <em>Came back</em>/<em>Engaged</em>; remind <em>Not opened</em>.</li>
-<li>[ ] Newest backup is recent; one copy exists off the server.</li>
-<li>[ ] Anthropic spend vs the $5 limit; Hetzner invoice.</li>
-<li>[ ] Dependencies/audit notes, if the owner wants them.</li>
+<li><input disabled="" type="checkbox"> Console green; no unexpected alerts.</li>
+<li><input disabled="" type="checkbox"> Links sent: follow up on <em>Came back</em>/<em>Engaged</em>; remind <em>Not opened</em>.</li>
+<li><input disabled="" type="checkbox"> Newest backup is recent; one copy exists off the server.</li>
+<li><input disabled="" type="checkbox"> Anthropic spend vs the $5 limit; Hetzner invoice.</li>
+<li><input disabled="" type="checkbox"> Dependencies/audit notes, if the owner wants them.</li>
 </ul>
 <h3 id="a3-before-any-customer-demo">A.3 Before any customer demo</h3>
 <ul>
-<li>[ ] The demo product is up (console green) and was opened by you today.</li>
-<li>[ ] You logged in as the demo user and clicked through the main path.</li>
-<li>[ ] You know the demo credentials and how you will share them.</li>
-<li>[ ] The link has a sensible expiry (2+ days), uses (3+), a name and a short welcome note.</li>
-<li>[ ] The AI guide is on only if you want it (and the product has one).</li>
-<li>[ ] Nobody else is using the shared demo (check <em>busy</em>).</li>
+<li><input disabled="" type="checkbox"> The demo product is up (console green) and was opened by you today.</li>
+<li><input disabled="" type="checkbox"> You logged in as the demo user and clicked through the main path.</li>
+<li><input disabled="" type="checkbox"> You know the demo credentials and how you will share them.</li>
+<li><input disabled="" type="checkbox"> The link has a sensible expiry (2+ days), uses (3+), a name and a short welcome note.</li>
+<li><input disabled="" type="checkbox"> The AI guide is on only if you want it (and the product has one).</li>
+<li><input disabled="" type="checkbox"> Nobody else is using the shared demo (check <em>busy</em>).</li>
 </ul>
 <h3 id="a4-when-someone-leaves-the-team">A.4 When someone leaves the team</h3>
 <ul>
-<li>[ ] Remove their console access / change the shared password and run <code>sign-out-all</code>.</li>
-<li>[ ] Remove their SSH public key from <code>/home/deploy/.ssh/authorized_keys</code>.</li>
-<li>[ ] Remove them from GitHub, Cloudflare, Hetzner, Anthropic, Resend.</li>
-<li>[ ] Rotate any key they could have seen (<code>set-demo-key.sh</code>, Resend key).</li>
-<li>[ ] Review the audit log for their last activity.</li>
+<li><input disabled="" type="checkbox"> Remove their console access / change the shared password and run <code>sign-out-all</code>.</li>
+<li><input disabled="" type="checkbox"> Remove their SSH public key from <code>/home/deploy/.ssh/authorized_keys</code>.</li>
+<li><input disabled="" type="checkbox"> Remove them from GitHub, Cloudflare, Hetzner, Anthropic, Resend.</li>
+<li><input disabled="" type="checkbox"> Rotate any key they could have seen (<code>set-demo-key.sh</code>, Resend key).</li>
+<li><input disabled="" type="checkbox"> Review the audit log for their last activity.</li>
 </ul>
 <hr />
 </section>
@@ -2708,6 +3015,18 @@ PORTS (PC)  4100 console · 4200 showcase · 4300 gateway · 3000/5000/8501 rese
 <tr>
 <td>Change public website text</td>
 <td><code>showcase/*.json</code></td>
+</tr>
+<tr>
+<td>Tune scaling limits</td>
+<td><code>docs/HOW-IT-WORKS.md</code> section 14</td>
+</tr>
+<tr>
+<td>Measure gateway speed on the PC</td>
+<td><code>tests/bench/gateway-bench.mjs</code></td>
+</tr>
+<tr>
+<td>Run or redo the staging load test</td>
+<td><code>docs/PLAN-staging-load-test.md</code>, <code>deploy/docker-compose.loadtest.yml</code>, <code>deploy/loadtest/</code>, <code>tests/bench/</code></td>
 </tr>
 </tbody>
 </table></div>

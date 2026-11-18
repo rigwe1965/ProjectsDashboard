@@ -2,7 +2,7 @@
 
 **Everything a new person needs to understand, run, support and manage this project, from day one.**
 
-*Written 17 November 2026 and fully updated the same evening with everything changed that day (see chapters 21 and 22). It is for the repository `rigwe1965/ProjectsDashboard`. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.*
+*Written 17 November 2026 and updated on 18 November 2026 with the scaling pass and the staging load test (see chapters 21 to 24). It is for the repository `rigwe1965/ProjectsDashboard`. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.*
 
 ---
 
@@ -72,6 +72,8 @@ Pick your path:
 
 - **21.** [Project by project (state at the end of 17 November 2026)](#21-project-by-project-state-at-the-end-of-17-november-2026)
 - **22.** [What changed on 17 November 2026](#22-what-changed-on-17-november-2026)
+- **23.** [Scaling and the staging load test, step by step](#23-scaling-and-the-staging-load-test-step-by-step)
+- **24.** [What changed on 18 November 2026](#24-what-changed-on-18-november-2026)
 
 **Appendices**
 
@@ -344,7 +346,7 @@ Everything runs on **one rented server** using Docker Compose. Only Caddy's port
 | --- | --- | --- |
 | **Domain** | `facyke.com`, registered at **Cloudflare** (2 years, auto-renew on) | One name for everything. Cloudflare has honest pricing and good DNS |
 | **DNS records** | `@` (the site), `admin`, `*.demo` (wildcard), `www`, all **DNS-only (grey cloud)** pointing to the server | Wildcard means every product gets its own address without new setup. Grey cloud means Cloudflare only gives addresses and does *not* sit in front of the traffic, so Caddy handles certificates itself |
-| **Server** | **Hetzner Cloud**, server name `facyke-prod`, type CPX22 (2 CPU, 4 GB RAM, 80 GB disk), Helsinki, Ubuntu 24.04 | The owner is in Germany; Hetzner is cheap, European and reliable. About €20 a month, billed hourly |
+| **Server** | **Hetzner Cloud**, server name `facyke-prod`, type CPX22 (2 CPU, 4 GB RAM, 80 GB disk), Helsinki, Ubuntu 26.04.1, Docker 29.9 | The owner is in Germany; Hetzner is cheap, European and reliable. About €20 a month, billed hourly |
 | **Front door** | **Caddy** | Gets and renews free HTTPS certificates automatically |
 | **Containers** | **Docker Compose** | One file describes the whole system; easy to rebuild or move |
 | **Database** | **Postgres** (container) | Holds links, sessions, audit log; backed up daily |
@@ -413,6 +415,7 @@ The console runs *inside* a container and must not control Docker directly (that
 | Domain `facyke.com` | Paid at Cloudflare for 2 years; auto-renew on | Renewal date: check Cloudflare |
 | Anthropic demo key | **Hard limit $5 / month** (workspace `facyke-demos`) | Used by ClaudeOS and RMM demos. When it runs out, AI features in those demos fail until the next month or a raised limit |
 | AI guide | About **$0.003 per product per full test run** on Haiku 5.5; per-link cost shown in the console | Off unless a link opts in and a key is set on the gateway |
+| Staging load-test servers (temporary) | about **€0.03 per hour per server** (CPX22 is €19.62 / month), billed until the server is **deleted** | Powering off does not stop billing. See chapter 23, part C |
 | Resend email | Free tier is enough for alerts | Domain verified in the EU region |
 | GitHub | Free plan. Every repository is public, so **Actions run free**. (The earlier problem, private-repository minutes running out on 15 Nov 2026, no longer matters: nothing is private.) | See chapter 17 |
 
@@ -694,6 +697,10 @@ Be honest with yourself about what is *not* finished. This list reflects what is
 - **CRM `TRUSTED_PROXY_COUNT`** on the server is unresolved (two proxy hops: Caddy and the gateway).
 - **RMM** on the server has no scheduled-jobs worker and no device can enrol into the hosted demo.
 - **Customer licence agreement**: needs a lawyer.
+- **Staging load test, unfinished record (18 Nov):** only the smoke run and the first scenarios (S1 and S2, new code) are written down (chapter 23, part B). The results of S3 to S10, if they were saved, are not in this repository, and the old-versus-new comparison (`201d2c3` against `9ffa4c0`) was never run, so the plan's "1.3 times faster" bar is **not yet proven**. The `run-all.sh` driver that ran the scenarios was a throw-away script and is not in the repository.
+- **PR #59** (load-test tooling and plan) is open.
+- **GitHub Actions quota (18 Nov):** the Windows and Linux checks for this repository were blocked by a quota when PR #58 merged (the owner's notes say until 1 December), so #58 was merged with the admin override after its Postgres tests were run locally. This contradicts the "CI runs free" statements in chapters 7 and 17: check GitHub's billing page before trusting either.
+- **Backup copy off the server:** the pre-deploy database dump of 18 Nov (`/home/deploy/dashboard-2026-11-18-0749.sql.gz`) exists only on the server.
 - **Uptime check from outside**: the built-in alerts cannot report the *server* or the *console itself* being gone. An external uptime monitor would.
 
 ### Decisions already taken (do not re-argue without a reason)
@@ -940,6 +947,8 @@ If a server-side `git cherry-pick` says CONFLICT but shows no files, the server 
 - **Git Bash on Windows rewrites paths** that start with `/` (for example `vercel curl /`): prefix the command with `MSYS_NO_PATHCONV=1`.
 - **Windows cannot delete deep `node_modules` folders** (path too long): use PowerShell `Remove-Item -LiteralPath` with a `\\?\` long-path prefix.
 - **Do not record "applied" or "done" from memory.** Run the read-only check first (a 17 Nov note said a database migration was applied when it was not).
+- **Check the live commit before you update, never trust a note.** On 18 Nov the live folder was at `201d2c3`, not at the commit the notes said. Run `git rev-parse --short HEAD` in `/home/deploy/ProjectsDashboard` first.
+- **A `docker tag` of the old image can fail** (it did on 18 Nov), leaving no saved rollback image. Rollback then is `git checkout <old commit>` and a rebuild of that service. Make a database dump before every gateway update (chapter 23, part A, step 4).
 - Demo containers have a **read-only** root. If an app writes elsewhere, give it a `tmpfs` or volume; do not remove `read_only`.
 
 ---
@@ -1523,6 +1532,8 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 - Deployment change (PR #53): the hosted RMM demo API now runs with `FLASK_ENV: production` (debug off, secure cookies; the dashboard uses bearer tokens so nothing breaks).
 - Demo seed (PR #54): `supervisor/demo-fixes/seed-rmm-demo.py` now seeds installed software for the demo devices.
 - This book and a README change were the only uncommitted local files when the book was written.
+- **Scaling pass (18 Nov, PR #58, live commit `9ffa4c0`):** faster grant lookup, throttled registry check, seat-table cache, bounded status probes, up to 50 private copies per product. Details and how to check it: chapter 23, part A.
+- **Staging load test (18 Nov, PR #59, still open):** tooling to push the gateway hard on temporary servers, with its plan (`docs/PLAN-staging-load-test.md`). Chapter 23, parts B and C.
 
 ### RMM (Remote Management)
 
@@ -1558,7 +1569,8 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 
 ### Hosting (Hetzner)
 
-- Everything stayed up all day: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows `main` by fast-forward only.
+- **18 Nov:** the scaling pass went live (gateway, then console, one at a time; all post-deploy checks passed). Two temporary servers in a separate Hetzner project `facyke-staging` were used for the load test and then deleted (chapter 23). Production was not touched by the test.
+- Everything stayed up on 17 Nov: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows `main` by fast-forward only.
 
 ## 22. What changed on 17 November 2026
 
@@ -1583,6 +1595,189 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 **Corrections made the same day (so you do not repeat them):** the RMM demo *does* have an AI assistant; migration 015 was first recorded as applied but was not; a verification script named a table that does not exist; and a deploy "conflict" was only a missing git identity on the server.
 
 **Still the owner's to do:** Stripe and Resend for RECI; confirm the offline key backup opens; optionally annotate the three test lines in the licence log; later, remove the RMM audit exception.
+
+## 23. Scaling and the staging load test, step by step
+
+This chapter covers three things done on 18 November 2026: **A.** the scaling pass of the gateway, **B.** building a temporary staging server to test it, **C.** deleting that server afterwards. Every step below was carried out. Where a result or a status could not be confirmed from this repository, the text says so.
+
+### Part A: The scaling pass (live since 18 Nov 2026, commit `9ffa4c0`, PR #58)
+
+**What it is, in plain words.** Every time a customer's browser asks the gateway for a page, the gateway checks that the link is still valid. The scaling pass makes that check cheaper and caps the places where work could pile up. Nothing a customer sees changes, and every default keeps the old behaviour.
+
+| Change | Setting | Default | Plain meaning |
+| --- | --- | --- | --- |
+| One database query instead of two to find a customer's session and link | none | always on | Fewer round trips to Postgres |
+| Registry file checked at most once a second | `REGISTRY_RECHECK_MS` | 1000 | An edit to `apps.json` is seen within a second. `0` = check on every request, as before |
+| Private-copy seat table read from memory | none | 1 second | Fewer file reads when a product gives each link its own copy |
+| Status probes capped | `STATUS_CONCURRENCY` | 32 | The console cannot flood the server when the registry is large |
+| Audit-table indexes | none | always on | Faster reports |
+| Optional grant cache | `GATEWAY_GRANT_CACHE_MS` | 0 (off) | Above 0, a revoked link can keep working on an already open session for up to that many milliseconds. Expiry stays exact. **Left off in production** |
+| Private copies per product | `perLink.max` | 1 to 50 (was 9) | No existing port moves when you raise it. Size it to the server's memory |
+| Postgres connections | `DATABASE_POOL_MAX` | 10 | Raise only if the database allows more |
+
+The full reference is `docs/HOW-IT-WORKS.md`, section 14. Not covered: the gateway is **one** Node process, and its rate limits and seat table live in that process's memory, so two gateways side by side are not supported yet.
+
+**Step 1. Check it on your PC (from the project folder).**
+
+```text
+npm run lint
+npm test
+node tests/bench/gateway-bench.mjs
+```
+
+`npm test` fails one test if `DEMO_BRAND_NAME` or `DEMO_BOOKING_URL` is set in your shell: unset them for the run. The benchmark uses a throw-away data folder and a fake demo app, so your real data is untouched. Results recorded on the owner's PC:
+
+| Store | Before | After | After, cache on |
+| --- | --- | --- | --- |
+| SQLite | about 3,000 requests/s | 4,600 to 5,900 | about 6,500 |
+| Postgres (throw-away container) | 1,540 | 2,491 | 4,164 |
+
+**Step 2. Merge.** PR #58 was merged on 18 Nov. GitHub's Windows and Linux checks were blocked by a quota at that moment, so it was merged with the admin override after the Postgres tests had been run locally (open items, chapter 12).
+
+**Step 3. Check the live commit.** On the server, `cd /home/deploy/ProjectsDashboard && git rev-parse --short HEAD`. On 18 Nov it was `201d2c3`, not the commit the notes claimed. Never trust a note here.
+
+**Step 4. Back up first.** Take a database dump on the server and keep it (on 18 Nov the file was `/home/deploy/dashboard-2026-11-18-0749.sql.gz`):
+
+```text
+cd /home/deploy/ProjectsDashboard/deploy
+docker compose exec -T postgres pg_dump -U dashboard dashboard | gzip > ~/dashboard-$(date +%F-%H%M).sql.gz
+```
+
+**Step 5. Update.** Use the recipe in chapter 15 (fast-forward only). Only the gateway and the console changed, so recreate just those, one at a time: `docker compose build gateway`, `docker compose up -d --no-deps gateway`, then `docker compose up -d --no-deps console`. No `deploy/` or registry file changed.
+
+**Step 6. Check as a customer.** All of these passed on 18 Nov: `/_pd/healthz` answers; a test demo link opens; the demo login works; **revoking** the test link shows "Demo ended" at once; the console signs in and shows all six apps Running. The test link was revoked afterwards.
+
+**Step 7. Roll back if needed.** The `docker tag` of the old image failed on 18 Nov, so no rollback image exists. Rollback is `git checkout 201d2c3` in the live folder and a rebuild of the gateway (then the console).
+
+### Part B: The staging server (a temporary copy to push hard)
+
+**Why.** The PC benchmark has no "before and after on a real server" numbers, and the live server must never be pushed to its limit. The plan is `docs/PLAN-staging-load-test.md`.
+
+**Safety rules (never break these).** Never aim the test at `facyke.com`, `*.demo.facyke.com` or `admin.facyke.com` (the load generator refuses any address containing "facyke"). No real data, no real keys: fresh random passwords, no Anthropic key. Not reachable by the public: plain HTTP on port 8080, closed to everyone but the generator. The raised rate limits live only in `deploy/docker-compose.loadtest.yml`, which is never used on production.
+
+**What the tooling is (all in PR #59).**
+
+| File | Job |
+| --- | --- |
+| `deploy/docker-compose.loadtest.yml` | Staging-only override: raises the limits, plain HTTP on port 8080, adds the stand-in app, turns on metrics |
+| `deploy/loadtest/standin.mjs`, `apps.loadtest.json` | A tiny fake demo app and its own registry, so only the gateway and database are measured |
+| `tests/bench/gateway-load.mjs` | The load generator (no dependencies). Scenarios `get`, `mixed`, `spread`, `burst`, `ramp` |
+| `tests/bench/mint-links.sh` | Creates N demo links on the staging gateway |
+| `tests/bench/collect.sh` | Writes CPU, memory, Postgres connections and request counter to a CSV every 5 seconds |
+| `tests/bench/revoke-links.sh` | Revokes links and prints millisecond timestamps (for the revoke-speed test) |
+
+**Step 1. Create the Hetzner project and two servers (you, in console.hetzner.cloud).**
+
+1. Create a **new project named `facyke-staging`**. Always check the project name at the top of the page before you click anything. Never create or delete things in `facyke`, where `facyke-prod` lives.
+2. Add your SSH public key to the project (the test used a key named `lt-key`).
+3. Create two servers of the same size as production (CPX22: 2 vCPU, 4 GB): **`lt-sut`** (system under test) and **`lt-gen`** (load generator). **Tick the SSH key on each at creation**: a server cannot be given a key afterwards, and the first pair on 18 Nov had to be deleted and recreated because the key was not ticked.
+4. Do not tick backups. Do not create volumes.
+5. Mistake to avoid: on 18 Nov the servers were first named `lt-fw` and `lt-net` (the names of a firewall and a network). To rename a server, open it, hover over its name next to the green dot, click the pencil, type the new name, press Enter. The wrong names matter at teardown time, because the IP and the name must agree.
+6. Send the two public IPs to whoever runs the test. After a recreate the SSH host key changes: run `ssh-keygen -R <ip>` on your PC before connecting.
+
+**Step 2. Install the tools.**
+
+- On `lt-sut` (Ubuntu 26.04.1, the same as production): `hostnamectl set-hostname lt-sut`; `apt-get install -y docker.io docker-compose-v2 git ufw curl`; create a user `deploy` in the `docker` group with your public key in its `authorized_keys`. Versions used: Docker 29.1.3, Compose 2.40.3.
+- On `lt-gen`: `hostnamectl set-hostname lt-gen`; install `git` and Node 22 (v22.22.1 was used).
+
+**Step 3. Start the stack on `lt-sut`** (as `deploy`). The repository is public, so no token is needed.
+
+```text
+git clone https://github.com/rigwe1965/ProjectsDashboard.git
+cd ProjectsDashboard && git checkout test/staging-load-test
+cd deploy
+# deploy/.env with fresh random values and dummy domains, never real ones:
+#   POSTGRES_PASSWORD, ADMIN_DATA_KEY, METRICS_TOKEN  = random (openssl rand -hex 16 / 32 / 12)
+#   DEMO_DOMAIN=demo.test  ADMIN_DOMAIN=admin.test  SITE_DOMAIN=site.test  ACME_EMAIL=nobody@example.invalid
+chmod 600 .env
+docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build postgres gateway standin
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/_pd/healthz     # wait about 15 s, expect 200
+```
+
+Only three services run: Postgres, the gateway and the stand-in app. There is no Caddy, no console and no real demo. The gateway log says "AI guide is off", which is correct.
+
+**Step 4. Close port 8080 to everyone except the generator** (as `root` on `lt-sut`). `ufw` does **not** protect ports that Docker publishes, and the Hetzner firewall was not attached to these servers, so the test used Docker's own firewall chain. Replace `<GEN>` with the generator's IP:
+
+```text
+iptables  -I DOCKER-USER -p tcp -s <GEN> -m conntrack --ctorigdstport 8080 -j ACCEPT
+iptables  -A DOCKER-USER -p tcp -m conntrack --ctorigdstport 8080 --ctdir ORIGINAL -j DROP
+ip6tables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport 8080 --ctdir ORIGINAL -j DROP
+iptables -S DOCKER-USER          # the ACCEPT line must come before the DROP line
+```
+
+`--ctorigdstport` is needed because Docker rewrites the port before this chain sees the packet. `--ctdir ORIGINAL` is needed because without it the replies are dropped too and the generator gets nothing (this happened on 18 Nov). **Check it both ways:** from your PC `curl -4 -m 6 http://<SUT>:8080/_pd/healthz` must time out, and from `lt-gen` it must print `200`. The rules are not saved: they vanish if the server reboots, so do not reboot it.
+
+**Step 5. Prepare the generator.** On `lt-gen`: clone the repository and check out `test/staging-load-test` the same way. On `lt-sut`, create links (the smoke run used 5; the full test 500) and copy the file to `lt-gen` as `/root/links.txt`:
+
+```text
+cd ProjectsDashboard/deploy && sh ../tests/bench/mint-links.sh 5 /tmp/links.txt
+```
+
+**Step 6. Smoke run (proves the pipeline, is not a result).** On `lt-gen`:
+
+```text
+cd /root/ProjectsDashboard
+node tests/bench/gateway-load.mjs --target=<SUT>:8080 --links=/root/links.txt --scenario=get --connections=16 --duration=10
+```
+
+Recorded on 18 Nov: 22,670 requests, all HTTP 200, 2,266 requests/s, p50 6.3 ms, p95 12.5 ms, p99 20.3 ms, no errors.
+
+**Step 7. Full run.** The scenarios are S1 to S11 in `docs/PLAN-staging-load-test.md` section 6, three runs each, results written to a `.jsonl` file on `lt-gen` and a CSV from `collect.sh` on `lt-sut`. A driver script on `lt-gen` ran them in order (it was a throw-away script and is **not** in the repository: write a new one from the plan if you rerun). A hung step cost 27 minutes on 18 Nov (an `ssh` that started the metrics collector never returned): start background jobs with `setsid nohup ... &` and `< /dev/null`.
+
+**What is on record from the run on the new code** (label `new-65efc49`; stand-in app, plain HTTP, public network between the two servers; zero errors, every response HTTP 200):
+
+| Scenario | Result |
+| --- | --- |
+| S1, 64 connections, 5 min, three runs | 2,420, 2,364 and 2,143 requests/s; p95 41, 41 and 47 ms |
+| S2, one ramp run, 60 s per step | 32 conn: 2,139/s, p95 23 ms · 64: 2,331/s, p95 42 ms · 128: 1,811/s, p95 102 ms · 256: 1,643/s, p95 217 ms · 512: 1,739/s, p95 388 ms |
+
+Reading: throughput stops rising at about 64 connections and latency then grows, with no errors. The gateway container is capped at one CPU, as in production, so the gateway is the likely first limit. The load generator used about 45% of one core, so it was not the limit. The metrics CSV was meant to confirm the CPU limit, and that confirmation is **not on record**.
+
+**What is not on record:** S3 to S10 results, and the old-code comparison on `201d2c3`. Because of the second gap, the plan's pass bar ("new at least 1.3 times old") is **unproven**; the PC benchmark (1.6 times on Postgres) is the only evidence. Do not quote a capacity sentence for the server until the full results exist.
+
+### Part C: Deleting the staging servers (the step that stops the billing)
+
+A server costs about €0.03 an hour until it is **deleted**. Powering it off does **not** stop the bill. The owner reported both servers deleted after the test. This chapter cannot see the Hetzner console, so confirm it yourself in step 4 below.
+
+**Step 1. Save the results first.** On `lt-gen`: `/root/results/` (the `.jsonl` file, the driver log, the environment file). On `lt-sut`: `/home/deploy/ProjectsDashboard/deploy/results/` (the CSVs). Copy them to your PC with `scp`, then to the backup drive, for example `I:\Facyke-LoadTests\<date>-<commit>\`. Open a few files and check they are not empty. After the servers are deleted nothing can be recovered. **No saved copy was found on the owner's PC when this chapter was written**, so if the results were not copied, they are gone.
+
+**Step 2. Delete the servers (console.hetzner.cloud).**
+
+1. Open the project **`facyke-staging`** and read its name at the top. If it says `facyke`, stop.
+2. Servers: there must be exactly two, `lt-sut` and `lt-gen`. If a name and an IP do not agree, the IP decides (the system under test and the generator are told apart by the notes, never by guessing).
+3. For each server: Actions menu, **Delete**, type its name to confirm. Never **Power off**.
+
+**Step 3. Remove everything else created for the test.** Volumes (none were created), snapshots and backups (none enabled), any firewall created in this project, any Primary or Floating IP left over (an unassigned IP is billed), and the `lt-key` SSH key (optional; it is only a copy of the public key).
+
+**Step 4. Confirm nothing bills.** The project's **Costs** tab, or the account's Billing page, must show no running resource. Optionally delete the `facyke-staging` project itself (Settings, Delete): a project that still holds resources cannot be deleted, so success also proves it is empty.
+
+**Step 5. Close the loop on your PC and in the notes.** On your PC, remove the staging servers' lines from `~/.ssh/known_hosts` (`ssh-keygen -R <ip>`). Record the numbers in `docs/HOW-IT-WORKS.md` section 14. Check that production was untouched: `https://admin.facyke.com` and a demo link work as before.
+
+**Examples of mistakes this chapter prevents.**
+
+1. *"I powered the server off, it is safe."* → It is still billed. Delete it.
+2. *"I created the servers in the `facyke` project."* → Then the teardown list also shows `facyke-prod`. Always use the separate `facyke-staging` project, and read the project name before every delete.
+3. *"Port 8080 is closed because I enabled `ufw`."* → `ufw` does not cover Docker's published ports. Test from outside.
+4. *"The generator suddenly gets no answer after I added the firewall rule."* → The drop rule needs `--ctdir ORIGINAL`.
+5. *"The server rebooted and the test is open to the internet."* → The Docker firewall rules are not saved. Re-check after any reboot.
+
+---
+
+## 24. What changed on 18 November 2026
+
+| # | Change | Where | Live effect |
+| --- | --- | --- | --- |
+| 1 | Scaling pass (PR #58) merged and deployed, commit `9ffa4c0` | ProjectsDashboard, Hetzner | Gateway and console recreated; no customer-visible change; all checks passed |
+| 2 | Database dump taken before the deploy | Hetzner | Exists only on the server |
+| 3 | Scaling notes in `docs/HOW-IT-WORKS.md` section 14 and the changelog | ProjectsDashboard | Documentation |
+| 4 | Load-test plan, stand-in app, load generator and scripts (PR #59, open) | ProjectsDashboard | None on production |
+| 5 | Temporary Hetzner project `facyke-staging` with two servers; stack started; smoke run passed | Hetzner | None on production; billed hourly |
+| 6 | First scenarios of the full run on the new code (S1, S2) | Staging | None |
+| 7 | Staging servers deleted (reported by the owner; confirm in the console) | Hetzner | Billing stops on deletion |
+
+**Corrections made the same day (so you do not repeat them):** the live folder was at `201d2c3`, not at the commit the notes said; production runs Ubuntu 26.04.1 (older text said 24.04); the first staging servers had no SSH key and the console names did not match the hostnames; `ufw` does not guard Docker ports and the Docker rule needed `--ctdir ORIGINAL`; a hung `ssh` in the test driver lost 27 minutes; a first progress report said three S2 runs were done when two were.
+
+**Still open:** the results of S3 to S10 and the old-code comparison (chapter 23, part B); the review and merge of pull request #59; a copy of the database dump off the server; the GitHub Actions quota until 1 December; the "1.3 times faster" claim stays unproven until the comparison exists.
 
 ---
 
@@ -1691,6 +1886,9 @@ PORTS (PC)  4100 console · 4200 showcase · 4300 gateway · 3000/5000/8501 rese
 | See security and code reviews | `audits/` |
 | See per-product production audits (16 Nov 2026) | `audits/prod-audit-2026-11-16-*.md` |
 | Change public website text | `showcase/*.json` |
+| Tune scaling limits | `docs/HOW-IT-WORKS.md` section 14 |
+| Measure gateway speed on the PC | `tests/bench/gateway-bench.mjs` |
+| Run or redo the staging load test | `docs/PLAN-staging-load-test.md`, `deploy/docker-compose.loadtest.yml`, `deploy/loadtest/`, `tests/bench/` |
 
 ---
 
