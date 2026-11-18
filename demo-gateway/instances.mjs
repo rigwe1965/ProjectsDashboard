@@ -23,18 +23,31 @@ export async function listInstances(store, product) {
 export function createInstances({ store, supervisor, now = () => Date.now() }) {
   const locked = createSerialLock();
   const seen = new Map(); // `${product}:${slot}` -> last time a request or open socket used the copy (saved to the table by sweep)
-  const write = (product, table) => store.meta.set(key(product), JSON.stringify(table));
+  // The hot path (every request of a customer with a private copy) only READS the table, so that read is kept for a second. Every change made
+  // here drops the saved copy first, and only the gateway process writes the table, so the saved copy is never older than a change of ours.
+  const READ_KEEP_MS = 1000;
+  const saved = new Map(); // product -> { table (as text), t }
+  const parseTable = (text) => { try { return JSON.parse(text); } catch { return {}; } };
+  // (the SQLite store answers synchronously, the Postgres store with a promise: both are awaited)
+  const write = async (product, table) => { saved.delete(product); try { await store.meta.set(key(product), JSON.stringify(table)); } finally { saved.delete(product); } };
+  async function readCached(product) {
+    const hit = saved.get(product), t = now();
+    if (hit && t - hit.t < READ_KEEP_MS) return parseTable(hit.text);
+    const text = (await store.meta.get(key(product))) || '{}';
+    saved.set(product, { text, t });
+    return parseTable(text);
+  }
   const audit = (e) => fireAndForget(() => store.audit.add(e), (err) => logger.warn('audit write failed', { err }));
   const mine = (table, grantId) => Object.entries(table).find(([, e]) => e.grant === grantId);
 
   // Read-only: this grant's copy, if it has one.
   async function lookup(product, grantId) {
-    const hit = mine(await listInstances(store, product), grantId);
+    const hit = mine(await readCached(product), grantId);
     return hit ? { slot: Number(hit[0]), ...hit[1] } : null;
   }
   // Read-only: could this grant get a copy right now (it has one, or a seat is free)?
   async function hasRoom(product, app, grantId) {
-    const table = await listInstances(store, product);
+    const table = await readCached(product);
     return !!mine(table, grantId) || Object.keys(table).length < app.perLink.max;
   }
   const touch = (product, slot) => seen.set(`${product}:${slot}`, now());
@@ -115,7 +128,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
   // One pass: stop copies whose link ended, that nobody has used for a while, that failed, or that never finished starting.
   async function sweep(apps) {
     const t = now();
-    const grants = await store.grants.list();
+    const grants = new Map((await store.grants.list()).map((x) => [x.id, x])); // looked up per seat: a Map, not a scan of every link ever made
     const done = [];
     for (const [product, app] of Object.entries(apps)) {
       if (!app.perLink) continue;
@@ -124,7 +137,7 @@ export function createInstances({ store, supervisor, now = () => Date.now() }) {
       for (const [slot, e] of Object.entries(table)) {
         const last = Math.max(Number(e.seen) || 0, seen.get(`${product}:${slot}`) || 0);
         if (seen.get(`${product}:${slot}`) && seen.get(`${product}:${slot}`) > (Number(e.seen) || 0)) { e.seen = seen.get(`${product}:${slot}`); dirty = true; }
-        const g = grants.find((x) => x.id === e.grant);
+        const g = grants.get(e.grant);
         let why = null;
         if (!isActive(g)) why = 'link-ended';
         else if (e.state === 'ready' && t - last > (app.perLink.idleMinutes ?? 120) * MINUTE) why = 'idle';

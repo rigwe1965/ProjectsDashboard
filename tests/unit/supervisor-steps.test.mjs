@@ -81,7 +81,7 @@ test('instance-start: a slot that does not exist, or an app without perLink, is 
   assert.equal(slot.status, 2); assert.match(slot.stderr, /x-demo has no instance "7"/);
   const plain = sh(['instance-start', 'x', '0'], reg);
   assert.equal(plain.status, 2); assert.match(plain.stderr, /x has no instance "0"/);
-  const stop = sh(['instance-stop', 'x-demo', '9'], reg);
+  const stop = sh(['instance-stop', 'x-demo', '50'], reg);
   assert.equal(stop.status, 2);
 });
 

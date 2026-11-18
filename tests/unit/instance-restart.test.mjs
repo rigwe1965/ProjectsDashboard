@@ -68,5 +68,5 @@ test('a copy whose seat is above a lowered perLink.max can still be stopped, and
   const { Exit } = await import('../../supervisor/core.mjs');
   await assert.rejects(() => sup.instanceStart(sup.getApp('cp-demo'), '3'), (e) => e instanceof Exit && e.code === 2);
   // a number that is no seat at all is refused for stop too
-  await assert.rejects(() => sup.instanceStop(sup.getApp('cp-demo'), '9'), (e) => e instanceof Exit && e.code === 2);
+  await assert.rejects(() => sup.instanceStop(sup.getApp('cp-demo'), '50'), (e) => e instanceof Exit && e.code === 2);
 });

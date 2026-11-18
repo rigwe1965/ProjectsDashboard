@@ -110,3 +110,14 @@ test('cachedFor: many callers inside the window share one call and one answer; a
   await assert.rejects(g2(), /db down/); await assert.rejects(g2(), /db down/);
   fail = false; t += 1001; assert.equal(await g2(), 'ok');
 });
+
+import { mapLimit } from '../../lib/util.mjs';
+test('mapLimit: runs at most `limit` at once, keeps the order, and fails like Promise.all', async () => {
+  let running = 0, peak = 0;
+  const out = await mapLimit([5, 1, 4, 2, 3, 6, 7], 3, async (n) => { running++; peak = Math.max(peak, running); await sleep(n); running--; return n * 2; });
+  assert.deepEqual(out, [10, 2, 8, 4, 6, 12, 14]);
+  assert.ok(peak <= 3 && peak >= 2, `peak was ${peak}`);
+  assert.deepEqual(await mapLimit([], 4, async () => 1), []);
+  assert.deepEqual(await mapLimit([1, 2], 0, async (n) => n), [1, 2], 'a limit of 0 still makes progress');
+  await assert.rejects(mapLimit([1, 2, 3], 2, async (n) => { if (n === 2) throw new Error('boom'); return n; }), /boom/);
+});

@@ -182,3 +182,19 @@ Hosting is planned for later; the local setup is the working state. `deploy/READ
 | Demo link says expired or revoked | Create a new one; links cannot be recovered |
 | An app will not start | Read `data\logs\<app>-<process>.log` |
 | A demo menu choice is missing | That product is not `demoReady` in the registry |
+
+## 14. Scaling
+
+What limits growth, and the settings that move those limits. Every default keeps the behaviour from before these settings existed.
+
+| Limit | Setting | Default | Notes |
+| --- | --- | --- | --- |
+| Registry file check on every gateway request | `REGISTRY_RECHECK_MS` | 1000 | An edit to `apps.json` is seen within this time. 0 = check on every call |
+| Database reads per proxied request | `GATEWAY_GRANT_CACHE_MS` | 0 (off) | Session and grant are always read in one query. Above 0 the grant is also kept in memory for that long, so a revoked link can keep working for up to that long on an already open session. Expiry stays exact. Suggest 2000 to 5000 only on hosted Postgres |
+| Status probes at the same time | `STATUS_CONCURRENCY` | 32 | Matters when the registry holds hundreds of processes |
+| Private copies per product | `perLink.max` | 1 to 50 | Copy `k` runs process `i` on `portBase + k*10 + i`, so raising `max` never moves an existing port. Size it to the machine's memory, not just the ports |
+| Postgres connections | `DATABASE_POOL_MAX` | 10 | Raise it only if the database allows more connections |
+
+Measure with `node tests/bench/gateway-bench.mjs` (a throwaway data folder and a fake demo app; your real data is not touched).
+
+Not covered: the gateway is one Node process. Its request limits are counted in memory and one process owns the private-copy seat table, so running two gateways side by side is not supported yet. When one process is no longer enough, that needs its own change.
