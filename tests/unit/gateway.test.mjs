@@ -216,6 +216,14 @@ test('other client-address headers a customer sends are not passed to the demo a
   ws.close();
   for (const h of Object.keys(fake)) assert.equal(seen.wsHeaders[h], undefined, h + ' not forwarded on the upgrade');
 });
+test('request-framing headers on a WebSocket upgrade are not passed to the demo app', async () => {
+  const g = await newGrant();
+  const ws = new WebSocket(`ws://127.0.0.1:${gwPort}/ws`, { headers: { Host: `toy.localhost:${gwPort}`, Cookie: g.cookie, 'Content-Length': '0' } });
+  await new Promise((resolve) => ws.on('open', resolve));
+  ws.close();
+  assert.equal(seen.wsHeaders['content-length'], undefined, 'content-length not forwarded on the upgrade');
+  assert.equal(seen.wsHeaders['transfer-encoding'], undefined, 'transfer-encoding not forwarded on the upgrade');
+});
 test("a demo app's Set-Cookie cannot reach the parent domain or overwrite the gateway's own cookies", async () => {
   const g = await newGrant();
   const r = await request({ path: '/setcookie', headers: { cookie: g.cookie } });

@@ -4,6 +4,9 @@ All notable changes to the ProjectsDashboard. Follows [Keep a Changelog](https:/
 
 ## [Unreleased]
 
+### Security
+- The gateway no longer forwards `Content-Length` or `Transfer-Encoding` from a customer's WebSocket upgrade request to the demo app (the plain HTTP path already re-framed them). Found in the 2026-11-19 runtime audit; not exploitable today.
+
 ### Added
 - Scaling pass (see `docs/HOW-IT-WORKS.md`, section 14). Nothing changes for a running setup until it is restarted, and every default keeps today's behaviour: one query instead of two to find a customer's grant, the registry file checked once a second instead of on every request, private-copy seat table read from memory for a second, status probes capped at 32 at a time (`STATUS_CONCURRENCY`), audit indexes, an opt-in grant cache (`GATEWAY_GRANT_CACHE_MS`, off by default), and up to 50 private copies per product (was 9; no existing port moves).
 - `docs/build-book.mjs` (`npm run docs:book`): rebuilds `docs/ONBOARDING-BOOK.html` from the Markdown. Needs `npm i --no-save marked@14.1.4` once.
