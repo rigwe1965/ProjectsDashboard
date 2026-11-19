@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { spawn, execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { freePort } from '../helpers.mjs';
 
@@ -124,4 +124,14 @@ test('the footer links to the LinkedIn and GitHub profiles from every page, as p
     }
     assert.ok(!/<script/i.test(html), `${page}: still no scripts`);
   }
+});
+
+test('on phones the footer links are at least 24px tall and the legal links wrap without dividers', () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
+  const dist = fileURLToPath(new URL('../../showcase/dist/', import.meta.url));
+  const css = readFileSync(dist + readdirSync(dist).find((f) => /^style\.[0-9a-f]{10}\.css$/.test(f)), 'utf8');
+  const phone = css.match(/@media \(max-width:640px\)\{footer \.social a,footer \.legal a\{[^}]*\}[^@]*\}/);
+  assert.ok(phone, 'a phone rule for the footer links exists');
+  assert.match(phone[0], /min-height:24px/, 'tap targets are at least 24px tall');
+  assert.match(phone[0], /footer \.legal a\{border-left:0/, 'no dividers once the legal links can wrap');
 });
