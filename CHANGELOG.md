@@ -5,6 +5,7 @@ All notable changes to the ProjectsDashboard. Follows [Keep a Changelog](https:/
 ## [Unreleased]
 
 ### Security
+- HSTS now carries `includeSubDomains` (Caddyfile, all hosts): browsers that have seen the header use HTTPS for every `facyke.com` subdomain for a year. Every existing host already redirects HTTP to HTTPS. No `preload`. Any future subdomain must be served over HTTPS.
 - The gateway no longer forwards `Content-Length` or `Transfer-Encoding` from a customer's WebSocket upgrade request to the demo app (the plain HTTP path already re-framed them). Found in the 2026-11-19 runtime audit; not exploitable today.
 
 ### Added
