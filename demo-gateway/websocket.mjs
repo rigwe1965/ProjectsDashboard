@@ -83,7 +83,7 @@ export function createUpgradeHandler({ o, trusted, resolveRequest, grantFor, too
       const lines = [`${req.method} ${req.url} HTTP/1.1`];
       for (let i = 0; i < req.rawHeaders.length; i += 2) {
         const k = req.rawHeaders[i], lk = k.toLowerCase();
-        if (lk === 'host' || lk === 'cookie' || lk === 'origin' || lk.startsWith('x-forwarded-') || SPOOFABLE.has(lk)) continue;
+        if (lk === 'host' || lk === 'cookie' || lk === 'origin' || lk.startsWith('x-forwarded-') || SPOOFABLE.has(lk) || lk === 'content-length' || lk === 'transfer-encoding') continue; // framing headers are the gateway's to set: a body on an upgrade request is never forwarded
         lines.push(`${k}: ${req.rawHeaders[i + 1]}`);
       }
       lines.push(`Host: ${upHost}:${port}`);
