@@ -386,7 +386,7 @@ A demo is *untrusted ground*: strangers click around in it. So every demo contai
 
 | Mechanism | What it does |
 | --- | --- |
-| **Daily database backup** (`db-backup` service) | `pg_dump` every day, 14 newest kept, inside a Docker volume on the same machine. Copy some off the server now and then |
+| **Daily database backup** (`db-backup` service) | `pg_dump` every day, 14 newest kept, inside a Docker volume on the same machine. Copy them off the server weekly with `deploy/pull-backups.ps1` (Appendix A.2) |
 | **Console alerts** | Every minute the console checks the database and the processes. After 2 failures in a row it sends a message (ntfy phone push **and** email), repeats every 6 hours, and says when it recovers |
 | **Reset timer** | `deploy/reset-demos.sh` puts shared demos back to sample data when no customer link is active. It must be run on a schedule (every ten minutes). Verify the timer exists after any server rebuild |
 | **Auto-restart** | After a reboot all containers come back by themselves (tested 14 Nov 2026) |
@@ -700,7 +700,7 @@ Be honest with yourself about what is *not* finished. This list reflects what is
 - **Customer licence agreement**: needs a lawyer.
 - **Staging load test (18 Nov), finished:** stable and error-free, but the plan's "1.3 times faster" bar was **not met**: the scaling pass was not faster than the old code on a same-host Postgres. The opt-in grant cache is where the speed is (about 2.8 times). Results: chapter 23, part B, and `docs/PLAN-staging-load-test.md` section 13. Decision for the owner: whether to turn `GATEWAY_GRANT_CACHE_MS` on in production (a revoke then takes up to that long to reach an open session).
 - **GitHub Actions quota (18 Nov):** the Windows and Linux checks for this repository were blocked by a quota when PR #58 merged (the owner's notes say until 1 December), so #58 was merged with the admin override after its Postgres tests were run locally. This contradicts the "CI runs free" statements in chapters 7 and 17: check GitHub's billing page before trusting either.
-- **Backup copy off the server:** the pre-deploy database dump of 18 Nov (`/home/deploy/dashboard-2026-11-18-0749.sql.gz`) exists only on the server.
+- **Backup copy off the server:** the script `deploy/pull-backups.ps1` now copies the nightly dumps to the owner's PC and checks every hash (Appendix A.2). It is run by hand, so the open part is doing it weekly and doing the first run. The pre-deploy dump of 18 Nov (`/home/deploy/dashboard-2026-11-18-0749.sql.gz`) still exists only on the server.
 - **Uptime check from outside**: the built-in alerts cannot report the *server* or the *console itself* being gone. An external uptime monitor would.
 
 ### Decisions already taken (do not re-argue without a reason)
@@ -2019,7 +2019,7 @@ Scan the code into an authenticator app, then sign in at `https://admin.facyke.c
 
 **Step 14. Alerts.** Set `RESEND_API_KEY`, `ALERT_EMAIL_TO` (and `ALERT_EMAIL_FROM`, default `alerts@facyke.com`) in `.env`, recreate the console, then `docker compose exec -T console node supervisor/alert-cli.mjs` to send a test mail. ntfy push is optional (`ALERT_WEBHOOK_URL`).
 
-**Step 15. Copy backups off the server.** The daily dumps stay on the same machine. Copy one out now and then (`docker compose cp db-backup:/backups/<file> .`) and keep `deploy/.env` somewhere private and separate: without it the server cannot be rebuilt.
+**Step 15. Copy backups off the server.** The daily dumps stay on the same machine. Run `deploy/pull-backups.ps1` from your PC weekly (Appendix A.2), or by hand copy one out now and then (`docker compose cp db-backup:/backups/<file> .`) and keep `deploy/.env` somewhere private and separate: without it the server cannot be rebuilt.
 
 **Step 16. Prove it works, as a customer.** Home page `https://facyke.com` answers 200; `https://admin.facyke.com` answers 302 (to the sign-in); each of the six demo addresses answers 401 until a link is used. Create a test link named "UI test ...", open it, log in to the demo, **revoke it** and confirm "Demo ended" appears.
 
@@ -2119,7 +2119,7 @@ then repeat steps 8 to 16. Demo data is rebuilt by the seed steps; only the dash
 
 - [ ] Console green; no unexpected alerts.
 - [ ] Links sent: follow up on *Came back*/*Engaged*; remind *Not opened*.
-- [ ] Newest backup is recent; one copy exists off the server.
+- [ ] Newest backup is recent; one copy exists off the server. From your own PC (PowerShell), with the SSH key loaded: `$env:PD_SERVER = "deploy@<server address>"` once, then `.\deploy\pull-backups.ps1`. It copies the nightly dumps to `DASHBOARD_BACKUP_DIR\server-nightly`, compares every SHA-256 hash, and removes the server's temporary copy only if all match. It never deletes anything on your PC. The dumps hold the whole database: keep that folder private.
 - [ ] Anthropic spend vs the $5 limit; Hetzner invoice.
 - [ ] Dependencies/audit notes, if the owner wants them.
 

@@ -901,7 +901,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <tbody>
 <tr>
 <td><strong>Daily database backup</strong> (<code>db-backup</code> service)</td>
-<td><code>pg_dump</code> every day, 14 newest kept, inside a Docker volume on the same machine. Copy some off the server now and then</td>
+<td><code>pg_dump</code> every day, 14 newest kept, inside a Docker volume on the same machine. Copy them off the server weekly with <code>deploy/pull-backups.ps1</code> (Appendix A.2)</td>
 </tr>
 <tr>
 <td><strong>Console alerts</strong></td>
@@ -1356,7 +1356,7 @@ node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --u
 <li><strong>Customer licence agreement</strong>: needs a lawyer.</li>
 <li><strong>Staging load test (18 Nov), finished:</strong> stable and error-free, but the plan's "1.3 times faster" bar was <strong>not met</strong>: the scaling pass was not faster than the old code on a same-host Postgres. The opt-in grant cache is where the speed is (about 2.8 times). Results: chapter 23, part B, and <code>docs/PLAN-staging-load-test.md</code> section 13. Decision for the owner: whether to turn <code>GATEWAY_GRANT_CACHE_MS</code> on in production (a revoke then takes up to that long to reach an open session).</li>
 <li><strong>GitHub Actions quota (18 Nov):</strong> the Windows and Linux checks for this repository were blocked by a quota when PR #58 merged (the owner's notes say until 1 December), so #58 was merged with the admin override after its Postgres tests were run locally. This contradicts the "CI runs free" statements in chapters 7 and 17: check GitHub's billing page before trusting either.</li>
-<li><strong>Backup copy off the server:</strong> the pre-deploy database dump of 18 Nov (<code>/home/deploy/dashboard-2026-11-18-0749.sql.gz</code>) exists only on the server.</li>
+<li><strong>Backup copy off the server:</strong> the script <code>deploy/pull-backups.ps1</code> now copies the nightly dumps to the owner's PC and checks every hash (Appendix A.2). It is run by hand, so the open part is doing it weekly and doing the first run. The pre-deploy dump of 18 Nov (<code>/home/deploy/dashboard-2026-11-18-0749.sql.gz</code>) still exists only on the server.</li>
 <li><strong>Uptime check from outside</strong>: the built-in alerts cannot report the <em>server</em> or the <em>console itself</em> being gone. An external uptime monitor would.</li>
 </ul>
 <h3 id="decisions-already-taken-do-not-re-argue-without-a-reason">Decisions already taken (do not re-argue without a reason)</h3>
@@ -3228,7 +3228,7 @@ docker compose up -d console
 <p><strong>Step 12. The egress guard.</strong> A small systemd service adds firewall rules (<code>DOCKER-USER</code> and <code>INPUT</code> chains) so containers cannot reach <code>169.254.169.254</code> or the host's port 22. Verify after any rebuild with <code>systemctl status docker-egress-guard</code>. Its unit file is not in the repository: if you rebuild the server, write it again to do exactly that and prove it from inside a demo container (a connection to the metadata address must fail).</p>
 <p><strong>Step 13. The reset schedule.</strong> Run <code>./reset-demos.sh</code> from the <code>deploy</code> folder every ten minutes (cron or a systemd timer). Without it shared demos keep a customer's leftovers. Verify with <code>crontab -l</code> or <code>systemctl list-timers</code>.</p>
 <p><strong>Step 14. Alerts.</strong> Set <code>RESEND_API_KEY</code>, <code>ALERT_EMAIL_TO</code> (and <code>ALERT_EMAIL_FROM</code>, default <code>alerts@facyke.com</code>) in <code>.env</code>, recreate the console, then <code>docker compose exec -T console node supervisor/alert-cli.mjs</code> to send a test mail. ntfy push is optional (<code>ALERT_WEBHOOK_URL</code>).</p>
-<p><strong>Step 15. Copy backups off the server.</strong> The daily dumps stay on the same machine. Copy one out now and then (<code>docker compose cp db-backup:/backups/&lt;file&gt; .</code>) and keep <code>deploy/.env</code> somewhere private and separate: without it the server cannot be rebuilt.</p>
+<p><strong>Step 15. Copy backups off the server.</strong> The daily dumps stay on the same machine. Run <code>deploy/pull-backups.ps1</code> from your PC weekly (Appendix A.2), or by hand copy one out now and then (<code>docker compose cp db-backup:/backups/&lt;file&gt; .</code>) and keep <code>deploy/.env</code> somewhere private and separate: without it the server cannot be rebuilt.</p>
 <p><strong>Step 16. Prove it works, as a customer.</strong> Home page <code>https://facyke.com</code> answers 200; <code>https://admin.facyke.com</code> answers 302 (to the sign-in); each of the six demo addresses answers 401 until a link is used. Create a test link named "UI test ...", open it, log in to the demo, <strong>revoke it</strong> and confirm "Demo ended" appears.</p>
 <h3 id="part-c-troubleshooting-from-the-server-side">Part C: Troubleshooting from the server side</h3>
 <p><strong>The first five commands for any problem</strong> (from <code>/home/deploy/ProjectsDashboard/deploy</code>):</p>
@@ -3428,7 +3428,7 @@ sudo journalctl -p err -n 50 --no-pager   # recent system errors
 <ul>
 <li><input disabled="" type="checkbox"> Console green; no unexpected alerts.</li>
 <li><input disabled="" type="checkbox"> Links sent: follow up on <em>Came back</em>/<em>Engaged</em>; remind <em>Not opened</em>.</li>
-<li><input disabled="" type="checkbox"> Newest backup is recent; one copy exists off the server.</li>
+<li><input disabled="" type="checkbox"> Newest backup is recent; one copy exists off the server. From your own PC (PowerShell), with the SSH key loaded: <code>$env:PD_SERVER = "deploy@&lt;server address&gt;"</code> once, then <code>.\deploy\pull-backups.ps1</code>. It copies the nightly dumps to <code>DASHBOARD_BACKUP_DIR\server-nightly</code>, compares every SHA-256 hash, and removes the server's temporary copy only if all match. It never deletes anything on your PC. The dumps hold the whole database: keep that folder private.</li>
 <li><input disabled="" type="checkbox"> Anthropic spend vs the $5 limit; Hetzner invoice.</li>
 <li><input disabled="" type="checkbox"> Dependencies/audit notes, if the owner wants them.</li>
 </ul>
