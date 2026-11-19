@@ -104,6 +104,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <li><a href="#23-scaling-and-the-staging-load-test-step-by-step">23. Scaling and the staging load test, step by step</a></li>
 <li><a href="#24-what-changed-on-18-november-2026">24. What changed on 18 November 2026</a></li>
 <li><a href="#25-the-facyke-server-how-it-was-set-up-and-how-to-troubleshoot-it">25. The facyke server: how it was set up, and how to troubleshoot it</a></li>
+<li><a href="#26-what-changed-on-19-november-2026">26. What changed on 19 November 2026</a></li>
 </ol></li>
 <li><a class="part" href="#appendix-a-checklists">Appendices</a><ol>
 <li><a href="#appendix-a-checklists">Appendix A: Checklists</a></li>
@@ -117,7 +118,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <main>
 <div class="cover"><h1>The Facyke / ProjectsDashboard Onboarding Book</h1><p>Everything a new person needs to understand, run, support and manage this project, from day one.</p></div>
 <p><strong>Everything a new person needs to understand, run, support and manage this project, from day one.</strong></p>
-<p><em>Written 17 November 2026 and updated on 18 November 2026 with the scaling pass and the staging load test (see chapters 21 to 25). It is for the repository <code>rigwe1965/ProjectsDashboard</code>. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.</em></p>
+<p><em>Written 17 November 2026 and updated on 18 and 19 November 2026 with the scaling pass, the staging load test and the booking link and footer changes (see chapters 21 to 26). It is for the repository <code>rigwe1965/ProjectsDashboard</code>. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.</em></p>
 <hr />
 <section class="l2">
 <h2 id="how-to-use-this-book">How to use this book</h2>
@@ -1344,7 +1345,7 @@ node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --u
 <h3 id="open-items-not-done-yet">Open items (not done yet)</h3>
 <ul>
 <li>A <strong><code>info@facyke.com</code></strong> mailbox must exist before the public contact email changes from the owner's address.</li>
-<li><strong>cal.com</strong> booking event: renamed to <code>/facyke-demo</code> on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set <code>DEMO_BOOKING_URL</code> to <code>https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo</code> in the production environment, then restart the gateway.</li>
+<li><strong>cal.com</strong> booking event: renamed to <code>/facyke-demo</code> on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set <code>DEMO_BOOKING_URL</code> to <code>https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo</code> in the production environment, then recreate the gateway. The "Book a call" links on the demo pages (chapter 26) show only after that, and only once the gateway code from PRs #70 to #72 has been deployed.</li>
 <li><strong>RECI payment and email settings</strong> (Stripe, Resend) are <strong>not set in the production site</strong>, so paying and email cannot work yet. The owner does this personally, after everything else; the Stripe webhook must point at the production domain.</li>
 <li><strong>RECI security audit (9 Oct 2026)</strong>: re-check its open findings before launch (pending bookings, clear-reset, paid vision call, corporate approvals, unbounded AI input).</li>
 <li><strong>RECI database</strong>: free Supabase plan, <strong>no automated backups</strong>; decide on a backup before real bookings arrive.</li>
@@ -2039,6 +2040,7 @@ docker compose --profile apps up -d &lt;service...&gt;
 <hr />
 <h3 id="issue-a-my-demo-link-does-not-work">Issue A: "My demo link does not work"</h3>
 <p><em>The customer clicks the link and gets a refusal page, an error, or nothing.</em> <strong>First check, always:</strong> console → <em>Links you have sent</em> → find the customer → look at <strong>state, expiry, opens used, device lock</strong>.</p>
+<p><em>Since 19 Nov 2026 (merged; shows once deployed and <code>DEMO_BOOKING_URL</code> is set):</em> the pages "Link not valid", "Link not available" and "Demo ended" end with a "book a call" link, so a customer with a dead link can ask for a new one without emailing. If <code>DEMO_BOOKING_URL</code> is empty the pages look exactly as before.</p>
 <p><strong>A1. The link has expired</strong></p>
 <ul>
 <li><em>Situation:</em> "It worked yesterday, now it says the link ended."</li>
@@ -2442,6 +2444,7 @@ docker compose --profile apps up -d &lt;service...&gt;
 </ul>
 <h3 id="hosting-hetzner">Hosting (Hetzner)</h3>
 <ul>
+<li><strong>19 Nov:</strong> three hardening and housekeeping changes went live (PRs #64 to #66, live commit <code>2a080d1</code>): dev-tool <code>npm audit fix</code>, no framing headers forwarded on WebSocket upgrades, and HSTS <code>includeSubDomains</code>. Later the same day booking-link and footer changes were merged to <code>main</code> (chapter 26); check the live commit before assuming they are deployed.</li>
 <li><strong>18 Nov:</strong> the scaling pass went live (gateway, then console, one at a time; all post-deploy checks passed). Two temporary servers in a separate Hetzner project <code>facyke-staging</code> were used for the load test and then deleted (chapter 23). Production was not touched by the test.</li>
 <li>Everything stayed up on 17 Nov: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows <code>main</code> by fast-forward only.</li>
 </ul>
@@ -3317,6 +3320,79 @@ sudo journalctl -p err -n 50 --no-pager   # recent system errors
 <p>then repeat steps 8 to 16. Demo data is rebuilt by the seed steps; only the dashboard database (links, sessions, audit log) needs the dump.</p>
 <p><strong>Before you change anything:</strong> take a database dump, copy <code>.env</code> to a dated backup, name only the service you change, and know your rollback (chapter 15). <strong>After:</strong> run the eight-host check from step 16.</p>
 <hr />
+</section>
+<section class="l2">
+<h2 id="26-what-changed-on-19-november-2026">26. What changed on 19 November 2026</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Change</th>
+<th>PR</th>
+<th>Live effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>npm audit fix</code> for a dev-only advisory (minimatch)</td>
+<td>#64</td>
+<td>Deployed; none visible</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Gateway no longer forwards <code>Content-Length</code> / <code>Transfer-Encoding</code> on WebSocket upgrades</td>
+<td>#65</td>
+<td>Deployed; none visible</td>
+</tr>
+<tr>
+<td>3</td>
+<td>HSTS <code>includeSubDomains</code> on all Caddy hosts (no <code>preload</code>)</td>
+<td>#66</td>
+<td>Deployed via a Caddy rebuild; every future subdomain must be served over HTTPS</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Showcase booking link points at the renamed cal.com event <code>/facyke-demo</code></td>
+<td>#67</td>
+<td>In <code>showcase/site.json</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>LinkedIn and GitHub links in the showcase footer</td>
+<td>#68</td>
+<td>Merged to <code>main</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Footer links are at least 24 px tall on phones and wrap cleanly</td>
+<td>#69</td>
+<td>Merged to <code>main</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>DEMO_BOOKING_URL</code> passed through <code>deploy/docker-compose.yml</code> and listed in <code>deploy/.env.example</code></td>
+<td>#70</td>
+<td>Needed for the gateway to see the variable</td>
+</tr>
+<tr>
+<td>8</td>
+<td>"Book a call" link on "Link not valid" and "Demo ended" pages</td>
+<td>#71</td>
+<td>Merged to <code>main</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td>Same link on the "Link not available" pages (used up, locked to another browser), plus end-to-end tests</td>
+<td>#72</td>
+<td>Merged to <code>main</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Deployment state:</strong> PRs #64 to #66 are live (commit <code>2a080d1</code>). PRs #67 to #72 were merged afterwards. This book does not record that they were deployed, so check the live commit (chapter 15) before telling anyone they are.</p>
+<p><strong>How the footer links work.</strong> <code>showcase/site.json</code> has an optional <code>social</code> list of <code>{ "label", "url" }</code>. Only plain <code>https</code> addresses are used. They are ordinary links that open in a new tab, with no scripts, widgets or images, so the strict Content-Security-Policy does not change. To add or remove one, edit the list and rebuild the showcase.</p>
+<p><strong>How the booking link works.</strong> <code>DEMO_BOOKING_URL</code> (an <code>https</code> address, optional) is the one setting behind both the "Book a call" link on the landing page and the new sentence on the refusal pages. It must be in <code>deploy/.env</code> on the server; recreate the gateway after changing it. Empty means no link anywhere.</p>
+<p><strong>Tip for support:</strong> if a customer says the dead-link page has no booking link, check, in order: the gateway was recreated after the last deploy, <code>DEMO_BOOKING_URL</code> is set in <code>deploy/.env</code>, and the value starts with <code>https://</code>.</p>
 <hr />
 </section>
 <section class="l1">

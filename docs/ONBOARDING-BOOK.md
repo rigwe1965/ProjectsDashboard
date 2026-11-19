@@ -2,7 +2,7 @@
 
 **Everything a new person needs to understand, run, support and manage this project, from day one.**
 
-*Written 17 November 2026 and updated on 18 November 2026 with the scaling pass and the staging load test (see chapters 21 to 25). It is for the repository `rigwe1965/ProjectsDashboard`. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.*
+*Written 17 November 2026 and updated on 18 and 19 November 2026 with the scaling pass, the staging load test and the booking link and footer changes (see chapters 21 to 26). It is for the repository `rigwe1965/ProjectsDashboard`. It contains no passwords, keys or private addresses, and you must never add any. When this book and the live system disagree, the live system wins: check it, then fix the book.*
 
 ---
 
@@ -689,7 +689,7 @@ Be honest with yourself about what is *not* finished. This list reflects what is
 ### Open items (not done yet)
 
 - A **`info@facyke.com`** mailbox must exist before the public contact email changes from the owner's address.
-- **cal.com** booking event: renamed to `/facyke-demo` on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set `DEMO_BOOKING_URL` to `https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo` in the production environment, then restart the gateway.
+- **cal.com** booking event: renamed to `/facyke-demo` on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set `DEMO_BOOKING_URL` to `https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo` in the production environment, then recreate the gateway. The "Book a call" links on the demo pages (chapter 26) show only after that, and only once the gateway code from PRs #70 to #72 has been deployed.
 - **RECI payment and email settings** (Stripe, Resend) are **not set in the production site**, so paying and email cannot work yet. The owner does this personally, after everything else; the Stripe webhook must point at the production domain.
 - **RECI security audit (9 Oct 2026)**: re-check its open findings before launch (pending bookings, clear-reset, paid vision call, corporate approvals, unbounded AI input).
 - **RECI database**: free Supabase plan, **no automated backups**; decide on a backup before real bookings arrive.
@@ -1142,6 +1142,8 @@ Each issue family has **five worked examples** in the same shape: **Situation �
 
 *The customer clicks the link and gets a refusal page, an error, or nothing.* **First check, always:** console → *Links you have sent* → find the customer → look at **state, expiry, opens used, device lock**.
 
+*Since 19 Nov 2026 (merged; shows once deployed and `DEMO_BOOKING_URL` is set):* the pages "Link not valid", "Link not available" and "Demo ended" end with a "book a call" link, so a customer with a dead link can ask for a new one without emailing. If `DEMO_BOOKING_URL` is empty the pages look exactly as before.
+
 **A1. The link has expired**
 
 - *Situation:* "It worked yesterday, now it says the link ended."
@@ -1569,6 +1571,7 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 
 ### Hosting (Hetzner)
 
+- **19 Nov:** three hardening and housekeeping changes went live (PRs #64 to #66, live commit `2a080d1`): dev-tool `npm audit fix`, no framing headers forwarded on WebSocket upgrades, and HSTS `includeSubDomains`. Later the same day booking-link and footer changes were merged to `main` (chapter 26); check the live commit before assuming they are deployed.
 - **18 Nov:** the scaling pass went live (gateway, then console, one at a time; all post-deploy checks passed). Two temporary servers in a separate Hetzner project `facyke-staging` were used for the load test and then deleted (chapter 23). Production was not touched by the test.
 - Everything stayed up on 17 Nov: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows `main` by fast-forward only.
 
@@ -2059,6 +2062,28 @@ then repeat steps 8 to 16. Demo data is rebuilt by the seed steps; only the dash
 **Before you change anything:** take a database dump, copy `.env` to a dated backup, name only the service you change, and know your rollback (chapter 15). **After:** run the eight-host check from step 16.
 
 ---
+
+## 26. What changed on 19 November 2026
+
+| # | Change | PR | Live effect |
+| --- | --- | --- | --- |
+| 1 | `npm audit fix` for a dev-only advisory (minimatch) | #64 | Deployed; none visible |
+| 2 | Gateway no longer forwards `Content-Length` / `Transfer-Encoding` on WebSocket upgrades | #65 | Deployed; none visible |
+| 3 | HSTS `includeSubDomains` on all Caddy hosts (no `preload`) | #66 | Deployed via a Caddy rebuild; every future subdomain must be served over HTTPS |
+| 4 | Showcase booking link points at the renamed cal.com event `/facyke-demo` | #67 | In `showcase/site.json` |
+| 5 | LinkedIn and GitHub links in the showcase footer | #68 | Merged to `main` |
+| 6 | Footer links are at least 24 px tall on phones and wrap cleanly | #69 | Merged to `main` |
+| 7 | `DEMO_BOOKING_URL` passed through `deploy/docker-compose.yml` and listed in `deploy/.env.example` | #70 | Needed for the gateway to see the variable |
+| 8 | "Book a call" link on "Link not valid" and "Demo ended" pages | #71 | Merged to `main` |
+| 9 | Same link on the "Link not available" pages (used up, locked to another browser), plus end-to-end tests | #72 | Merged to `main` |
+
+**Deployment state:** PRs #64 to #66 are live (commit `2a080d1`). PRs #67 to #72 were merged afterwards. This book does not record that they were deployed, so check the live commit (chapter 15) before telling anyone they are.
+
+**How the footer links work.** `showcase/site.json` has an optional `social` list of `{ "label", "url" }`. Only plain `https` addresses are used. They are ordinary links that open in a new tab, with no scripts, widgets or images, so the strict Content-Security-Policy does not change. To add or remove one, edit the list and rebuild the showcase.
+
+**How the booking link works.** `DEMO_BOOKING_URL` (an `https` address, optional) is the one setting behind both the "Book a call" link on the landing page and the new sentence on the refusal pages. It must be in `deploy/.env` on the server; recreate the gateway after changing it. Empty means no link anywhere.
+
+**Tip for support:** if a customer says the dead-link page has no booking link, check, in order: the gateway was recreated after the last deploy, `DEMO_BOOKING_URL` is set in `deploy/.env`, and the value starts with `https://`.
 
 ---
 
