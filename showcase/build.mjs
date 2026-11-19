@@ -22,6 +22,10 @@ const bookingUrl = /^https:\/\/[^\s@]+$/.test(site.bookingUrl || '') ? site.book
 // The booking page is another site (and a single-page app that adds its own history entries), so it opens in a new tab: the visitor
 // keeps this site where it was and closes the tab to come back. The '#contact' fallback stays in the same tab.
 const demoAttrs = bookingUrl ? ' target="_blank" rel="noopener noreferrer"' : '';
+// Optional social links for the footer: site.json "social" is a list of { label, url }. Only plain https addresses are used.
+// They are ordinary links that open in a new tab: no scripts, widgets or images, so the strict Content-Security-Policy is unchanged.
+const socialLinks = (Array.isArray(site.social) ? site.social : []).filter((s) => s && typeof s.label === 'string' && s.label.trim() && /^https:\/\/[^\s@]+$/.test(s.url || ''));
+const socialNav = socialLinks.length ? `<nav class="social" aria-label="Follow us">${socialLinks.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(site.brand)} on ${esc(s.label)} (opens in a new tab)">${esc(s.label)}</a>`).join('')}</nav>` : '';
 const demoLink = () => (bookingUrl ? esc(bookingUrl) : '#contact');
 // "Email us" buttons scroll to the page's contact section, which shows the address with Gmail, Outlook and mail-app links (a bare mailto:
 // opens nothing for a visitor without a mail app). So "Request a demo" and "Book a demo call" open the booking page; "Email us" does not.
@@ -231,6 +235,9 @@ footer{margin-top:56px;border-top:1px solid var(--line);padding:16px 0 24px;colo
 footer .legal{display:flex;flex-wrap:wrap;margin-left:auto}
 footer .legal a{padding:0 12px;border-left:1px solid var(--line);text-decoration:none;line-height:1.1}
 footer .legal a:first-child{border-left:0}
+footer .social{display:flex;flex-wrap:wrap;gap:4px 16px}
+footer .social a{text-decoration:none;line-height:1.1;font-weight:600}
+footer .social a:hover{color:var(--ink);text-decoration:underline}
 footer .legal a:hover{color:var(--ink);text-decoration:underline}
 .updated{margin:24px 0 0;color:var(--mute);font-size:13px}
 
@@ -284,7 +291,7 @@ const shell = (title, desc, accent, body, root) => `<!doctype html>
 <body><div class="wrap">
 <div class="top">${brandMark(root)}${navLinks(root)}<a class="nav-cta" href="${demoLink('Demo request')}"${demoAttrs}>Request a demo</a></div>
 ${body}
-<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span><nav class="legal" aria-label="Legal">${security ? `<a href="${root}security/index.html">Security</a>` : ''}${legal ? `<a href="${root}terms/index.html">Terms of Use</a><a href="${root}privacy/index.html">Privacy Policy</a>${legal.impressum ? `<a href="${root}impressum/index.html">Impressum</a>` : ''}` : ''}</nav><span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
+<footer><span>&copy; ${new Date().getFullYear()} ${esc(site.brand)}. Each product is a separate application.</span>${socialNav}<nav class="legal" aria-label="Legal">${security ? `<a href="${root}security/index.html">Security</a>` : ''}${legal ? `<a href="${root}terms/index.html">Terms of Use</a><a href="${root}privacy/index.html">Privacy Policy</a>${legal.impressum ? `<a href="${root}impressum/index.html">Impressum</a>` : ''}` : ''}</nav><span class="mark" aria-hidden="true">${products.map((p) => `<i style="background:${esc(p.accent)}"></i>`).join('')}</span></footer>
 </div></body></html>`;
 
 const contactBlock = (root = '') => `<section id="contact"><h2>Get in touch</h2>${bookingUrl ? `<p class="who"><a href="${esc(bookingUrl)}"${demoAttrs}>Book a demo call</a>, or email us.</p>` : ''}<p class="who">${site.contactEmail ? `Email <span class="addr">${esc(site.contactEmail)}</span> and tell us which product you're interested in (click the address to select it, then copy). Send it with <a href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=${encodeURIComponent(site.contactEmail)}&amp;su=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Gmail</a>, <a href="https://outlook.live.com/mail/0/deeplink/compose?to=${encodeURIComponent(site.contactEmail)}&amp;subject=${encodeURIComponent('Demo request')}" target="_blank" rel="noopener">Outlook</a> or <a href="mailto:${esc(site.contactEmail)}?subject=${encodeURIComponent('Demo request')}">your mail app</a>.` : 'Contact details coming soon.'}</p>${security ? `<p class="who">How we keep demos safe: <a href="${root}security/index.html">Security</a>.</p>` : ''}</section>`;
