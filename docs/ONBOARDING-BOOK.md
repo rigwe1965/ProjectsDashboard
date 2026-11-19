@@ -689,7 +689,7 @@ Be honest with yourself about what is *not* finished. This list reflects what is
 ### Open items (not done yet)
 
 - A **`info@facyke.com`** mailbox must exist before the public contact email changes from the owner's address.
-- **cal.com** booking event: renamed to `/facyke-demo` on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set `DEMO_BOOKING_URL` to `https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo` in the production environment, then recreate the gateway. The "Book a call" links on the demo pages (chapter 26) show only after that, and only once the gateway code from PRs #70 to #72 has been deployed.
+- **cal.com** booking event: renamed to `/facyke-demo` on 2026-11-19 (the showcase link is fixed in PR #67). `DEMO_BOOKING_URL` is set in the production `deploy/.env` and the gateway code with the "Book a call" links was deployed on 2026-11-19 (chapter 26).
 - **RECI payment and email settings** (Stripe, Resend) are **not set in the production site**, so paying and email cannot work yet. The owner does this personally, after everything else; the Stripe webhook must point at the production domain.
 - **RECI security audit (9 Oct 2026)**: re-check its open findings before launch (pending bookings, clear-reset, paid vision call, corporate approvals, unbounded AI input).
 - **RECI database**: free Supabase plan, **no automated backups**; decide on a backup before real bookings arrive.
@@ -1571,7 +1571,7 @@ An alert means: two checks in a row failed (the database did not answer, or a pr
 
 ### Hosting (Hetzner)
 
-- **19 Nov:** three hardening and housekeeping changes went live (PRs #64 to #66, live commit `2a080d1`): dev-tool `npm audit fix`, no framing headers forwarded on WebSocket upgrades, and HSTS `includeSubDomains`. Later the same day booking-link and footer changes were merged to `main` (chapter 26); check the live commit before assuming they are deployed.
+- **19 Nov:** three hardening and housekeeping changes went live (PRs #64 to #66, live commit `2a080d1`): dev-tool `npm audit fix`, no framing headers forwarded on WebSocket upgrades, and HSTS `includeSubDomains`. Later the same day PRs #67 to #72 (booking link, footer links) were deployed too: the live folder was at `e6f9b68`, and `gateway` and `caddy` were rebuilt and recreated, then `console` recreated (chapter 26).
 - **18 Nov:** the scaling pass went live (gateway, then console, one at a time; all post-deploy checks passed). Two temporary servers in a separate Hetzner project `facyke-staging` were used for the load test and then deleted (chapter 23). Production was not touched by the test.
 - Everything stayed up on 17 Nov: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows `main` by fast-forward only.
 
@@ -2077,11 +2077,19 @@ then repeat steps 8 to 16. Demo data is rebuilt by the seed steps; only the dash
 | 8 | "Book a call" link on "Link not valid" and "Demo ended" pages | #71 | Merged to `main` |
 | 9 | Same link on the "Link not available" pages (used up, locked to another browser), plus end-to-end tests | #72 | Merged to `main` |
 
-**Deployment state:** PRs #64 to #66 are live (commit `2a080d1`). PRs #67 to #72 were merged afterwards. This book does not record that they were deployed, so check the live commit (chapter 15) before telling anyone they are.
+**Deployment state:** All of PRs #64 to #72 are live. The live folder `/home/deploy/ProjectsDashboard` is at `e6f9b68` (PR #73, documentation only, is not needed on the server). The `gateway` and `caddy` images were rebuilt and the gateway, console and caddy recreated one at a time, with a database dump taken first (kept in `/tmp`, so it disappears on reboot). Checked from outside afterwards: home 200, console 302, six demos 401, LinkedIn and GitHub footer links present, HSTS header unchanged, and an invalid demo link shows "Link not valid" with the "book a call" link. Not checked: the "Link not available" and "Demo ended" pages on the live site (covered by the end-to-end tests), and the `docker compose ps` health output, which was not seen.
 
 **How the footer links work.** `showcase/site.json` has an optional `social` list of `{ "label", "url" }`. Only plain `https` addresses are used. They are ordinary links that open in a new tab, with no scripts, widgets or images, so the strict Content-Security-Policy does not change. To add or remove one, edit the list and rebuild the showcase.
 
 **How the booking link works.** `DEMO_BOOKING_URL` (an `https` address, optional) is the one setting behind both the "Book a call" link on the landing page and the new sentence on the refusal pages. It must be in `deploy/.env` on the server; recreate the gateway after changing it. Empty means no link anywhere.
+
+**Lessons from this deploy (read before the next one):**
+
+- **There are two copies of the repository on the server, and only one is live.** `/home/deploy/ProjectsDashboard` is the live stack and holds the real `deploy/.env`. `/srv/apps/ProjectsDashboard` is only a build-source copy. During this deploy the commands were run in the copy by mistake: a `cd` from an earlier step carried over, and a new, tiny `deploy/.env` (one line) was created there. `docker compose config` in that folder then listed every setting as missing, which looked like a destroyed `.env` but was not. **Always run `pwd` first and check it prints `/home/deploy/ProjectsDashboard/deploy`.** Never run `docker compose up` or `build` from the copy. The stray file was removed.
+- **Do not use `docker compose run caddy caddy validate` while the real Caddy is running.** It fails with "Address already in use" because Caddy has a fixed address on the edge network, and it leaves a stopped helper container behind (remove it with `docker rm -f`). Validate is only needed when `deploy/Caddyfile` changed.
+- **Paste commands, not explanations.** Text pasted into the terminal along with the commands (an apostrophe in a sentence) left a quote open and stalled the shell at a `>` prompt. Ctrl+C recovers it. Nothing runs after that point, so check what did run.
+- **Writing to the home folder was refused for the database dump**; `/tmp` worked. Keep a real copy off the server (still an open item).
+- **Prove the image before the restart:** `docker run --rm --entrypoint grep projects-dashboard:latest -c <new function name> /app/demo-gateway/pages.mjs` shows whether the build contains the new code, even if the build output hides the `CACHED` lines.
 
 **Tip for support:** if a customer says the dead-link page has no booking link, check, in order: the gateway was recreated after the last deploy, `DEMO_BOOKING_URL` is set in `deploy/.env`, and the value starts with `https://`.
 
