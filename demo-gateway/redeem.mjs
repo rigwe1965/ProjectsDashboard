@@ -35,7 +35,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, guideFor =
       // A GET never opens the demo or spends a use: mail scanners and chat link-previews fetch links automatically. The
       // customer sees the shared-demo notice and a button; their click is a POST, and only that counts.
       if (req.method === 'GET') {
-        if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.');
+        if (g.maxUses != null && g.uses >= g.maxUses) return page(res, 403, 'Link not available', 'This link has already been used the maximum number of times. Please contact us for a new one.' + bookingNote(o.bookingUrl));
         return landing(res, { productName: target.name, g, notice: target.perLink ? PRIVATE_NOTICE : SHARED_NOTICE, brand: o.brandName, bookingUrl: o.bookingUrl,
           guide: guideFor(g, slug, target) ? { messages: g.guideMessages } : null });
       }
@@ -52,8 +52,8 @@ export function createRedeemHandler({ o, store, instances, findGrant, guideFor =
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         audit(deniedRecord(g.id, slug, ip, ua, { why: use.why }));
         return page(res, 403, 'Link not available', use.why === 'device-locked'
-          ? 'This link is tied to the browser it was first opened in. Please contact us if you need a new one.'
-          : 'This link has already been used the maximum number of times. Please contact us for a new one.');
+          ? 'This link is tied to the browser it was first opened in. Please contact us if you need a new one.' + bookingNote(o.bookingUrl)
+          : 'This link has already been used the maximum number of times. Please contact us for a new one.' + bookingNote(o.bookingUrl));
       }
       metrics.inc('pd_gateway_redeem_total', { result: 'ok' });
       audit({ ev: EVENTS.enter, grant: g.id, app: slug, ip, ua });
