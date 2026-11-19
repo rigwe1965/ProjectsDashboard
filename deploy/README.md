@@ -121,7 +121,7 @@ curl -H "Authorization: Bearer $METRICS_TOKEN" https://x.demo.example.com/_pd/me
 Health checks: `/_pd/healthz` on the gateway and console (no login, no data). Metrics are hidden unless you set
 `METRICS_TOKEN`. Services stop cleanly on `docker stop` (about half a second).
 
-**Backups.** Everything that matters is in Postgres (demo links, sessions, audit log). The `db-backup` service takes a backup every day (`BACKUP_INTERVAL_HOURS`) into the `db_backups` volume and keeps the newest 14 (`BACKUP_KEEP`). They are `pg_dump -Fc` files: copy one out with `docker compose cp db-backup:/backups/<file> .` and restore it with `docker compose exec -T postgres pg_restore -U dashboard -d dashboard --clean --if-exists < <file>`. They live on the same machine as the database, so also copy them off the server now and then. A backup by hand, if you want one right now:
+**Backups.** Everything that matters is in Postgres (demo links, sessions, audit log). The `db-backup` service takes a backup every day (`BACKUP_INTERVAL_HOURS`) into the `db_backups` volume and keeps the newest 14 (`BACKUP_KEEP`). They are `pg_dump -Fc` files: copy one out with `docker compose cp db-backup:/backups/<file> .` and restore it with `docker compose exec -T postgres pg_restore -U dashboard -d dashboard --clean --if-exists < <file>`. They live on the same machine as the database, so also copy them off the server: run `deploy/pull-backups.ps1` from your own PC (PowerShell) about once a week. It copies the dumps, compares SHA-256 hashes, and only then removes its temporary copy on the server. A backup by hand, if you want one right now:
 ```bash
 docker compose exec postgres pg_dump -U dashboard dashboard | gzip > dashboard-$(date +%F).sql.gz
 ```
