@@ -21,7 +21,7 @@ import { logger } from '../lib/log.mjs';
 import { runSupervisor } from '../lib/run-supervisor.mjs';
 import { resetSweep } from './reset.mjs';
 import { createInstances } from './instances.mjs';
-import { makePages, deniedRecord, parseBookingUrl } from './pages.mjs';
+import { makePages, deniedRecord, parseBookingUrl, bookingNote } from './pages.mjs';
 import { oneLine } from '../lib/text.mjs';
 import { createRedeemHandler } from './redeem.mjs';
 import { createUpgradeHandler } from './websocket.mjs';
@@ -225,7 +225,7 @@ export async function createGateway(opts = {}) {
     if (!g) return tooManyMisses(ip) ? tooMany(res, 60) : page(res, 401, 'Demo access needed', 'Please open the personal demo link you were sent.');
     if (!isActive(g) || g.app !== slug) {
       await auditDenied(g.id + ':' + ip, deniedRecord(g.id, slug, ip, uaOf(req)));
-      return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.');
+      return page(res, 403, 'Demo ended', 'This demo has ended or is not available for your account.' + bookingNote(o.bookingUrl));
     }
 
     // 3. Proxy to the demo instance (never forward the gateway cookie)

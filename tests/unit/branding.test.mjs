@@ -15,7 +15,7 @@ writeFileSync(join(dir, 'registry.json'), JSON.stringify({ apps: [
 process.env.DASHBOARD_DATA = dir;
 process.env.DASHBOARD_REGISTRY = join(dir, 'registry.json');
 
-const { esc, timeLeft, parseBookingUrl, renderLanding } = await import('../../demo-gateway/pages.mjs');
+const { esc, timeLeft, parseBookingUrl, renderLanding, bookingNote } = await import('../../demo-gateway/pages.mjs');
 const { createGateway } = await import('../../demo-gateway/gateway.mjs');
 const grants = await import('../../demo-gateway/grants.mjs');
 const { oneLine, noteText } = await import('../../lib/text.mjs');
@@ -128,4 +128,25 @@ test('a bad DEMO_BOOKING_URL is ignored instead of being put on the page', async
     const r = await get(p, '/d/' + link.split('/d/')[1]);
     assert.equal(r.status, 200); assert.doesNotMatch(r.body, /javascript:|Book a call/);
   } finally { await bad.close(); }
+});
+
+test('bookingNote: a "book a call" sentence with the address escaped, or nothing at all without one', () => {
+  assert.equal(bookingNote(null), '');
+  assert.equal(bookingNote(''), '');
+  const note = bookingNote('https://cal.example.com/a?x=1&y="2"');
+  assert.match(note, /href="https:\/\/cal\.example\.com\/a\?x=1&amp;y=&quot;2&quot;" target="_blank" rel="noopener noreferrer">book a call<\/a>/);
+});
+
+test('an expired or revoked link offers the booking page when one is set, and nothing extra when it is not', async () => {
+  const { grant, link } = await grants.createGrant({ customer: 'Ended', app: 'toy' });
+  await grants.revokeGrant(grant.id);
+  const token = link.split('/d/')[1];
+  const withBooking = await get(port, '/d/' + token);
+  assert.equal(withBooking.status, 403);
+  assert.match(withBooking.body, /Link not valid/);
+  assert.match(withBooking.body, /href="https:\/\/cal\.example\.com\/igwe\/demo\?x=1" target="_blank" rel="noopener noreferrer">book a call<\/a>/);
+  const without = await get(plainPort, '/d/' + token);
+  assert.equal(without.status, 403);
+  assert.match(without.body, /Link not valid/);
+  assert.doesNotMatch(without.body, /book a call|cal\.example\.com/i, 'no booking address configured: the page is unchanged');
 });

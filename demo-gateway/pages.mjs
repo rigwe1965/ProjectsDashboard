@@ -30,6 +30,10 @@ export function parseBookingUrl(raw) {
   try { const u = new URL(text); return u.protocol === 'https:' && !u.username && !u.password ? u.href : null; } catch { return null; }
 }
 
+// The sentence added to the "link expired" and "demo ended" pages when a booking address is set, so a customer can ask for a new link
+// straight away. `bookingUrl` is the result of parseBookingUrl (or null): the empty string means those pages stay exactly as they were.
+export const bookingNote = (bookingUrl) => bookingUrl ? ` You can also <a href="${esc(bookingUrl)}" target="_blank" rel="noopener noreferrer">book a call</a>.` : '';
+
 // Everything the page shows, as one HTML string. productName: the product's name; g: the link (customer's own name for it is NOT shown, only
 // displayName); notice: the trusted notice HTML; brand: the owner's name (or ''); bookingUrl: from parseBookingUrl or null.
 export function renderLanding({ productName, g, notice, brand = '', bookingUrl = null, guide = null, now = Date.now() }) {
