@@ -150,3 +150,37 @@ test('an expired or revoked link offers the booking page when one is set, and no
   assert.match(without.body, /Link not valid/);
   assert.doesNotMatch(without.body, /book a call|cal\.example\.com/i, 'no booking address configured: the page is unchanged');
 });
+
+// The three refusal pages a customer can meet. Each one offers the booking page when one is set and is unchanged when it is not.
+const BOOK_LINK = /href="https:\/\/cal\.example\.com\/igwe\/demo\?x=1" target="_blank" rel="noopener noreferrer">book a call<\/a>/;
+const post = (p, path, headers = {}) => httpRequest({ port: p, host: `toy.localhost:${p}`, path, method: 'POST', headers });
+
+test('the "Demo ended" page: a session still open after its link is revoked gets 403 with the booking page, or the plain wording without one', async () => {
+  for (const [p, expectLink] of [[port, true], [plainPort, false]]) {
+    const { grant, link } = await grants.createGrant({ customer: 'Ended', app: 'toy' });
+    const opened = await post(p, '/d/' + link.split('/d/')[1]);
+    assert.equal(opened.status, 302);
+    const cookie = opened.headers['set-cookie'][0].split(';')[0];
+    await grants.revokeGrant(grant.id);
+    const r = await httpRequest({ port: p, host: `toy.localhost:${p}`, path: '/anything', headers: { cookie } });
+    assert.equal(r.status, 403);
+    assert.match(r.body, /Demo ended/);
+    assert.match(r.body, /This demo has ended or is not available for your account\./);
+    assert.equal(BOOK_LINK.test(r.body), expectLink);
+    if (!expectLink) assert.doesNotMatch(r.body, /book a call|cal\.example\.com/i);
+  }
+});
+
+test('the "Link not available" page: a link opened the most times it allows says so, with the booking page when one is set', async () => {
+  for (const [p, expectLink] of [[port, true], [plainPort, false]]) {
+    const { link } = await grants.createGrant({ customer: 'Used up', app: 'toy', maxUses: 1 });
+    const token = link.split('/d/')[1];
+    assert.equal((await post(p, '/d/' + token)).status, 302, 'the single use is spent');
+    const r = await get(p, '/d/' + token);
+    assert.equal(r.status, 403);
+    assert.match(r.body, /Link not available/);
+    assert.match(r.body, /already been used the maximum number of times/);
+    assert.equal(BOOK_LINK.test(r.body), expectLink);
+    if (!expectLink) assert.doesNotMatch(r.body, /book a call|cal\.example\.com/i);
+  }
+});
