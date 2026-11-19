@@ -39,3 +39,9 @@ test('the console health check names a host the console serves (it answers 403 t
   const sent = body.match(/"-H", "Host: ([^"]+)"/)?.[1];
   assert.ok(sent && hosts.split(/[,\s]/).includes(sent), `health check Host "${sent}" is not in ADMIN_ALLOWED_HOSTS (${hosts})`);
 });
+
+test('the gateway is given the optional DEMO_BOOKING_URL (and the console is not), so the "Book a call" link on the demo opening page can be switched on from deploy/.env', () => {
+  assert.match(service('gateway'), /DEMO_BOOKING_URL: \$\{DEMO_BOOKING_URL:-\}/);
+  assert.doesNotMatch(service('console'), /DEMO_BOOKING_URL/);
+  assert.match(readFileSync(new URL('../../deploy/.env.example', import.meta.url), 'utf8'), /^DEMO_BOOKING_URL=$/m, '.env.example documents it, empty by default');
+});

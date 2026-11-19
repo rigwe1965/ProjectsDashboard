@@ -108,6 +108,7 @@ services:
       GATEWAY_BIND: 172.30.0.4        # only the edge address below: a demo container on its own network cannot connect to the gateway
       GATEWAY_PORT: "4300"
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+      DEMO_BOOKING_URL: ${DEMO_BOOKING_URL:-}   # optional https address of your booking page: adds a "Book a call" link to the page a customer sees when opening a demo link
     volumes: ["../registry/apps.hosted.json:/app/registry/apps.hosted.json:ro", "gateway_data:/data"]
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://172.30.0.4:4300/_pd/healthz"]
