@@ -1344,7 +1344,7 @@ node licensing/cli.mjs inspect &lt;text or file&gt; --public-key &lt;key&gt; --u
 <h3 id="open-items-not-done-yet">Open items (not done yet)</h3>
 <ul>
 <li>A <strong><code>info@facyke.com</code></strong> mailbox must exist before the public contact email changes from the owner's address.</li>
-<li><strong>cal.com</strong> booking event rename from <code>/faiyke</code> to <code>/facyke</code>; then update <code>DEMO_BOOKING_URL</code>.</li>
+<li><strong>cal.com</strong> booking event: renamed to <code>/facyke-demo</code> on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set <code>DEMO_BOOKING_URL</code> to <code>https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo</code> in the production environment, then restart the gateway.</li>
 <li><strong>RECI payment and email settings</strong> (Stripe, Resend) are <strong>not set in the production site</strong>, so paying and email cannot work yet. The owner does this personally, after everything else; the Stripe webhook must point at the production domain.</li>
 <li><strong>RECI security audit (9 Oct 2026)</strong>: re-check its open findings before launch (pending bookings, clear-reset, paid vision call, corporate approvals, unbounded AI input).</li>
 <li><strong>RECI database</strong>: free Supabase plan, <strong>no automated backups</strong>; decide on a backup before real bookings arrive.</li>

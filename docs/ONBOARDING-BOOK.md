@@ -689,7 +689,7 @@ Be honest with yourself about what is *not* finished. This list reflects what is
 ### Open items (not done yet)
 
 - A **`info@facyke.com`** mailbox must exist before the public contact email changes from the owner's address.
-- **cal.com** booking event rename from `/faiyke` to `/facyke`; then update `DEMO_BOOKING_URL`.
+- **cal.com** booking event: renamed to `/facyke-demo` on 2026-11-19 (the showcase link is fixed in PR #67). Still to do: set `DEMO_BOOKING_URL` to `https://cal.com/romanus-ikechukwu-igwe-nvk1n5/facyke-demo` in the production environment, then restart the gateway.
 - **RECI payment and email settings** (Stripe, Resend) are **not set in the production site**, so paying and email cannot work yet. The owner does this personally, after everything else; the Stripe webhook must point at the production domain.
 - **RECI security audit (9 Oct 2026)**: re-check its open findings before launch (pending bookings, clear-reset, paid vision call, corporate approvals, unbounded AI input).
 - **RECI database**: free Supabase plan, **no automated backups**; decide on a backup before real bookings arrive.
