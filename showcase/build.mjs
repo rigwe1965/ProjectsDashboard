@@ -238,6 +238,8 @@ footer .legal a:first-child{border-left:0}
 footer .social{display:flex;flex-wrap:wrap;gap:4px 16px}
 footer .social a{text-decoration:none;line-height:1.1;font-weight:600}
 footer .social a:hover{color:var(--ink);text-decoration:underline}
+/* Phones: footer links are at least 24px tall to tap (WCAG 2.5.8), and the legal links wrap without a stray divider on a new line. */
+@media (max-width:640px){footer .social a,footer .legal a{display:inline-flex;align-items:center;min-height:24px}footer .social{gap:0 20px}footer .legal{margin-left:0}footer .legal a{border-left:0;padding:0 16px 0 0}}
 footer .legal a:hover{color:var(--ink);text-decoration:underline}
 .updated{margin:24px 0 0;color:var(--mute);font-size:13px}
 
