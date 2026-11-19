@@ -7,7 +7,7 @@ import { cookieOf as readCookie, limitKey } from '../lib/http-util.mjs';
 import { MINUTE } from '../lib/util.mjs';
 import { EVENTS } from '../lib/events.mjs';
 import { sha256, newSessionId, hashSessionId } from '../lib/auth.mjs';
-import { PRIVATE_NOTICE, SHARED_NOTICE, deniedRecord } from './pages.mjs';
+import { PRIVATE_NOTICE, SHARED_NOTICE, deniedRecord, bookingNote } from './pages.mjs';
 
 const DEV_RE = /^[a-f0-9]{32}$/;
 
@@ -27,7 +27,7 @@ export function createRedeemHandler({ o, store, instances, findGrant, guideFor =
         metrics.inc('pd_gateway_redeem_total', { result: 'denied' });
         // repeated bad links from one address (guessing, or a stale bookmark in a loop): stop answering for a while
         if ((await store.rateLimit.hit('redeem-fail:' + limitKey(ip), 10 * MINUTE, o.redeemFailLimit)) > o.redeemFailLimit) return tooMany(res, 600);
-        return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.');
+        return page(res, 403, 'Link not valid', 'This demo link has expired or is no longer active. Please contact us for a new one.' + bookingNote(o.bookingUrl));
       }
       const held = await holdReason(store, slug); // a reset is running, or the last one failed and the demo may still hold earlier data
       if (held) return page(res, 503, 'Demo is being prepared', 'This demo is being reset to a fresh state. Please try this link again in a few minutes.', { 'retry-after': held === 'failed' ? '300' : '60' });
