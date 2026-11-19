@@ -109,3 +109,19 @@ test('Terms of Use and Privacy Policy are built from legal.json: plain HTML with
   assert.doesNotMatch(read('index.html'), /<script/i);
   assert.match(readFileSync(fileURLToPath(new URL('../../deploy/Caddyfile', import.meta.url)), 'utf8'), /Content-Security-Policy "default-src 'none'; style-src/, 'the showcase policy loads nothing from other sites');
 });
+
+test('the footer links to the LinkedIn and GitHub profiles from every page, as plain https links that open in a new tab, with no scripts added', () => {
+  execFileSync(process.execPath, [fileURLToPath(new URL('../../showcase/build.mjs', import.meta.url))], { stdio: 'ignore' });
+  const dist = fileURLToPath(new URL('../../showcase/dist/', import.meta.url));
+  const site = JSON.parse(readFileSync(fileURLToPath(new URL('../../showcase/site.json', import.meta.url)), 'utf8'));
+  assert.ok(site.social.length >= 2, 'site.json lists the social profiles');
+  for (const page of ['index.html', 'security/index.html']) {
+    const html = readFileSync(dist + page, 'utf8');
+    const footer = html.slice(html.indexOf('<footer>'), html.indexOf('</footer>'));
+    for (const s of site.social) {
+      assert.ok(footer.includes(`href="${s.url}" target="_blank" rel="noopener noreferrer"`), `${page}: footer links to ${s.label}`);
+      assert.match(footer, new RegExp(`aria-label="[^"]*${s.label}[^"]*"`), `${page}: the ${s.label} link has an accessible name`);
+    }
+    assert.ok(!/<script/i.test(html), `${page}: still no scripts`);
+  }
+});
