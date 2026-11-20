@@ -105,6 +105,7 @@ footer{color:var(--muted);font-size:13px;text-align:center;margin-top:24px}
 <li><a href="#24-what-changed-on-18-november-2026">24. What changed on 18 November 2026</a></li>
 <li><a href="#25-the-facyke-server-how-it-was-set-up-and-how-to-troubleshoot-it">25. The facyke server: how it was set up, and how to troubleshoot it</a></li>
 <li><a href="#26-what-changed-on-19-november-2026">26. What changed on 19 November 2026</a></li>
+<li><a href="#27-what-changed-on-20-november-2026">27. What changed on 20 November 2026</a></li>
 </ol></li>
 <li><a class="part" href="#appendix-a-checklists">Appendices</a><ol>
 <li><a href="#appendix-a-checklists">Appendix A: Checklists</a></li>
@@ -2444,7 +2445,8 @@ docker compose --profile apps up -d &lt;service...&gt;
 </ul>
 <h3 id="hosting-hetzner">Hosting (Hetzner)</h3>
 <ul>
-<li><strong>19 Nov:</strong> three hardening and housekeeping changes went live (PRs #64 to #66, live commit <code>2a080d1</code>): dev-tool <code>npm audit fix</code>, no framing headers forwarded on WebSocket upgrades, and HSTS <code>includeSubDomains</code>. Later the same day PRs #67 to #72 (booking link, footer links) were deployed too: the live folder was at <code>e6f9b68</code>, and <code>gateway</code> and <code>caddy</code> were rebuilt and recreated, then <code>console</code> recreated (chapter 26).</li>
+<li><strong>19 Nov:</strong> three hardening and housekeeping changes went live (PRs #64 to #66, live commit <code>2a080d1</code>): dev-tool <code>npm audit fix</code>, no framing headers forwarded on WebSocket upgrades, and HSTS <code>includeSubDomains</code>. Later the same day PRs #67 to #72 (booking link, footer links) were deployed too: <code>gateway</code> and <code>caddy</code> were rebuilt and recreated, then <code>console</code> recreated (chapter 26). The live folder was later found to be still at <code>2a080d1</code>, because that build was made from the <code>/srv/apps</code> copy (chapter 27).</li>
+<li><strong>20 Nov:</strong> the showcase footer now links to the Facyke LinkedIn company page (PR #78, commit <code>a52ccba</code>). The live folder was brought from <code>2a080d1</code> to <code>a52ccba</code> and only <code>caddy</code> was rebuilt and recreated. The first nightly-backup pull to the owner's PC was done. Details and lessons in chapter 27.</li>
 <li><strong>18 Nov:</strong> the scaling pass went live (gateway, then console, one at a time; all post-deploy checks passed). Two temporary servers in a separate Hetzner project <code>facyke-staging</code> were used for the load test and then deleted (chapter 23). Production was not touched by the test.</li>
 <li>Everything stayed up on 17 Nov: after each rebuild the eight public hosts were checked (home 200, console 302, six demos 401 until a link is used). Rebuilds name only the changed service and tag a rollback image first. The live directory on the server follows <code>main</code> by fast-forward only.</li>
 </ul>
@@ -3389,7 +3391,7 @@ sudo journalctl -p err -n 50 --no-pager   # recent system errors
 </tr>
 </tbody>
 </table></div>
-<p><strong>Deployment state:</strong> All of PRs #64 to #72 are live. The live folder <code>/home/deploy/ProjectsDashboard</code> is at <code>e6f9b68</code> (PR #73, documentation only, is not needed on the server). The <code>gateway</code> and <code>caddy</code> images were rebuilt and the gateway, console and caddy recreated one at a time, with a database dump taken first (written to <code>/tmp</code>, then copied to the owner's PC in <code>D:\ProjectsDashboardBackups</code> and removed from the server). Checked from outside afterwards: home 200, console 302, six demos 401, LinkedIn and GitHub footer links present, HSTS header unchanged, and an invalid demo link shows "Link not valid" with the "book a call" link. Not checked: the "Link not available" and "Demo ended" pages on the live site (covered by the end-to-end tests), and the <code>docker compose ps</code> health output, which was not seen.</p>
+<p><strong>Deployment state:</strong> All of PRs #64 to #72 are live. The images were built on 19 Nov from the <code>/srv/apps</code> copy, which was at <code>1c9e2e9</code> (PR #73). The live folder <code>/home/deploy/ProjectsDashboard</code> was <strong>not</strong> advanced: on 20 Nov it was still at <code>2a080d1</code> (PR #66). An earlier version of this book said it was at <code>e6f9b68</code>; that was wrong and was found on 20 Nov (chapter 27). The <code>gateway</code> and <code>caddy</code> images were rebuilt and the gateway, console and caddy recreated one at a time, with a database dump taken first (written to <code>/tmp</code>, then copied to the owner's PC in <code>D:\ProjectsDashboardBackups</code> and removed from the server). Checked from outside afterwards: home 200, console 302, six demos 401, LinkedIn and GitHub footer links present, HSTS header unchanged, and an invalid demo link shows "Link not valid" with the "book a call" link. Not checked: the "Link not available" and "Demo ended" pages on the live site (covered by the end-to-end tests), and the <code>docker compose ps</code> health output, which was not seen.</p>
 <p><strong>How the footer links work.</strong> <code>showcase/site.json</code> has an optional <code>social</code> list of <code>{ "label", "url" }</code>. Only plain <code>https</code> addresses are used. They are ordinary links that open in a new tab, with no scripts, widgets or images, so the strict Content-Security-Policy does not change. To add or remove one, edit the list and rebuild the showcase.</p>
 <p><strong>How the booking link works.</strong> <code>DEMO_BOOKING_URL</code> (an <code>https</code> address, optional) is the one setting behind both the "Book a call" link on the landing page and the new sentence on the refusal pages. It must be in <code>deploy/.env</code> on the server; recreate the gateway after changing it. Empty means no link anywhere.</p>
 <p><strong>Lessons from this deploy (read before the next one):</strong></p>
@@ -3401,6 +3403,47 @@ sudo journalctl -p err -n 50 --no-pager   # recent system errors
 <li><strong>Prove the image before the restart:</strong> <code>docker run --rm --entrypoint grep projects-dashboard:latest -c &lt;new function name&gt; /app/demo-gateway/pages.mjs</code> shows whether the build contains the new code, even if the build output hides the <code>CACHED</code> lines.</li>
 </ul>
 <p><strong>Tip for support:</strong> if a customer says the dead-link page has no booking link, check, in order: the gateway was recreated after the last deploy, <code>DEMO_BOOKING_URL</code> is set in <code>deploy/.env</code>, and the value starts with <code>https://</code>.</p>
+</section>
+<section class="l2">
+<h2 id="27-what-changed-on-20-november-2026">27. What changed on 20 November 2026</h2>
+<div class="tablewrap"><table>
+<thead>
+<tr>
+<th>#</th>
+<th>Change</th>
+<th>PR</th>
+<th>Live effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>First pull of the nightly database dumps to the owner's PC with <code>deploy/pull-backups.ps1</code>: 9 dumps (13 to 20 Nov), every hash matched</td>
+<td>#76 (script), #77 (book)</td>
+<td>None on the server except its temporary copy being removed</td>
+</tr>
+<tr>
+<td>2</td>
+<td>The showcase footer links to the Facyke LinkedIn company page (<code>https://www.linkedin.com/company/facyke/</code>) in place of the founder's personal profile; GitHub unchanged</td>
+<td>#78</td>
+<td>Live on every showcase page after a caddy rebuild</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Not code:</strong> the founder's LinkedIn profile was rewritten from the draft (headline, About, Experience linked to the new page, Featured links, skills, contact info), and a Facyke company page was created (Page ID 147013948, public address <code>linkedin.com/company/facyke</code>). The personal profile address was deliberately left unchanged, because changing it breaks old links.</p>
+<p><strong>Deployment state:</strong> the live folder was fast-forwarded from <code>2a080d1</code> to <code>a52ccba</code> using a git bundle (no GitHub token on the server). Only <code>caddy</code> was rebuilt and recreated; <code>gateway</code>, <code>console</code> and the demos were not touched, and no database dump was needed because no data changed. Checked from outside afterwards: every showcase page footer (home, security, privacy, impressum, a product page) links to the company page, the served files are dated the day of the deploy, home 200, console 302, six demos 401, HSTS unchanged. Not checked: the demo-link refusal pages (the gateway was not changed) and the <code>docker compose</code> health of the other services.</p>
+<p><strong>Lessons from this deploy (read before the next one):</strong></p>
+<ul>
+<li><strong>Check the live folder's real commit before building a bundle.</strong> The bundle was first made from <code>e6f9b68</code>, copied from this book, but the live folder was at <code>2a080d1</code>. Run <code>git rev-parse --short HEAD</code> in <code>/home/deploy/ProjectsDashboard</code> first and base the bundle on what it prints. The checkable proof that the 19 Nov images came from the other copy: the live folder had no footer or booking commits, yet the live site had the footer.</li>
+<li><strong>The live folder and the build copy can disagree.</strong> <code>/srv/apps/ProjectsDashboard</code> was at <code>1c9e2e9</code> while the live folder was at <code>2a080d1</code>. After this deploy the live folder is at <code>a52ccba</code>. Build only from the live folder.</li>
+<li><strong>A leftover file in <code>/tmp</code> can look like yours.</strong> <code>/tmp/pd.bundle</code> on the server was a different bundle from 16 Nov, so a fetch failed with "couldn't find remote ref main". Use a dated file name, and check <code>ls -l</code> and <code>git bundle list-heads</code> on the server before fetching.</li>
+<li><strong>Prove the image before the restart.</strong> <code>docker run --rm --entrypoint grep projects-dashboard-caddy:latest -c company/facyke /srv/index.html</code> must print 1 before you recreate caddy.</li>
+<li><strong>Long commands break when pasted.</strong> A command copied from a chat or terminal can wrap onto two lines, and the shell then runs two broken commands. Put the logic in a small script, copy it with <code>scp</code>, and run <code>ssh &lt;server&gt; "bash /tmp/script.sh"</code>. A typo such as <code>sh</code> for <code>ssh</code> runs nothing, so look at the result of every line.</li>
+<li><strong>"Done" is not proof.</strong> The first report of a finished deploy was wrong: caddy was still 30 hours old and the footer unchanged. Check the live site from outside (footer link, file date) before recording a deploy.</li>
+<li><strong>PowerShell blocks scripts by default.</strong> For <code>deploy/pull-backups.ps1</code> run <code>Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass</code> first; it lasts for that window only. The ssh key must be loaded in that same user's ssh-agent.</li>
+<li><strong>Commits for GitHub must use the noreply address</strong> (<code>&lt;id&gt;+rigwe1965@users.noreply.github.com</code>), or the push is declined because of the email privacy setting.</li>
+</ul>
+<p><strong>Still open:</strong> repeat the backup pull weekly; <code>/home/deploy/dashboard-2026-11-18-0749.sql.gz</code> may still exist only on the server; the GitHub Actions quota block on private repositories lasts until 1 December (it did not block the two PRs of this day).</p>
 <hr />
 </section>
 <section class="l1">
