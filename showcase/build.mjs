@@ -27,9 +27,10 @@ const demoAttrs = bookingUrl ? ' target="_blank" rel="noopener noreferrer"' : ''
 const socialLinks = (Array.isArray(site.social) ? site.social : []).filter((s) => s && typeof s.label === 'string' && s.label.trim() && /^https:\/\/[^\s@]+$/.test(s.url || ''));
 const socialNav = socialLinks.length ? `<nav class="social" aria-label="Follow us">${socialLinks.map((s) => `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" aria-label="${esc(site.brand)} on ${esc(s.label)} (opens in a new tab)">${esc(s.label)}</a>`).join('')}</nav>` : '';
 const demoLink = () => (bookingUrl ? esc(bookingUrl) : '#contact');
-// "Email us" buttons scroll to the page's contact section, which shows the address with Gmail, Outlook and mail-app links (a bare mailto:
-// opens nothing for a visitor without a mail app). So "Request a demo" and "Book a demo call" open the booking page; "Email us" does not.
-const emailUs = '#contact';
+// "Email us" buttons open a Gmail compose window in a new tab (a bare mailto: opens nothing without a mail app, and a #contact jump does
+// nothing visible because the contact block sits right under the button). Outlook and mail-app links stay in the contact block.
+const emailUs = site.contactEmail ? `https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to=${encodeURIComponent(site.contactEmail)}&amp;su=${encodeURIComponent('Question from facyke.com')}` : '#contact';
+const emailUsAttrs = site.contactEmail ? ' target="_blank" rel="noopener noreferrer"' : '';
 
 // ---------------------------------------------------------------------------------------------------------------
 // Specimens: one line-art illustration per product, drawn in white so it sits on the product's colour.
@@ -322,7 +323,7 @@ writeFileSync(join(dist, 'index.html'), shell(`${site.brand}: ${site.tagline}`, 
 <section id="products" class="strip" aria-label="Products">${products.map((p) => `
 <a class="tab" style="--accent:${esc(p.accent)}" href="${p.id}/index.html"><div class="in"><h2>${esc(p.name)}</h2><p>${esc(p.summary)}</p><span class="more">See ${esc(p.name)} &rarr;</span></div>${specimen(p.id)}</a>`).join('')}
 </section>
-<section class="cta ink"><div><h2>Not sure which one fits?</h2><p>Tell us what your business does and we'll point you to the right product.</p></div><a class="btn light" href="${emailUs}">Email us</a></section>
+<section class="cta ink"><div><h2>Not sure which one fits?</h2><p>Tell us what your business does and we'll point you to the right product.</p></div><a class="btn light" href="${emailUs}"${emailUsAttrs}>Email us</a></section>
 ${contactBlock()}`, ''));
 
 for (const p of products) {
@@ -346,7 +347,7 @@ if (security) {
   writeFileSync(join(dist, 'security', 'index.html'), shell(`Security | ${site.brand}`, security.intro, '#2b4acb', `
 <header class="home"><h1>${esc(security.title)}</h1><p>${esc(security.intro)}</p></header>${sections}
 <section class="sec"><h2>${esc(security.notYet.title)}</h2><p class="lead">${esc(security.notYet.text)}</p></section>
-<section class="cta ink"><div><h2>${esc(security.report.title)}</h2><p>${esc(security.report.text)}</p></div><a class="btn light" href="${emailUs}">Email us</a></section>
+<section class="cta ink"><div><h2>${esc(security.report.title)}</h2><p>${esc(security.report.text)}</p></div><a class="btn light" href="${emailUs}"${emailUsAttrs}>Email us</a></section>
 <p class="updated">Last reviewed ${esc(security.updated)}.</p>
 ${contactBlock('../')}`, '../'));
 }
