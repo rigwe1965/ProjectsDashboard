@@ -58,7 +58,7 @@ test('the Security page is built from security.json: plain HTML with no scripts,
   assert.match(page, /<title>Security \| /); assert.match(page, /How we keep your demo safe/);
   assert.doesNotMatch(page, /<script|onclick=|javascript:/i);
   assert.match(page, /We have not had an independent penetration test/);
-  assert.match(page, /href="#contact">Email us/, 'the Email us button goes to the contact section, not to the booking page');
+  assert.match(page, /href="https:\/\/mail\.google\.com[^"]*"[^>]*>Email us/, 'the Email us button opens a Gmail compose window');
   assert.match(page, /Last reviewed \d{4}-\d\d-\d\d/);
   const sec = JSON.parse(readFileSync(fileURLToPath(new URL('../../showcase/security.json', import.meta.url)), 'utf8'));
   for (const i of sec.sections.flatMap((s) => s.items)) assert.ok(page.includes(i.label.replaceAll("'", '&#39;')), 'shown: ' + i.label);
